@@ -1,0 +1,131 @@
+{
+  "metadata": {
+    "contract_version": "N1/J1",
+    "hash": "SHA-256",
+    "encoding": "base64url without padding",
+    "text_encoding": "UTF-8",
+    "normalization": "Unicode NFC",
+    "canonical_input": "<version>\\0<NFC(profile)>\\0<NFC(identifier)>",
+    "generated_key_length": 46,
+    "maximum_identifier_length_after_normalization": 128
+  },
+  "valid": [
+    {
+      "id": "network_ascii",
+      "kind": "network",
+      "profile": "prod",
+      "identifier": "monthly_close",
+      "expected_key": "N1:dmj63FYc2G5JrhGrGQl6Ybua-wtKm-b9IezI1sWgxek"
+    },
+    {
+      "id": "job_ascii",
+      "kind": "job",
+      "profile": "prod",
+      "identifier": "aggregate_customer",
+      "expected_key": "J1:BPh6UeK1BpEVlehbicyW2dKpo_yupn7stSUZgrzfK9U"
+    },
+    {
+      "id": "network_japanese_nfc",
+      "kind": "network",
+      "profile": "本番",
+      "identifier": "月次締め",
+      "expected_key": "N1:QqIOXQyIVVVbDwZBoBOMQgUwbkVTfnh4PJ6SYKTyWy4"
+    },
+    {
+      "id": "network_nfc",
+      "pair": "nfc_normalization",
+      "kind": "network",
+      "profile": "café",
+      "identifier": "réseau",
+      "expected_key": "N1:Tezl5xgsAsctR7gkuQ2vdj5cH_uVTpM11T9WgYtiIrQ"
+    },
+    {
+      "id": "network_nfd",
+      "pair": "nfc_normalization",
+      "kind": "network",
+      "profile": "café",
+      "identifier": "réseau",
+      "expected_key": "N1:Tezl5xgsAsctR7gkuQ2vdj5cH_uVTpM11T9WgYtiIrQ"
+    },
+    {
+      "id": "network_case_upper",
+      "pair": "case_sensitive",
+      "kind": "network",
+      "profile": "Prod",
+      "identifier": "Monthly_Close",
+      "expected_key": "N1:bupnSn2F-Bs0uvaVTote0t0dSOPDZkk1U9lXJyCp3LA"
+    },
+    {
+      "id": "network_case_lower",
+      "pair": "case_sensitive",
+      "kind": "network",
+      "profile": "prod",
+      "identifier": "monthly_close",
+      "expected_key": "N1:dmj63FYc2G5JrhGrGQl6Ybua-wtKm-b9IezI1sWgxek"
+    },
+    {
+      "id": "network_boundary_128",
+      "kind": "network",
+      "profile": "p",
+      "identifier": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected_key": "N1:pwnCnXZStSvYwfElxXEveK1e8Ck07_RqSuq-EE8pn68"
+    },
+    {
+      "id": "job_japanese_nfc",
+      "kind": "job",
+      "profile": "本番",
+      "identifier": "顧客集計",
+      "expected_key": "J1:QOckKqjjGZ99mMTSja3BFPBfWnmm3H6E0WJ-ai5ybPk"
+    }
+  ],
+  "rejected": [
+    {
+      "id": "empty_profile",
+      "kind": "network",
+      "profile": "",
+      "identifier": "network",
+      "expected_component": "profile",
+      "expected_error_code": "LOCK_KEY_IDENTIFIER_EMPTY"
+    },
+    {
+      "id": "colon_in_identifier",
+      "kind": "network",
+      "profile": "prod",
+      "identifier": "monthly:close",
+      "expected_component": "networkId",
+      "expected_error_code": "LOCK_KEY_IDENTIFIER_SEPARATOR"
+    },
+    {
+      "id": "reserved_profile",
+      "kind": "job",
+      "profile": "__net__",
+      "identifier": "aggregate_customer",
+      "expected_component": "profile",
+      "expected_error_code": "LOCK_KEY_IDENTIFIER_RESERVED"
+    },
+    {
+      "id": "reserved_identifier",
+      "kind": "network",
+      "profile": "prod",
+      "identifier": "__net__",
+      "expected_component": "networkId",
+      "expected_error_code": "LOCK_KEY_IDENTIFIER_RESERVED"
+    },
+    {
+      "id": "nul_in_identifier",
+      "kind": "job",
+      "profile": "prod",
+      "identifier": "aggregate\u0000customer",
+      "expected_component": "jobId",
+      "expected_error_code": "LOCK_KEY_IDENTIFIER_NUL"
+    },
+    {
+      "id": "boundary_129",
+      "kind": "network",
+      "profile": "prod",
+      "identifier": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected_component": "networkId",
+      "expected_error_code": "LOCK_KEY_IDENTIFIER_TOO_LONG"
+    }
+  ]
+}
