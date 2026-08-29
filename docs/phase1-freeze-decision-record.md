@@ -56,7 +56,7 @@
 | D-26 | `PROPOSED` | force-unlock所有境界 | Job lockはkSQL-Flowが回復し、FlowNetは直接変更せず停止確認と結果を監査する |
 | D-27 | `DECIDED` | 旧run-all移行 | `batch_id`を`run_id`へ変換せず、必要時だけ`legacy_batch_id`付き監査参照として取り込む |
 | D-28 | `DECIDED` | read-only CLI | `validate`、`plan`、`status`を外部状態を変更しないControl Planeコマンドとして提供する |
-| D-29 | `PROPOSED` | Network lock recovery | FlowNet所有のrenewable leaseとし、heartbeat、lease token、停止確認、監査付き`force-unlock-network`を定義 |
+| D-29 | `DECIDED` | Network lock recovery | FlowNet所有のrenewable leaseとし、heartbeat、lease token、停止確認、監査付き`force-unlock-network`を定義 |
 | D-30 | `DECIDED` | 外部ジョブスケジューラ境界 | 外部は論理予定日時による起動、FlowNetはensure-runとDAG順序を担当し、Phase 1ではcron機能を内蔵しない |
 
 ---
@@ -156,6 +156,78 @@ Spike Aでこの方式を実装し、正常解放、revision競合、応答消�
 2. 必須キーを維持する場合は、現在キーを退避フィールドへ保存し、一意キーフィールドを衝突しないユニークtombstoneへ書き換え、`RELEASED` statusと解放時刻をrevision付き単一UPDATEで確定する。
 
 修正後のSpike Aでは2のtombstone方式でNEW、中間失敗、resume、reconciliation、revision競合、監査到達不能の各対象lockを解放できた。この追記は前回方針の撤回・置換ではなく、「クリア」が成立するschema条件を実測で精緻化する補正である。D-29のrenewable lease、heartbeat、drain、旧owner停止確認、強制回収契約は変更せず、残りの障害注入が未完了のため`PROPOSED`を維持する。
+
+2026-08-29、選択肢(a)の承認に基づき、D-29の実測記録と限定条件を次のとおり追記する。
+
+#### 実行コマンド
+
+results JSONは実行コマンド文字列を保持していないため、以下はREADMEに記載された再実行形式である。force-unlockの停止証拠参照は、実行事実として確認できる`spike://f/...`までを記し、秘密値やデータソースにない値を補完しない。
+
+```powershell
+node --env-file=.env spikes/f-network-lock-recovery/scripts/lease-lifecycle.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/stale-detection.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/lease-token-fencing.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/drain-mode.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/force-unlock-network.mjs --stop-evidence-ref "spike://f/..." --reason "<記録済み理由>" --service-principal "<認証主体>" --confirmed-by "<確認者>"
+```
+
+force-unlockの初回実行は`--stop-evidence-ref`欠落により「停止証拠必須」エラーで拒否され、fail-closedを実機確認した。2回目は停止証拠参照`spike://f/...`を渡して合格した。初回拒否はresults JSONを生成せず、API処理へ進んでいない。停止証拠の内容をadapterが実照会した結果ではない。
+
+#### 環境・回数
+
+- 実施日: 2026-08-29（JST）
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- results: 2026-08-29T14:34〜14:36 UTCに記録された5件、すべて`passed: true`
+- 反復: lease lifecycle 1回、stale detection 1回、fencing 1回、drain 2分岐、force-unlock 3 case。加えてforce-unlockのCLI事前拒否1回。
+- 設定: lease 6秒 / heartbeat 2秒。比率規則を維持した縮小値であり、実運用値ではない。
+
+#### シナリオ別結果
+
+| シナリオ | 数値・分岐 | 結果 | 出典 |
+| --- | --- | --- | --- |
+| lease / heartbeat / 長時間Run代替 | 疑似subprocess `5276.8794 ms`、heartbeat 2回、間隔`2005.7992 ms` / `2734.3747 ms` | subprocess中もrenewを継続し、exit 0、tombstone解放成功 | `2026-08-29T14-34-16.545Z-lease-lifecycle.json` |
+| heartbeat API容量 | heartbeat範囲4 calls、`0.7580237668497788 calls/s`（表示値0.758 calls/秒）、実行全体6 calls | `control_plane_api_calls`として分離計測 | 同上 |
+| kill / stale | heartbeat age `26800 ms`、observer GET 1、lock write 0 | stale候補化するが、停止未確認では回収しないfail-closed | `2026-08-29T14-34-27.123Z-stale-detection.json` |
+| fencing二重防御 | シナリオ全体7 calls | 再GETで`LEASE_TOKEN_MISMATCH`、旧revision PUTで409 / `GAIA_CO02`。旧ownerのState更新・次Node起動を拒否 | `2026-08-29T14-34-29.738Z-lease-token-fencing.json` |
+| drain回復 | 注入2回、12 calls、State write 1、新規Node 0 | 結果保存後`RECOVERED_AND_CANCELLED` | `2026-08-29T14-34-43.894Z-drain-mode.json`（`recovered`） |
+| drain未回復 | 注入3回、10 calls、State write 0、新規Node 0 | 結果を書かず材料保持、`RECONCILIATION` | 同上（`unrecovered`） |
+| force-unlock契約 | owner不一致 / revision不一致 / 応答消失の3 case、全体11 calls、監査1 call | 不一致は解放・監査なし。応答消失は再GETで`RELEASE_CONFIRMED`時だけtombstone解放し、監査1件、回収後revision 2 | `2026-08-29T14-36-07.558Z-force-unlock-network.json` |
+| 停止証拠必須 | CLI事前拒否1回 + 証拠参照付き合格1回 | 欠落時は「停止証拠必須」でAPI処理前に拒否。`spike://f/...`付きだけ合格 | 補足実行事実、および上記force-unlock結果 |
+
+5件すべてで通常解放の`unique-tombstone-update`が成功した。これは必須・重複禁止キーを空文字にせず、衝突しないtombstoneへrevision付き単一UPDATEする方式の動作記録である。
+
+参照results:
+
+- `spikes/f-network-lock-recovery/results/2026-08-29T14-34-16.545Z-lease-lifecycle.json`
+- `spikes/f-network-lock-recovery/results/2026-08-29T14-34-27.123Z-stale-detection.json`
+- `spikes/f-network-lock-recovery/results/2026-08-29T14-34-29.738Z-lease-token-fencing.json`
+- `spikes/f-network-lock-recovery/results/2026-08-29T14-34-43.894Z-drain-mode.json`
+- `spikes/f-network-lock-recovery/results/2026-08-29T14-36-07.558Z-force-unlock-network.json`
+
+#### 残余リスクと限定条件
+
+1. lease duration、heartbeat interval、連続失敗閾値の実運用値を、API予算とRun時間分布から決定する。
+2. Cloud Run停止確認adapterの判定表はモックunit testで固定済みだが、実GCP Execution照会は未実施である。
+3. 複数ホストでの旧owner停止確認と回収は未実施である。
+4. 実運用スケール値による長時間Runは未実施である。今回の「正常な長時間Run」は5.2768794秒の疑似subprocessによる縮小値代替である。
+5. 実subprocessでのdrainは未実施である。今回の到達不能はfetchラッパー注入であり、kintone実障害ではない。
+6. schema v2で`acquired_at`、`owner_instance_id`、`NETWORK_LOCK_FORCE_RELEASED`等の監査event codeを含む専用フィールドを固定する必要がある。今回は既存schemaの代替フィールドを使用した。
+7. lease token照合と別レコードのState更新間にはTOCTOU窓が残る。
+8. 回収後のNode Attempt照合と、未確定時の`UNKNOWN`化は未実施である。
+
+#### 凍結ゲートD-29との対応
+
+現行ゲートは「正常な長時間RunでNetwork leaseを維持し、heartbeat障害時はdrainし、FlowNetプロセスkill後はruntime停止確認と監査を伴って安全に回収できる」である。
+
+| ゲート文言 | 実測との対応 | 判定上の限定 |
+| --- | --- | --- |
+| 正常な長時間RunでNetwork leaseを維持 | 疑似subprocess 5.2768794秒中にheartbeat 2回を継続 | lease 6秒 / heartbeat 2秒の縮小値代替。実運用スケール長時間Runではない。 |
+| heartbeat障害時はdrain | 回復／未回復の両分岐で`LEASE_UNCERTAIN`、新規Node 0。保存可否も仕様どおり分岐 | fetchラッパー注入であり実subprocess・kintone実障害ではない。 |
+| FlowNetプロセスkill後 | kill simulationでheartbeat age 26.8秒、stale候補化、停止未確認なら回収拒否 | 実process kill、複数ホストは未実施。 |
+| runtime停止確認 | 停止証拠参照欠落をCLIで拒否し、参照付きだけforce-unlockを許可 | 参照内容の同一ホストPID / Cloud Run実照会は未実施。 |
+| 監査を伴って安全に回収 | expected値不一致をfail-closed、応答消失後の再GET確定時だけtombstone解放・監査1件 | 回収後Attempt照合・`UNKNOWN`化は未実施。 |
+
+「正常な長時間Run」は、lease 6秒 / heartbeat 2秒の縮小値と5.2768794秒の疑似subprocessによる実測で代替した。この限定を受容し、実運用値の決定、実Cloud Run照会、複数ホスト、実運用スケールの長時間Run、実subprocess drain、schema v2専用フィールド、回収後Attempt照合を後続管理する条件で、プロトコル全測定分岐の成立をもってD-29を`DECIDED`とする。D-14は未実施のままであり、本判断では変更しない。Supersededはない。
 
 ### D-30: 外部ジョブスケジューラとの責務境界
 
@@ -830,7 +902,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [ ] D-26: kSQL-Flowのforce-unlock回復契約、旧保持者停止確認、FlowNet監査、応答消失時のfail-closed試験に合格
 - [ ] D-27: 旧`batch_id`が`run_id`へ変換されず、監査参照からresumeできないことを確認
 - [ ] D-28: `validate`／`plan`／`status`が外部状態を変更せず、`status`が復旧に必要な識別子を返すことを確認
-- [ ] D-29: 正常な長時間RunでNetwork leaseを維持し、heartbeat障害時はdrainし、FlowNetプロセスkill後はruntime停止確認と監査を伴って安全に回収できる
+- [x] D-29: 正常な長時間RunでNetwork leaseを維持し、heartbeat障害時はdrainし、FlowNetプロセスkill後はruntime停止確認と監査を伴って安全に回収できる (2026-08-29縮小値実測でプロトコル全分岐成立。実運用値・実Cloud Run等は限定条件、詳細はD-29節)
 - [ ] 現行status移行fixtureの全ケースに合格 (2026-08-29変換試作はD-06 fixture全14ケースに合格し、原因情報が欠落・矛盾する4ケースと未知status 1ケースのfail-closedを確認。本実装（M7）で全件実行後に閉じる)
 - [ ] ensure-runの0件／未完了1件／完了1件／複数件試験に合格
 - [ ] snapshot破損・取得不能時のfail-closed試験に合格
