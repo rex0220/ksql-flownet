@@ -40,6 +40,34 @@
 8. payloadからtoken、Authorization header、顧客値を除去し、API回数とpayload集計の算定方法を添える。
 9. `decision-template.md`へ測定行IDを根拠としてD-08の判断候補を記入する。
 
+## スクリプトによる実行
+
+リポジトリ直下で、次の順に実行する。各スクリプトは1アプリ案、2アプリ案の順に同一データと同一操作列を適用し、両案を1つの結果JSONへ並記する。Node.jsの`--env-file`で`.env`を読むが、同名のOS環境変数が設定されている場合はそちらが優先される。
+
+```powershell
+node --env-file=.env spikes/a-app-layout/scripts/scenario-new-success.mjs
+node --env-file=.env spikes/a-app-layout/scripts/scenario-mid-failure.mjs
+node --env-file=.env spikes/a-app-layout/scripts/scenario-resume.mjs
+node --env-file=.env spikes/a-app-layout/scripts/scenario-reconciliation.mjs
+node --env-file=.env spikes/a-app-layout/scripts/scenario-state-revision-conflict.mjs
+node --env-file=.env spikes/a-app-layout/scripts/scenario-audit-unreachable.mjs
+```
+
+結果は`spikes/a-app-layout/results/<UTC日時>-<スクリプト名>.json`へ保存される。各layoutにはAPI呼出数、request/response payload byte合計とcall別内訳、所要時間、操作順、D-08向けfinding、清掃結果が入る。監査到達不能シナリオは2アプリ案だけが対象で、fetch wrapperによる障害注入でありkintone実挙動ではないことも結果へ明記される。
+
+`measurements.md`への転記対応は次のとおり。
+
+| 実行スクリプト                         | 測定行     |
+| -------------------------------------- | ---------- |
+| `scenario-new-success.mjs`             | A-01、A-12 |
+| `scenario-mid-failure.mjs`             | A-02、A-12 |
+| `scenario-resume.mjs`                  | A-03、A-12 |
+| `scenario-reconciliation.mjs`          | A-04       |
+| `scenario-state-revision-conflict.mjs` | A-05       |
+| `scenario-audit-unreachable.mjs`       | A-06       |
+
+通常のNetwork lock解放はrevision付きUPDATEによる一意キークリア方式であり、DELETEは使わない。スクリプト終了時のDELETEは作成レコードを片付けるテスト清掃専用である。失敗時は警告と残置IDが結果JSONおよび標準エラーへ出るため、対象のスパイクアプリで手動清掃する。
+
 ## 中止条件
 
 - 秘密情報または実顧客データがpayload・ログへ出力された。

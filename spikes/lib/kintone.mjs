@@ -16,6 +16,7 @@ export function createKintoneClient(
     throw new Error("Node.js組込みfetchが利用できません。");
   }
   let apiCalls = 0;
+  const payloadMeasurements = [];
 
   async function request(
     path,
@@ -31,19 +32,50 @@ export function createKintoneClient(
     if (body !== undefined && !(body instanceof FormData)) {
       headers["Content-Type"] = "application/json";
     }
-    const response = await fetchImplementation(url, {
+    const requestBody =
+      body === undefined
+        ? undefined
+        : body instanceof FormData
+          ? body
+          : JSON.stringify(body);
+    const measurement = {
+      call: apiCalls,
       method,
-      headers,
-      body:
-        body === undefined
-          ? undefined
-          : body instanceof FormData
-            ? body
-            : JSON.stringify(body),
-    });
-    if (raw && response.ok) return response;
+      path: url.pathname,
+      requestBytes:
+        typeof requestBody === "string"
+          ? Buffer.byteLength(requestBody, "utf8")
+          : requestBody === undefined
+            ? 0
+            : null,
+      responseBytes: 0,
+      status: null,
+      ok: false,
+    };
+    payloadMeasurements.push(measurement);
+    let response;
+    try {
+      response = await fetchImplementation(url, {
+        method,
+        headers,
+        body: requestBody,
+      });
+    } catch (error) {
+      measurement.error = error?.message ?? String(error);
+      throw error;
+    }
+    measurement.status = response.status;
+    measurement.ok = response.ok;
+    if (raw && response.ok) {
+      measurement.responseBytes = (
+        await response.clone().arrayBuffer()
+      ).byteLength;
+      return response;
+    }
 
-    const responseBody = await readResponseBody(response);
+    const { value: responseBody, bytes: responseBytes } =
+      await readResponseBody(response);
+    measurement.responseBytes = responseBytes;
     if (!response.ok) {
       throw new KintoneError(
         `kintone API ${method} ${url.pathname} が HTTP ${response.status} を返しました。`,
@@ -64,19 +96,38 @@ export function createKintoneClient(
     },
     resetApiCalls() {
       apiCalls = 0;
+      payloadMeasurements.length = 0;
+    },
+    get payloadMeasurements() {
+      return payloadMeasurements.map((entry) => ({ ...entry }));
+    },
+    get payloadTotals() {
+      return payloadMeasurements.reduce(
+        (totals, entry) => ({
+          requestBytes: totals.requestBytes + (entry.requestBytes ?? 0),
+          responseBytes: totals.responseBytes + entry.responseBytes,
+          unmeasuredRequestBodies:
+            totals.unmeasuredRequestBodies +
+            (entry.requestBytes === null ? 1 : 0),
+        }),
+        { requestBytes: 0, responseBytes: 0, unmeasuredRequestBodies: 0 },
+      );
     },
   };
 }
 
 async function readResponseBody(response) {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const text = Buffer.from(bytes).toString("utf8");
   const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) return response.json();
-  const text = await response.text();
-  if (!text) return null;
+  if (!text) return { value: null, bytes: bytes.byteLength };
+  if (contentType.includes("application/json")) {
+    return { value: JSON.parse(text), bytes: bytes.byteLength };
+  }
   try {
-    return JSON.parse(text);
+    return { value: JSON.parse(text), bytes: bytes.byteLength };
   } catch {
-    return { message: text };
+    return { value: { message: text }, bytes: bytes.byteLength };
   }
 }
 
@@ -110,6 +161,7 @@ export async function insertRecord(client, app, record) {
 }
 
 export async function updateRecord(client, app, id, revision, record) {
+  validateUniqueKeyFields(record);
   return client.request("record", {
     method: "PUT",
     body: { app, id, revision, record },
