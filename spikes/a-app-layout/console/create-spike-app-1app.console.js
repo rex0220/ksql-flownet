@@ -5,7 +5,7 @@
  *   1. kintone にアプリ作成・管理権限のあるアカウントでログインする
  *   2. 作成先スペースのポータル（/k/#/space/<spaceId>）を開く
  *   3. ブラウザの開発者ツール → Console にこのファイルの内容を丸ごと貼り付けて実行する
- *   4. フィールド追加後の確認ダイアログで内容を確認し、OK を押してデプロイする
+ *   4. フィールド・レイアウト・一覧設定後の確認ダイアログで内容を確認し、OK を押してデプロイする
  *
  * 安全性:
  *   - 同名アプリが存在する場合は、既存アプリを変更せずに中止する
@@ -167,6 +167,275 @@
     ].map((field) => [field.code, field]),
   );
 
+  function section(label, rows) {
+    return { label, rows };
+  }
+
+  const LAYOUT_SECTIONS = [
+    section("Common", [["record_key", "record_type"]]),
+    section("Network Run", [
+      ["run_id", "network_id", "business_key"],
+      ["max_active_runs", "status", "lifecycle_status"],
+      ["resume_allowed", "as_of", "definition_schema_version"],
+      ["definition_sha256", "source_bundle_sha256"],
+      ["source_bundle_attachment"],
+      ["resolved_profile_snapshot"],
+      ["resolved_profile_sha256"],
+      ["ksql_flow_version", "engine_version", "dialect"],
+      ["created_at", "started_at", "finished_at"],
+      ["updated_at"],
+    ]),
+    section("Run Invocation", [
+      ["invocation_id", "mode"],
+      ["requested_by", "host", "result_code"],
+      ["selected_node_ids"],
+      ["preserved_node_ids"],
+      ["blocked_node_ids"],
+      ["reason"],
+    ]),
+    section("Node State", [
+      ["node_state_id", "node_state_key"],
+      ["node_id", "job_id"],
+      ["latest_attempt_no", "active_attempt_id", "revision"],
+      ["idempotent", "trigger_rule"],
+      ["blocked_by"],
+      ["status_reason"],
+    ]),
+    section("Node Attempt", [
+      ["node_attempt_id", "attempt_key", "attempt_no"],
+      ["execution_started_at", "runner_execution_started_at"],
+      ["execution_id", "duration_sec"],
+      ["error_message"],
+      ["read_count", "written_count", "last_successful_chunk_no"],
+      ["last_written_key"],
+    ]),
+    section("Attempt Resolution", [
+      ["event_type", "attempt_id", "resolved_outcome"],
+      ["evidence_ref", "service_principal"],
+      ["approved_by", "resolved_at"],
+    ]),
+    section("Network Lock", [
+      ["lock_key", "profile"],
+      ["owner_invocation_id", "lease_token"],
+      ["lease_expires_at", "heartbeat_at"],
+    ]),
+    // Operation Audit 固有フィールドはない。共有フィールドは最初に該当する上記セクションへ置く。
+    section("Operation Audit", []),
+  ];
+
+  function createLayout(currentLayout) {
+    const layout = [];
+    LAYOUT_SECTIONS.forEach(({ label, rows }, sectionIndex) => {
+      if (sectionIndex > 0) {
+        layout.push({
+          type: "ROW",
+          fields: [{ type: "HR", elementId: `hr_${sectionIndex}` }],
+        });
+      }
+      layout.push({
+        type: "ROW",
+        fields: [
+          {
+            type: "LABEL",
+            label: `■ ${label}`,
+            elementId: `label_${sectionIndex}`,
+          },
+        ],
+      });
+      for (const codes of rows) {
+        layout.push({
+          type: "ROW",
+          fields: codes.map((code) => ({ type: FIELDS[code].type, code })),
+        });
+      }
+    });
+    // 実行時に要確認: 自動生成フィールドのコードと並びはpreviewレイアウトの応答を正とする。
+    // レイアウト更新APIはフォーム上の全フィールドを要求するため、設計対象外の行も保持する。
+    const systemRows = currentLayout
+      .filter((row) => row.type === "ROW")
+      .map((row) => ({
+        type: "ROW",
+        fields: row.fields.filter(
+          (field) => field.code && !Object.hasOwn(FIELDS, field.code),
+        ),
+      }))
+      .filter((row) => row.fields.length > 0);
+    if (systemRows.length > 0) {
+      const sectionIndex = LAYOUT_SECTIONS.length;
+      layout.push(
+        {
+          type: "ROW",
+          fields: [{ type: "HR", elementId: `hr_${sectionIndex}` }],
+        },
+        {
+          type: "ROW",
+          fields: [
+            {
+              type: "LABEL",
+              label: "■ System",
+              elementId: `label_${sectionIndex}`,
+            },
+          ],
+        },
+        ...systemRows,
+      );
+    }
+    return layout;
+  }
+
+  function listView(name, recordType, fields, sort, index) {
+    return {
+      name,
+      type: "LIST",
+      fields,
+      filterCond: recordType ? `record_type in ("${recordType}")` : "",
+      sort,
+      index: String(index),
+    };
+  }
+
+  const VIEWS = [
+    listView(
+      "Network Run",
+      "NETWORK_RUN",
+      [
+        "record_key",
+        "run_id",
+        "network_id",
+        "business_key",
+        "status",
+        "lifecycle_status",
+        "resume_allowed",
+        "max_active_runs",
+        "started_at",
+        "finished_at",
+        "updated_at",
+      ],
+      "updated_at desc",
+      0,
+    ),
+    listView(
+      "Run Invocation",
+      "RUN_INVOCATION",
+      [
+        "record_key",
+        "run_id",
+        "invocation_id",
+        "mode",
+        "status",
+        "result_code",
+        "requested_by",
+        "host",
+        "started_at",
+        "finished_at",
+      ],
+      "started_at desc",
+      1,
+    ),
+    listView(
+      "Node State",
+      "NODE_STATE",
+      [
+        "record_key",
+        "run_id",
+        "node_state_key",
+        "node_id",
+        "job_id",
+        "status",
+        "latest_attempt_no",
+        "active_attempt_id",
+        "revision",
+        "updated_at",
+      ],
+      "updated_at desc",
+      2,
+    ),
+    listView(
+      "Node Attempt",
+      "NODE_ATTEMPT",
+      [
+        "record_key",
+        "run_id",
+        "node_attempt_id",
+        "attempt_key",
+        "node_id",
+        "job_id",
+        "attempt_no",
+        "status",
+        "result_code",
+        "runner_execution_started_at",
+        "finished_at",
+        "duration_sec",
+      ],
+      "runner_execution_started_at desc",
+      3,
+    ),
+    listView(
+      "Attempt Resolution",
+      "ATTEMPT_RESOLUTION",
+      [
+        "record_key",
+        "attempt_id",
+        "resolved_outcome",
+        "event_type",
+        "evidence_ref",
+        "service_principal",
+        "requested_by",
+        "approved_by",
+        "resolved_at",
+      ],
+      "resolved_at desc",
+      4,
+    ),
+    listView(
+      "Network Lock",
+      "NETWORK_LOCK",
+      [
+        "record_key",
+        "network_id",
+        "lock_key",
+        "profile",
+        "owner_invocation_id",
+        "status",
+        "lease_expires_at",
+        "heartbeat_at",
+        "revision",
+      ],
+      "lease_expires_at desc",
+      5,
+    ),
+    listView(
+      "Operation Audit",
+      "OPERATION_AUDIT",
+      [
+        "record_key",
+        "event_type",
+        "reason",
+        "evidence_ref",
+        "service_principal",
+        "requested_by",
+        "resolved_at",
+      ],
+      "resolved_at desc",
+      6,
+    ),
+    listView(
+      "全レコード",
+      null,
+      [
+        "record_key",
+        "record_type",
+        "run_id",
+        "updated_at",
+        "started_at",
+        "resolved_at",
+        "lease_expires_at",
+      ],
+      "record_key desc",
+      7,
+    ),
+  ];
+
   function detectSpaceId() {
     const match = location.href.match(
       /\/k\/(?:guest\/\d+\/)?#\/space\/(\d+)(?:\/|$|\?)/,
@@ -270,11 +539,40 @@
     console.log(
       `全${Object.keys(FIELDS).length}フィールドを追加 (revision ${fieldResponse.revision})`,
     );
+
+    step = `レイアウト設定: ${APP_NAME}`;
+    const currentLayoutResponse = await api("/preview/app/form/layout", "GET", {
+      app: createdApp,
+    });
+    if (!Array.isArray(currentLayoutResponse.layout)) {
+      throw new Error("previewレイアウトの応答にlayout配列がありません。");
+    }
+    const layout = createLayout(currentLayoutResponse.layout);
+    const layoutResponse = await api("/preview/app/form/layout", "PUT", {
+      app: createdApp,
+      layout,
+    });
+    console.log(
+      `フォームレイアウトを設定 (revision ${layoutResponse.revision})`,
+    );
+
+    step = `一覧設定: ${APP_NAME}`;
+    const viewsResponse = await api("/preview/app/views", "PUT", {
+      app: createdApp,
+      views: Object.fromEntries(VIEWS.map((view) => [view.name, view])),
+    });
+    console.log(
+      `全${VIEWS.length}一覧を設定 (revision ${viewsResponse.revision})`,
+    );
     console.table([
       {
         アプリID: createdApp,
         アプリ名: APP_NAME,
         フィールド数: Object.keys(FIELDS).length,
+        レイアウトセクション数: layout.filter(
+          (row) => row.fields[0]?.type === "LABEL",
+        ).length,
+        一覧数: VIEWS.length,
       },
     ]);
 

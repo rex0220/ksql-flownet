@@ -128,7 +128,59 @@ FDR D-08の第一候補を検証するため、次の2アプリを新設して�
 | service_principal | Service Principal   | 文字列（1行）  | 条件付き | No       | 認証環境から取得                                      |
 | requested_by      | Requested By        | 文字列（1行）  | 条件付き | No       | 自由記述の自己申告だけで確定しない                    |
 | approved_by       | Approved By         | 文字列（1行）  | 条件付き | No       | 非冪等SUCCESS解決では別主体を必須化                   |
-| resolved_at       | Resolved At         | 日時           | 条件付き | No       | UTC                                                   |
+| resolved_at       | Resolved At         | 日時           | 条件付き | No       | UTC。Operation Auditでは監査eventの主要時刻にも使う   |
+
+## フォームレイアウト
+
+`PUT /k/v1/preview/app/form/layout.json`で、各アプリの全フィールドを次の順に配置する。各セクションは`LABEL`（表示は`■ <セクション名>`）で開始し、直前のセクションとの間に`HR`を1行置く。表の「行」欄は上から順に配置し、`,`区切りのフィールドは同じ`ROW`へまとめる。`Common`を先頭とする。
+
+### FlowNet 実行管理 Spike
+
+| セクション   | 行（上から順）                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Common       | `record_key, record_type`                                                                                                                                                                                                                                                                                                                                                               |
+| Network Run  | `run_id, network_id, business_key`<br>`max_active_runs, status, lifecycle_status`<br>`resume_allowed, as_of, definition_schema_version`<br>`definition_sha256, source_bundle_sha256`<br>`source_bundle_attachment`<br>`resolved_profile_snapshot`<br>`resolved_profile_sha256`<br>`ksql_flow_version, engine_version, dialect`<br>`created_at, started_at, finished_at`<br>`updated_at` |
+| Node State   | `revision`<br>`node_state_id, node_state_key`<br>`node_id, job_id`<br>`latest_attempt_no, active_attempt_id`<br>`idempotent, trigger_rule`<br>`blocked_by`<br>`status_reason`                                                                                                                                                                                                           |
+| Network Lock | `lock_key, profile`<br>`owner_invocation_id, lease_token`<br>`lease_expires_at, heartbeat_at`                                                                                                                                                                                                                                                                                           |
+| System       | previewレイアウトから取得した自動生成フィールドの既存行                                                                                                                                                                                                                                                                                                                                 |
+
+共有フィールドは最初に該当するセクションへ1回だけ置く。`run_id`、`status`、`started_at`、`finished_at`、`updated_at`はNetwork Run、`revision`はNode Stateへ置く。Network Lockからも共有フィールドを参照するが、同じフィールドをレイアウト上へ重複配置しない。フォーム上の全フィールドを要求するAPI仕様に合わせ、フィールド追加後のpreviewレイアウトをGETし、設計表にないレコード番号・作成者・作成日時・更新者・更新日時等の自動生成フィールドを既存の型・コード・行構成のまま末尾のSystemセクションへ置く。自動生成フィールドの実際のコードと行構成は実行時に要確認とする。
+
+### FlowNet 監査履歴 Spike
+
+| セクション         | 行（上から順）                                                                                                                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Common             | `record_key, record_type`                                                                                                                                                                                                                                |
+| Run Invocation     | `run_id, started_at, finished_at`<br>`status, result_code`<br>`invocation_id, mode`<br>`requested_by, host`<br>`selected_node_ids`<br>`preserved_node_ids`<br>`blocked_node_ids`<br>`reason`                                                             |
+| Node Attempt       | `node_attempt_id, attempt_key`<br>`node_id, job_id, attempt_no`<br>`execution_started_at, runner_execution_started_at`<br>`execution_id, duration_sec`<br>`error_message`<br>`read_count, written_count, last_successful_chunk_no`<br>`last_written_key` |
+| Attempt Resolution | `event_type, attempt_id, resolved_outcome`<br>`evidence_ref, service_principal`<br>`approved_by, resolved_at`                                                                                                                                            |
+| Operation Audit    | 固有フィールドなし                                                                                                                                                                                                                                       |
+| System             | previewレイアウトから取得した自動生成フィールドの既存行                                                                                                                                                                                                  |
+
+共有フィールドは最初に該当するセクションへ1回だけ置く。`run_id`、`started_at`、`finished_at`、`status`、`result_code`、`invocation_id`、`requested_by`、`reason`はRun Invocation、`event_type`、`evidence_ref`、`service_principal`、`resolved_at`はAttempt Resolutionへ置く。Operation Auditはこれらの共有フィールドを参照するため、見出しだけを配置する。Systemセクションの扱いは実行管理appと同じとする。
+
+## 一覧（ビュー）
+
+`PUT /k/v1/preview/app/views.json`で次の`LIST`一覧を設定する。`index`は各表の上から0始まりの連番とし、「全レコード」の`filterCond`は空文字列とする。
+
+### FlowNet 実行管理 Spike
+
+| 一覧名       | filterCond                        | fields                                                                                                                                         | sort                    |
+| ------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| Network Run  | `record_type in ("NETWORK_RUN")`  | `record_key, run_id, network_id, business_key, status, lifecycle_status, resume_allowed, max_active_runs, started_at, finished_at, updated_at` | `updated_at desc`       |
+| Node State   | `record_type in ("NODE_STATE")`   | `record_key, run_id, node_state_key, node_id, job_id, status, latest_attempt_no, active_attempt_id, revision, updated_at`                      | `updated_at desc`       |
+| Network Lock | `record_type in ("NETWORK_LOCK")` | `record_key, lock_key, profile, owner_invocation_id, status, lease_expires_at, heartbeat_at, revision`                                         | `lease_expires_at desc` |
+| 全レコード   | なし（空文字列）                  | `record_key, record_type, run_id, updated_at, started_at, lease_expires_at`                                                                    | `record_key desc`       |
+
+### FlowNet 監査履歴 Spike
+
+| 一覧名             | filterCond                              | fields                                                                                                                                                       | sort                               |
+| ------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| Run Invocation     | `record_type in ("RUN_INVOCATION")`     | `record_key, run_id, invocation_id, mode, status, result_code, requested_by, host, started_at, finished_at`                                                  | `started_at desc`                  |
+| Node Attempt       | `record_type in ("NODE_ATTEMPT")`       | `record_key, run_id, node_attempt_id, attempt_key, node_id, job_id, attempt_no, status, result_code, runner_execution_started_at, finished_at, duration_sec` | `runner_execution_started_at desc` |
+| Attempt Resolution | `record_type in ("ATTEMPT_RESOLUTION")` | `record_key, attempt_id, resolved_outcome, event_type, evidence_ref, service_principal, requested_by, approved_by, resolved_at`                              | `resolved_at desc`                 |
+| Operation Audit    | `record_type in ("OPERATION_AUDIT")`    | `record_key, event_type, reason, evidence_ref, service_principal, requested_by, resolved_at`                                                                 | `resolved_at desc`                 |
+| 全レコード         | なし（空文字列）                        | `record_key, record_type, run_id, started_at, finished_at, resolved_at`                                                                                      | `record_key desc`                  |
 
 ## 必要ACL
 
