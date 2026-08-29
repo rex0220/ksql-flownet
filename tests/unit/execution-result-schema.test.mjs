@@ -16,6 +16,7 @@ const schema = readJson(
 );
 const success = readJson("../fixtures/execution-result/success.json");
 const failure = readJson("../fixtures/execution-result/failure.json");
+const sqlError = readJson("../fixtures/execution-result/sql-error.json");
 const validate = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
 
 function assertValid(value) {
@@ -25,6 +26,7 @@ function assertValid(value) {
 test("contract section 3.1 and 3.2 fixtures satisfy the draft schema", () => {
   assertValid(success);
   assertValid(failure);
+  assertValid(sqlError);
 });
 
 test("additive unknown fields are accepted", () => {
@@ -63,6 +65,7 @@ test("known result codes must agree with status, exit, and start boundary", () =
       executionStarted: true,
     },
     { ...failure, executionStarted: false, startedAt: failure.startedAt },
+    { ...sqlError, exitCode: 3 },
   ]) {
     assert.equal(validate(invalid), false);
   }

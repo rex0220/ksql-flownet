@@ -4,6 +4,7 @@
 - contract ID: `ksql-flow.execution/v1`
 - 作成日: 2026-08-29
 - 対象: kSQL-FlowNetから`ksql-flow`のrun・検査コマンドを呼び出すCLI境界
+- 変更記録: 2026-08-30: `SQL_ERROR`のExit対応を3→1へ修正（kSQL-Flow公開仕様7.1との整合。kSQL-Flowからの疑義文書による再審議）
 
 ---
 
@@ -187,9 +188,9 @@ kSQL-Flowプロセスが結果を返せない場合、`UNKNOWN`をJSONで返し�
 | --- | --- | --- | --- |
 | `OK` | `SUCCESS` | 0 | 正常完了 |
 | `NO_DATA` | `SUCCESS` | 0 | 正常な対象0件 |
-| `VALIDATION_ERROR` | `FAILED` | 1 | 引数、設定、SQL検証エラー |
+| `VALIDATION_ERROR` | `FAILED` | 1 | SQL開始前の引数、設定、SQL静的検証エラー |
 | `ASSERT_FAILED` | `FAILED` | 2 | 業務ASSERT違反 |
-| `SQL_ERROR` | `FAILED` | 3 | 実行時SQLエラー |
+| `SQL_ERROR` | `FAILED` | 1 | 実行時SQLエラー（存在しないフィールド、updateKey制約違反の実行時検出等）。`executionStarted`は最初のSQL文への到達状況に応じた値 |
 | `API_ERROR` | `FAILED` | 3 | APIリトライ後の失敗 |
 | `AUTH_ERROR` | `FAILED` | 3 | 認証・権限エラー |
 | `EXECUTION_TIMEOUT` | `FAILED` | 3 | ランナー自身が検知して中断したtimeout |
@@ -203,6 +204,8 @@ Exit 4は現行`run-all`の部分成功用であり、単一`run`契約では生
 Control Planeは`LOCK_CONFLICT`をNode業務失敗として保存せず、Invocationへ記録する。事前作成したNode Attemptは`CANCELLED / PREPARE_FAILED`で確定し、Node Stateをrevision付きで`WAITING`へ戻す。attempt番号はsubprocess起動試行の監査履歴として保持する。
 
 `VALIDATION_ERROR`と`LOCK_CONFLICT`では`executionStarted = false`を必須とする。`executionStarted = true`の`VALIDATION_ERROR`または`LOCK_CONFLICT`は契約違反として`UNKNOWN`にする。その他の失敗は、最初のSQL文への到達状況に応じた値を返す。
+
+Exit 1は`resultCode`（`VALIDATION_ERROR`／`SQL_ERROR`）と`executionStarted`で判別する。
 
 ### 4.3 拡張resultCode
 
@@ -221,9 +224,9 @@ Control Planeは`LOCK_CONFLICT`をNode業務失敗として保存せず、Invoca
 | Exit | 意味 |
 | --- | --- |
 | 0 | 成功／NO_DATA |
-| 1 | 検証エラー |
+| 1 | 検証エラー、実行時SQLエラー |
 | 2 | ASSERT違反 |
-| 3 | 実行時エラー、timeout、lock unavailable、graceful cancel |
+| 3 | HTTP／ネットワーク／認証／リトライ上限／API上限、内部エラー、timeout、lock unavailable、graceful cancel |
 | 4 | run-all部分成功。本契約の単一runでは使用しない |
 | 5 | 多重起動・Jobロック競合 |
 
@@ -441,6 +444,7 @@ snapshotは外部データ、権限、kintone設定、外部API応答を固定�
 ### controlled failure
 
 - VALIDATION_ERROR／Exit 1
+- SQL_ERROR／Exit 1（`executionStarted = true`）
 - ASSERT_FAILED／Exit 2
 - API_ERROR／Exit 3
 - EXECUTION_TIMEOUT／Exit 3
