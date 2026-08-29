@@ -1,0 +1,244 @@
+{
+  "mode": "read_only",
+  "sample": {
+    "requested_records": 500,
+    "sampled_records": 431,
+    "discovery_records": 1,
+    "read_api_calls": 2
+  },
+  "discovered_fields": [
+    {
+      "field_name": "$id",
+      "field_type": "__ID__"
+    },
+    {
+      "field_name": "$revision",
+      "field_type": "__REVISION__"
+    },
+    {
+      "field_name": "api_calls",
+      "field_type": "NUMBER"
+    },
+    {
+      "field_name": "as_of",
+      "field_type": "DATETIME"
+    },
+    {
+      "field_name": "batch_id",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "deleted_count",
+      "field_type": "NUMBER"
+    },
+    {
+      "field_name": "duration_sec",
+      "field_type": "NUMBER"
+    },
+    {
+      "field_name": "error_message",
+      "field_type": "MULTI_LINE_TEXT"
+    },
+    {
+      "field_name": "executed_by",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "finished_at",
+      "field_type": "DATETIME"
+    },
+    {
+      "field_name": "git_ref",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "host",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "job_key",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "job_key_done",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "ksql_version",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "last_written_key",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "log_detail",
+      "field_type": "MULTI_LINE_TEXT"
+    },
+    {
+      "field_name": "parent_batch_id",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "profile",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "read_count",
+      "field_type": "NUMBER"
+    },
+    {
+      "field_name": "record_type",
+      "field_type": "DROP_DOWN"
+    },
+    {
+      "field_name": "rerun_attempt",
+      "field_type": "NUMBER"
+    },
+    {
+      "field_name": "rerun_batch_id",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "rerun_claim_expires_at",
+      "field_type": "DATETIME"
+    },
+    {
+      "field_name": "rerun_claimed_host",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "rerun_exit_code",
+      "field_type": "NUMBER"
+    },
+    {
+      "field_name": "rerun_request",
+      "field_type": "CHECK_BOX"
+    },
+    {
+      "field_name": "rerun_requested_at",
+      "field_type": "DATETIME"
+    },
+    {
+      "field_name": "rerun_requested_by",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "rerun_result",
+      "field_type": "MULTI_LINE_TEXT"
+    },
+    {
+      "field_name": "rerun_state",
+      "field_type": "DROP_DOWN"
+    },
+    {
+      "field_name": "script_name",
+      "field_type": "SINGLE_LINE_TEXT"
+    },
+    {
+      "field_name": "started_at",
+      "field_type": "DATETIME"
+    },
+    {
+      "field_name": "status",
+      "field_type": "DROP_DOWN"
+    },
+    {
+      "field_name": "written_count",
+      "field_type": "NUMBER"
+    },
+    {
+      "field_name": "レコード番号",
+      "field_type": "RECORD_NUMBER"
+    },
+    {
+      "field_name": "更新者",
+      "field_type": "MODIFIER"
+    },
+    {
+      "field_name": "更新日時",
+      "field_type": "UPDATED_TIME"
+    },
+    {
+      "field_name": "作成者",
+      "field_type": "CREATOR"
+    },
+    {
+      "field_name": "作成日時",
+      "field_type": "CREATED_TIME"
+    }
+  ],
+  "status": {
+    "selected_field": "status",
+    "distribution": {
+      "ABORTED": 70,
+      "FAILED": 29,
+      "NO_DATA": 66,
+      "SKIPPED": 16,
+      "SUCCESS": 244,
+      "TIMEOUT": 4
+    },
+    "fixture_statuses_not_observed": [
+      "CANCELLED"
+    ],
+    "observed_statuses_not_in_fixture": []
+  },
+  "fixture_input_comparison": {
+    "current_status": {
+      "fixture_field_name": "current_status",
+      "actual_field_candidates": [
+        "status"
+      ],
+      "candidate_field_types": [
+        {
+          "field_name": "status",
+          "field_type": "DROP_DOWN"
+        }
+      ],
+      "records_with_candidate": 429,
+      "difference": "field_name_differs"
+    },
+    "record_type": {
+      "fixture_field_name": "record_type",
+      "actual_field_candidates": [
+        "record_type"
+      ],
+      "candidate_field_types": [
+        {
+          "field_name": "record_type",
+          "field_type": "DROP_DOWN"
+        }
+      ],
+      "records_with_candidate": 429,
+      "difference": "none"
+    },
+    "log_detail": {
+      "fixture_field_name": "log_detail",
+      "actual_field_candidates": [
+        "log_detail"
+      ],
+      "candidate_field_types": [
+        {
+          "field_name": "log_detail",
+          "field_type": "MULTI_LINE_TEXT"
+        }
+      ],
+      "records_with_candidate": 431,
+      "difference": "none"
+    },
+    "timeout_source": {
+      "fixture_field_name": "timeout_source",
+      "actual_field_candidates": [],
+      "candidate_field_types": [],
+      "records_with_candidate": 0,
+      "difference": "field_not_found"
+    },
+    "actor": {
+      "fixture_field_name": "actor",
+      "actual_field_candidates": [],
+      "candidate_field_types": [],
+      "records_with_candidate": 0,
+      "difference": "field_not_found"
+    }
+  }
+}
