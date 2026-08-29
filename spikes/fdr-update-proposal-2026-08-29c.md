@@ -1,5 +1,7 @@
 # FDR更新提案書（2026-08-29 第3弾）
 
+反映状態: REFLECTED(2026-08-29)
+
 反映状態: PROPOSAL（未反映）
 
 > **これは正本ではない。承認後に`docs/phase1-freeze-decision-record.md`へ反映する。** 本提案では`docs/`を変更しない。
