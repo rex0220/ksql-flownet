@@ -4,6 +4,7 @@ import {
   prepareRun,
   runScenarioMain,
 } from "./scenario-support.mjs";
+import { nodeStateQuery } from "./layout-adapter.mjs";
 
 const configuration = {
   scenario: "state-revision-conflict",
@@ -34,7 +35,7 @@ const configuration = {
     }
     const records = await adapter.query(
       "execution",
-      `record_type = "NODE_STATE" and run_id = "${dataset.runId}" and node_id = "${node.nodeId}"`,
+      nodeStateQuery(dataset.runId, node.nodeId),
     );
     const reget = {
       count: records.length,

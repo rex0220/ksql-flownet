@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   createKintoneClient,
   deleteRecord,
@@ -29,8 +31,29 @@ function escapeQuery(value) {
   return String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
+function dropdownIn(fieldCode, value) {
+  return `${fieldCode} in ("${escapeQuery(value)}")`;
+}
+
+function textEquals(fieldCode, value) {
+  return `${fieldCode} = "${escapeQuery(value)}"`;
+}
+
 function recordQuery(recordType, runId) {
-  return `record_type = "${escapeQuery(recordType)}" and run_id = "${escapeQuery(runId)}" order by $id asc`;
+  return `${dropdownIn("record_type", recordType)} and ${textEquals("run_id", runId)} order by $id asc`;
+}
+
+export function nodeStateQuery(runId, nodeId) {
+  return `${dropdownIn("record_type", "NODE_STATE")} and ${textEquals("run_id", runId)} and ${textEquals("node_id", nodeId)}`;
+}
+
+export function lockReleaseTombstone(invocationId) {
+  const direct = `LOCKDONE:${invocationId}`;
+  if (direct.length <= 64) return direct;
+  const digest = createHash("sha256")
+    .update(String(invocationId), "utf8")
+    .digest("base64url");
+  return `LOCKDONE:sha256:${digest}`;
 }
 
 function makeFailureController(fetchImplementation, failAt) {
@@ -100,7 +123,13 @@ export function createLayoutAdapter({
       code: "A_LOCK_RELEASE_SCHEMA_GAP",
       severity: "decision-input",
       detail:
-        "現schemaにはlock_key_done、解放時刻、RELEASED statusがない。SUCCESSを代替statusとして使い、退避なしで一意キーをクリアする。record_keyが必須のため空文字UPDATEが拒否される可能性も実測対象とする。",
+        "必須+重複禁止のキーはtombstone書き換え方式が必要（実測CB_VA01）。本番アプリ設計（D-08）ではlock keyフィールドを非必須にするか、lock_key_done等の退避フィールドとRELEASED statusを設ける。",
+    },
+    {
+      code: "A_DROPDOWN_QUERY_OPERATOR_CONSTRAINT",
+      severity: "decision-input",
+      detail:
+        "ドロップダウンは=ではなくin/not inのみ対応する（実測GAIA_IQ03）。FN-04 repositoryのクエリ層はフィールド型ごとの演算子制約を吸収する必要がある。",
     },
   ];
 
@@ -374,7 +403,7 @@ export function createLayoutAdapter({
   async function acquireNetworkLock(dataset, invocationId) {
     const now = dataset.now();
     try {
-      return await insert(
+      const reference = await insert(
         "execution",
         "NETWORK_LOCK",
         {
@@ -391,10 +420,12 @@ export function createLayoutAdapter({
         },
         "acquireNetworkLock",
       );
+      reference.invocationId = invocationId;
+      return reference;
     } catch (error) {
       const records = await query(
         "execution",
-        `record_key = "${escapeQuery(`LOCK:${dataset.lockKey}`)}" order by $id asc`,
+        `${textEquals("record_key", `LOCK:${dataset.lockKey}`)} order by $id asc`,
       );
       error.lockAdjudication = {
         persistedCount: records.length,
@@ -409,7 +440,7 @@ export function createLayoutAdapter({
       await update(
         reference,
         {
-          record_key: "",
+          record_key: lockReleaseTombstone(reference.invocationId),
           lock_key: "",
           owner_invocation_id: "",
           lease_token: "",
@@ -418,7 +449,7 @@ export function createLayoutAdapter({
         },
         "releaseNetworkLock",
       );
-      return { released: true, protocol: "unique-key-clear-update" };
+      return { released: true, protocol: "tombstone-and-unique-key-clear" };
     } catch (error) {
       findings.push({
         code: "A_LOCK_RELEASE_UPDATE_REJECTED",
@@ -427,7 +458,7 @@ export function createLayoutAdapter({
       });
       return {
         released: false,
-        protocol: "unique-key-clear-update",
+        protocol: "tombstone-and-unique-key-clear",
         error: summarizeError(error),
       };
     }
@@ -453,7 +484,7 @@ export function createLayoutAdapter({
       }
       const attempts = await query(
         "audit",
-        `record_type = "NODE_ATTEMPT" and node_attempt_id = "${escapeQuery(activeAttemptId)}" order by $id asc`,
+        `${dropdownIn("record_type", "NODE_ATTEMPT")} and ${textEquals("node_attempt_id", activeAttemptId)} order by $id asc`,
       );
       if (attempts.length !== 1) {
         inconsistent.push({
