@@ -16,8 +16,8 @@ Options:
   -V, --version    display version
 
 Commands:
-  validate         not implemented (FN-02)
-  plan             not implemented (FN-02)
+  validate <network>  validate a network definition and its SQL files
+  plan <network>      not implemented (FN-03)
 `;
 
 function getVersion(): string {
@@ -42,13 +42,13 @@ function printHelp(): void {
   process.stdout.write(HELP_TEXT);
 }
 
-function failNotImplemented(command: "validate" | "plan"): void {
-  process.stderr.write(`Error: ${command} is not implemented (FN-02).\n`);
+function failNotImplemented(command: "plan"): void {
+  process.stderr.write(`Error: ${command} is not implemented (FN-03).\n`);
   process.exitCode = 1;
 }
 
-function main(args: readonly string[]): void {
-  const [command] = args;
+async function main(args: readonly string[]): Promise<void> {
+  const [command, ...commandArgs] = args;
 
   if (command === undefined || command === "--help" || command === "-h") {
     printHelp();
@@ -60,7 +60,20 @@ function main(args: readonly string[]): void {
     return;
   }
 
-  if (command === "validate" || command === "plan") {
+  if (command === "validate") {
+    if (commandArgs.length !== 1) {
+      process.stderr.write(
+        "Error: validate requires exactly one <network> path.\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const { runValidateCommand } = await import("./validate-command.js");
+    process.exitCode = runValidateCommand(commandArgs[0] as string);
+    return;
+  }
+
+  if (command === "plan") {
     failNotImplemented(command);
     return;
   }
@@ -70,4 +83,4 @@ function main(args: readonly string[]): void {
   process.exitCode = 1;
 }
 
-main(process.argv.slice(2));
+await main(process.argv.slice(2));
