@@ -10,9 +10,38 @@
 - 実ログ照合時の環境: `https://devenxyfi.cybozu.com`、timezone `Asia/Tokyo`
 - 既存実行ログ: app 4249（kSQL-Flow所有）
 - profile: `my-ksql-jobs/ksql.config.json`の`prod`
-- 実ログを取得する場合の認証環境変数: `KSQL_TOKEN_LOGS`
+- 実ログを取得する場合の認証環境変数: `KSQL_TOKEN_LOGS_RO`（読取専用token）
 
 実ログ本文、token値、`.env`をfixtureへ転記しない。必要なら匿名化した分類情報だけを追加する。
+
+## 実行手順
+
+fixture変換とfail-closed規則はunit testで確認する。
+
+```powershell
+npm run build
+node --test --test-name-pattern="D-06|status" tests/unit/status-migration.test.mjs
+```
+
+実行ログアプリを最大500件サンプリングする場合は、`.env`へ
+`KSQL_SPIKE_BASE_URL`、`KSQL_SPIKE_APP_LOGS`、`KSQL_TOKEN_LOGS_RO`を設定して実行する。
+
+```powershell
+node --env-file=.env spikes/c-status-migration/scripts/inspect-real-logs.mjs
+node --env-file=.env spikes/c-status-migration/scripts/inspect-real-logs.mjs --sample-size 100
+```
+
+inspectスクリプトのclientはGET操作だけを公開し、POST / PUT / DELETE操作や任意method指定を持たない。4249を含む対象アプリへ書込みを行わない。最初に1件だけGETして実フィールド名を発見し、その結果を前提にサンプルを集計する。
+
+結果JSONは`results/`へ既存の秘匿化`writeResult`で保存する。次を確認する。
+
+- `status.distribution`: 実データに存在したstatus値と件数
+- `status.observed_statuses_not_in_fixture`: fixtureにない実status値
+- `status.fixture_statuses_not_observed`: サンプルで観測しなかったfixture側status値
+- `fixture_input_comparison`: fixture名と実フィールド候補の差異、field type、存在件数
+- `discovered_fields`: 最初の1件で確認したフィールド名とfield type
+
+自由記述の値、ジョブ名、顧客値、record ID、tokenは結果へ保存しない。候補が0件または複数の場合は推測でフィールドを選ばず、`field_not_found`または`ambiguous_candidates`として報告する。
 
 ## 再実行可能な手順
 
