@@ -1,6 +1,10 @@
-export async function releaseWhenReady(workers, startMessage) {
+export async function releaseWhenReady(
+  workers,
+  startMessage,
+  send = (worker, message) => worker.send(message),
+) {
   await Promise.all(workers.map(waitUntilReady));
-  for (const worker of workers) worker.send(startMessage);
+  for (const worker of workers) send(worker, startMessage);
 }
 
 function waitUntilReady(worker) {
