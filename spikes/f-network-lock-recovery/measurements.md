@@ -1,24 +1,52 @@
 # Spike F 測定表
 
-> **注意:** 本表は未実測テンプレートである。未実測のlease安全性、停止確認、API容量を保証として書かない。
+## 実測条件と読み方
 
-| ID   | 測定項目                                             | 環境   | 日時   |   回数 | API呼出数 | payload              | 結果・障害注入結果 | 残余リスク |
-| ---- | ---------------------------------------------------- | ------ | ------ | -----: | --------: | -------------------- | ------------------ | ---------- |
-| F-01 | lease/heartbeat境界値                                | 未実測 | 未実測 | 未実測 |    未実測 | 設定値               | 未実測             | 未評価     |
-| F-02 | subprocess実行中heartbeat継続                        | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-03 | FlowNet kill後heartbeat停止・stale候補化             | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-04 | kintone一時断時のdrain・新規Node停止・subprocess完走 | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-05 | 期限超過後heartbeat再更新成功                        | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-06 | 期限超過後heartbeat再更新失敗                        | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-07 | 期限超過後owner変更                                  | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-08 | 旧lease tokenのState更新・次Node起動拒否             | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-09 | 同一ホストの旧owner停止確認                          | 未実測 | 未実測 | 未実測 |    未実測 | 秘密除去済み証拠参照 | 未実測             | 未評価     |
-| F-10 | 別ホストの旧owner停止確認                            | 未実測 | 未実測 | 未実測 |    未実測 | 秘密除去済み証拠参照 | 未実測             | 未評価     |
-| F-11 | Cloud Run terminal判定                               | 未実測 | 未実測 | 未実測 |    未実測 | 状態codeのみ         | 未実測             | 未評価     |
-| F-12 | Cloud Run non-terminal判定                           | 未実測 | 未実測 | 未実測 |    未実測 | 状態codeのみ         | 未実測             | 未評価     |
-| F-13 | Cloud Run未知状態・権限不足・API障害                 | 未実測 | 未実測 | 未実測 |    未実測 | 安全化エラーcode     | 未実測             | 未評価     |
-| F-14 | heartbeatのControl Plane API call                    | 未実測 | 未実測 | 未実測 |    未実測 | 集計のみ             | 未実測             | 未評価     |
-| F-15 | 停止確認のControl Plane API call                     | 未実測 | 未実測 | 未実測 |    未実測 | 集計のみ             | 未実測             | 未評価     |
-| F-16 | force-unlock owner/revision/lease token競合          | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-17 | force-unlock応答消失後の再GET                        | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
-| F-18 | 回収後Attempt照合・未確定時UNKNOWN                   | 未実測 | 未実測 | 未実測 |    未実測 | 未採取               | 未実測             | 未評価     |
+- 実施日: 2026-08-29（JST）
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 設定: lease 6秒、heartbeat 2秒。`heartbeat < lease`かつ`heartbeat <= lease / 3`の比率規則を維持した障害注入用の**縮小値**であり、実運用値は未決定である。
+- 回数は、各results JSONに記録されたシナリオまたは分岐の実行数を示す。API呼出数は、特記がなければ当該シナリオの`measurements.control_plane_api_calls`である。
+- results JSONは実行コマンド文字列を保持していない。下記のコマンドはREADMEに記載された再実行形式であり、秘密値は記録しない。
+
+```powershell
+node --env-file=.env spikes/f-network-lock-recovery/scripts/lease-lifecycle.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/stale-detection.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/lease-token-fencing.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/drain-mode.mjs
+node --env-file=.env spikes/f-network-lock-recovery/scripts/force-unlock-network.mjs --stop-evidence-ref "spike://f/..." --reason "<記録済み理由>" --service-principal "<認証主体>" --confirmed-by "<確認者>"
+```
+
+## 測定結果
+
+| ID   | 測定項目                                            |                 回数 |          API呼出数 | 実測結果                                                                                                                                                                                                                                                                          | 出典results                                                                       | 残余リスク                                                                              |
+| ---- | --------------------------------------------------- | -------------------: | -----------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| F-01 | lease/heartbeat境界値                               |                    1 |                  6 | lease 6秒 / heartbeat 2秒、比率規則合格。heartbeat 2回、観測間隔 `2005.7992 ms`、`2734.3747 ms`。                                                                                                                                                                                 | `2026-08-29T14-34-16.545Z-lease-lifecycle.json`                                   | 縮小値のみ。実運用値は未決定。                                                          |
+| F-02 | subprocess実行中heartbeat継続                       |                    1 |                  6 | 疑似subprocess `5276.8794 ms`、exit 0の実行中にheartbeat 2回を継続し、tombstone解放に成功。                                                                                                                                                                                       | `2026-08-29T14-34-16.545Z-lease-lifecycle.json`                                   | 実subprocessではなく、スクリプト内の疑似subprocess。実運用スケールの長時間Runは未実施。 |
+| F-03 | FlowNet kill後heartbeat停止・stale候補化            |                    1 |                  3 | kill simulationでheartbeat停止。heartbeat age `26800 ms`（26.8秒）、lease期限超過でstale候補化。observerはGET 1回、lock write 0回で、owner停止未確認のため回収を拒否（fail-closed）。測定後は旧owner役がtombstone解放。                                                           | `2026-08-29T14-34-27.123Z-stale-detection.json`                                   | 実process killではなくsimulation。期限超過は停止証明ではない。                          |
+| F-04 | 一時到達不能時のdrain・新規Node停止・subprocess完走 |                2分岐 |            12 / 10 | fetchラッパーでheartbeat到達不能を注入。両分岐とも疑似subprocess exit 0、`LEASE_UNCERTAIN`、drain後の新規Node起動0。回復分岐は注入2回、State write 1、結果保存あり、`RECOVERED_AND_CANCELLED`。未回復分岐は注入3回、State write 0、結果保存なし、`RECONCILIATION`、材料保持あり。 | `2026-08-29T14-34-43.894Z-drain-mode.json`                                        | kintone実障害ではなくfetchラッパー注入。実subprocessでのdrainは未実施。                 |
+| F-05 | 期限超過後heartbeat再更新成功                       |                    1 |                 12 | 連続2回失敗後に再更新成功。結果を保存し、次Nodeを起動せず`RECOVERED_AND_CANCELLED`。                                                                                                                                                                                              | `2026-08-29T14-34-43.894Z-drain-mode.json`（`recovered`）                         | 縮小値・注入経路のみ。                                                                  |
+| F-06 | 期限超過後heartbeat再更新失敗                       |                    1 |                 10 | 3回目も到達不能。結果とStateを書かず、reconciliation材料を保持して`RECONCILIATION`。                                                                                                                                                                                              | `2026-08-29T14-34-43.894Z-drain-mode.json`（`unrecovered`）                       | 縮小値・注入経路のみ。                                                                  |
+| F-07 | 期限超過後owner変更                                 |                    1 |                  7 | ownerを旧ownerから`fencing-owner-b`へ変更。旧ownerの次Node起動とState更新はいずれも不許可。                                                                                                                                                                                       | `2026-08-29T14-34-29.738Z-lease-token-fencing.json`                               | 単一ホスト・短時間の注入経路のみ。                                                      |
+| F-08 | 旧lease tokenのState更新・次Node起動拒否            |                    1 |                  7 | 二重防御を確認。heartbeat前の再GET lease identity照合は`LEASE_TOKEN_MISMATCH`、旧revisionによるState PUTはHTTP 409 / `GAIA_CO02`で拒否。                                                                                                                                          | `2026-08-29T14-34-29.738Z-lease-token-fencing.json`                               | token照合から別レコード更新までのTOCTOU窓は残る。                                       |
+| F-09 | 同一ホストの旧owner停止確認                         |               未実施 |             未計測 | 停止証拠参照の契約だけを実機確認。`--stop-evidence-ref`欠落の初回実行は「停止証拠必須」エラーでAPI処理前に拒否され、2回目は`spike://f/...`参照を渡して合格。参照内容を照会する停止確認adapterの実機検証ではない。                                                                 | 補足実行事実、および成功結果 `2026-08-29T14-36-07.558Z-force-unlock-network.json` | 同一ホストPIDの実停止確認は未実施。                                                     |
+| F-10 | 別ホストの旧owner停止確認                           |               未実施 |             未計測 | 未実施。                                                                                                                                                                                                                                                                          | 該当resultsなし                                                                   | 複数ホスト実測が必要。                                                                  |
+| F-11 | Cloud Run terminal判定                              |          実GCP未実施 |             未計測 | adapter判定表はモックunit testで`SUCCEEDED` / `FAILED` / `CANCELLED`だけをterminal受理するよう固定済み。実GCP照会は未実施。                                                                                                                                                       | 該当resultsなし（`tests/unit/spike-f-scripts.test.mjs`）                          | 実Execution resourceと権限での手動確認が必要。                                          |
+| F-12 | Cloud Run non-terminal判定                          |          実GCP未実施 |             未計測 | モックunit testで`RUNNING` / `PENDING`をfail-closedに固定済み。実GCP照会は未実施。                                                                                                                                                                                                | 該当resultsなし（`tests/unit/spike-f-scripts.test.mjs`）                          | 実GCP照会が必要。                                                                       |
+| F-13 | Cloud Run未知状態・権限不足・API障害                |          実GCP未実施 |             未計測 | モックunit testで未知状態、HTTP 403、通信失敗をfail-closedに固定済み。実GCP照会は未実施。                                                                                                                                                                                         | 該当resultsなし（`tests/unit/spike-f-scripts.test.mjs`）                          | 実GCP照会が必要。                                                                       |
+| F-14 | heartbeatのControl Plane API call                   |                    1 |                  6 | 実行全体6 calls。heartbeat計測範囲は4 calls、`0.7580237668497788 calls/s`（転記表示: **0.758 calls/秒**）、実行時間 `5276.8794 ms`基準。                                                                                                                                          | `2026-08-29T14-34-16.545Z-lease-lifecycle.json`                                   | 縮小値の単発測定。実運用値はAPI予算とRun時間分布から決定する。                          |
+| F-15 | 停止確認のControl Plane API call                    |               未実施 |             未計測 | 実Cloud Run照会を行っていないため未計測。                                                                                                                                                                                                                                         | 該当resultsなし                                                                   | runtime別の停止確認API容量測定が必要。                                                  |
+| F-16 | force-unlock owner/revision/lease token競合         | 3 case + 事前拒否1回 |     11（合格実行） | owner不一致とrevision不一致をいずれも解放・監査なしでfail-closed。lease identity一致も契約条件。別途、停止証拠参照欠落の初回CLI実行を「停止証拠必須」で拒否し、参照を渡した2回目だけを実行した。                                                                                  | `2026-08-29T14-36-07.558Z-force-unlock-network.json`、補足実行事実                | 停止証拠内容のadapter照会、複数ホスト、token単独不一致caseは未実測。                    |
+| F-17 | force-unlock応答消失後の再GET                       |                    1 | 11（シナリオ全体） | expected owner / revision / lease identity、stale候補、停止証拠、新heartbeat・ownerなしを確認。PUT成功応答消失を模擬後、再GETで`RELEASE_CONFIRMED`、tombstone解放、監査1件、回収後revision `2`を確認。                                                                            | `2026-08-29T14-36-07.558Z-force-unlock-network.json`（`responseLoss`）            | 応答消失後の再GET不能・不一致経路と実runtime停止照会は未実測。                          |
+| F-18 | 回収後Attempt照合・未確定時UNKNOWN                  |               未実施 |             未計測 | 未実施。force-unlock測定はAttempt照合を含まない。                                                                                                                                                                                                                                 | 該当resultsなし                                                                   | 専用schemaと実Attemptを使った照合が必要。                                               |
+
+## 実測範囲の結論と未実施項目
+
+5件のresults JSONはすべて`passed: true`であり、測定対象となったrenewable lease、heartbeat、stale候補化、lease token fencing、drainの回復／未回復、監査付きforce-unlock、unique tombstone updateの各分岐は縮小値で仕様どおり成立した。
+
+次は未実施であり、本表の合格結果から保証へ格上げしない。
+
+- Cloud Run Admin APIへの実照会（adapter判定表はモックunit testのみ）
+- 複数ホスト
+- 実運用スケール値による長時間Run
+- 実subprocessでのdrain（今回の障害注入はfetchラッパー）
+- 回収後Attempt照合と未確定時の`UNKNOWN`化
