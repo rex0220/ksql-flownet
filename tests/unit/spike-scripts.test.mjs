@@ -5,6 +5,11 @@ import test from "node:test";
 
 import { releaseWhenReady } from "../../spikes/lib/barrier.mjs";
 import {
+  recordChildError,
+  safeChildDisconnect,
+  safeChildSend,
+} from "../../spikes/lib/child-ipc.mjs";
+import {
   createKintoneClient,
   field,
   insertRecord,
@@ -60,6 +65,42 @@ test("barrierは全workerのready後にだけ一斉startする", async () => {
     workers.map((worker) => worker.sent),
     Array.from({ length: 3 }, () => [{ type: "start", key: "same" }]),
   );
+});
+
+test("child IPC guardはclosed channelへの送信と切断を安全に無視する", () => {
+  class Child extends EventEmitter {
+    connected = true;
+    send() {
+      const error = new Error("write EPIPE");
+      error.code = "EPIPE";
+      throw error;
+    }
+    disconnect() {
+      const error = new Error("channel closed");
+      error.code = "ERR_IPC_CHANNEL_CLOSED";
+      throw error;
+    }
+  }
+  const child = new Child();
+  const errors = [];
+  const recordError = (error) => recordChildError(errors, error);
+  child.on("error", recordError);
+
+  assert.equal(safeChildSend(child, { type: "stop" }, recordError), false);
+  assert.equal(safeChildDisconnect(child, recordError), false);
+  child.emit(
+    "error",
+    Object.assign(new Error("write EPIPE"), { code: "EPIPE" }),
+  );
+  child.emit("error", Object.assign(new Error("unexpected"), { code: "EIO" }));
+  assert.deepEqual(
+    errors.map((error) => error.code),
+    ["EIO"],
+  );
+
+  child.connected = false;
+  assert.equal(safeChildSend(child, { type: "stop" }, recordError), false);
+  assert.equal(safeChildDisconnect(child, recordError), false);
 });
 
 test("結果payloadからtoken・Authorizationと秘密値を除去する", () => {
