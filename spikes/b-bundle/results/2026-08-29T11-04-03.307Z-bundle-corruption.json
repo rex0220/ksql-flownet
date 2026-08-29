@@ -1,0 +1,21 @@
+{
+  "measurementIds": [
+    "B-06"
+  ],
+  "observedAt": "2026-08-29T11:04:03.305Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "bundle-corruption",
+  "app": "4257",
+  "recordKey": "NETWORK_RUN:spike-b-corruption-55a6b06ca1bb4498b3b0",
+  "zipBytes": 4222,
+  "storedSha256": "c84b465869316218720092c3136815ebe2446237ff4275a7c85f0c8917425fa1",
+  "downloadedSha256": "c84b465869316218720092c3136815ebe2446237ff4275a7c85f0c8917425fa1",
+  "corruptedSha256": "579c8272a52953f73264f0ea239fba0a7212e20bfb128038a9ff523fbd529fdc",
+  "beforeMatchesRecord": true,
+  "corruptionDetected": true,
+  "verdict": "CORRUPTION_DETECTED_FAIL_CLOSED",
+  "apiCalls": 7,
+  "passed": true
+}

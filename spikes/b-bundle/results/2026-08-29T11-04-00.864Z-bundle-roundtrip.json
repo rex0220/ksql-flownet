@@ -1,0 +1,87 @@
+{
+  "measurementIds": [
+    "B-01",
+    "B-02",
+    "B-03",
+    "B-04",
+    "B-05"
+  ],
+  "observedAt": "2026-08-29T11:04:00.858Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "bundle-roundtrip",
+  "app": "4257",
+  "sizeMegabytes": 10,
+  "apiCalls": 18,
+  "passed": true,
+  "results": [
+    {
+      "label": "small",
+      "measurementIds": [
+        "B-01"
+      ],
+      "payloadBytes": 4096,
+      "zipBytes": 4212,
+      "sourceSha256": "e1b4d6922920901f3db20317104ca988bd91e239b1f0bf3434d10cff0253f986",
+      "downloadedSha256": "e1b4d6922920901f3db20317104ca988bd91e239b1f0bf3434d10cff0253f986",
+      "hashMatches": true,
+      "zipSelfCheck": true,
+      "timingsMs": {
+        "generation": 4.032899999999984,
+        "sourceHash": 0.6927000000000021,
+        "upload": 401.19900000000007,
+        "attach": 462.3316,
+        "download": 286.95759999999996,
+        "downloadHash": 0.03710000000000946
+      },
+      "apiCalls": 6,
+      "passed": true
+    },
+    {
+      "label": "medium",
+      "measurementIds": [
+        "B-02"
+      ],
+      "payloadBytes": 1048576,
+      "zipBytes": 1048694,
+      "sourceSha256": "400e0f05c2e8571cb368a81b08c075375955ccbc15f10cd02b5547d6846f0a58",
+      "downloadedSha256": "400e0f05c2e8571cb368a81b08c075375955ccbc15f10cd02b5547d6846f0a58",
+      "hashMatches": true,
+      "zipSelfCheck": true,
+      "timingsMs": {
+        "generation": 41.42169999999987,
+        "sourceHash": 0.7845000000002074,
+        "upload": 808.3438999999998,
+        "attach": 525.0978,
+        "download": 1654.2033000000001,
+        "downloadHash": 0.7716999999993277
+      },
+      "apiCalls": 6,
+      "passed": true
+    },
+    {
+      "label": "limit-candidate",
+      "measurementIds": [
+        "B-03"
+      ],
+      "payloadBytes": 10485760,
+      "zipBytes": 10485896,
+      "sourceSha256": "ef7ed84f8efbce119e8d5ef975ad5108e1dca2c837865e0cb3ff26f72c0dd4ef",
+      "downloadedSha256": "ef7ed84f8efbce119e8d5ef975ad5108e1dca2c837865e0cb3ff26f72c0dd4ef",
+      "hashMatches": true,
+      "zipSelfCheck": true,
+      "timingsMs": {
+        "generation": 350.4246999999996,
+        "sourceHash": 8.793399999999565,
+        "upload": 4301.0974,
+        "attach": 617.4740000000002,
+        "download": 7431.3807000000015,
+        "downloadHash": 8.11449999999968
+      },
+      "apiCalls": 6,
+      "passed": true
+    }
+  ],
+  "observationBoundary": "指定サイズは製品上限の候補であり、kintoneの公式上限ではありません。"
+}

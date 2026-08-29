@@ -1,0 +1,691 @@
+{
+  "measurementIds": [
+    "D-03",
+    "D-05",
+    "D-06",
+    "D-13"
+  ],
+  "observedAt": "2026-08-29T11:05:59.897Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "lock-contention",
+  "workers": 3,
+  "iterations": 10,
+  "app": "4257",
+  "apiCalls": 70,
+  "passed": true,
+  "results": [
+    {
+      "iteration": 1,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:1",
+      "successWorker": "worker-2",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-2",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 815.1356,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "31",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 506.854,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-2",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 935.9016,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-2",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-2",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1673.9773,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 2,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:2",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "32",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 382.2355,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 805.2416000000001,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 811.0221,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1297.1516,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 3,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:3",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "33",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 405.4802,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 876.0234,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 903.1854,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1381.6800999999996,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 4,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:4",
+      "successWorker": "worker-3",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-3",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 775.7088000000001,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-3",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 1055.0752,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "34",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 384.43409999999994,
+          "apiCalls": 1
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-3",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-3",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1426.1614999999993,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 5,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:5",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "35",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 400.2098,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 809.2900999999999,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 766.0275,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1456.6159000000007,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 6,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:6",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "36",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 586.2644,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 890.7767,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 874.5886,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1480.3593,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 7,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:7",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "37",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 386.30370000000005,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 890.0684,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 846.0897,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1368.1119999999992,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 8,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:8",
+      "successWorker": "worker-3",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-3",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 718.3717,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-3",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 767.8014999999999,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "38",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 373.106,
+          "apiCalls": 1
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-3",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-3",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1253.6506999999983,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 9,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:9",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "39",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 384.4732,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 738.68,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 794.2493999999999,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1237.1903000000002,
+      "apiCalls": 7,
+      "passed": true
+    },
+    {
+      "iteration": 10,
+      "key": "spike-d-lock:72663a5f-49c9-430d-a876-4d4c6ff72dc4:10",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "40",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 372.2332,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 1540.0152999999998,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-3",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 1315.4936,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": true,
+        "apiCalls": 1
+      },
+      "durationMs": 1907.476700000001,
+      "apiCalls": 7,
+      "passed": true
+    }
+  ],
+  "observationBoundary": "この結果は検証環境での観測であり、kintoneの公式保証ではありません。"
+}

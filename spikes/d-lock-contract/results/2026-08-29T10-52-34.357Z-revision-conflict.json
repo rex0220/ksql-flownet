@@ -1,0 +1,38 @@
+{
+  "measurementIds": [
+    "D-11"
+  ],
+  "observedAt": "2026-08-29T10:52:34.355Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "revision-conflict",
+  "app": "4257",
+  "key": "spike-d-revision:d18d288e-082c-45c8-88a3-c1f33f7b7480",
+  "initialRevision": "1",
+  "actors": [
+    {
+      "actor": "finish-record",
+      "success": true,
+      "status": 200,
+      "code": null,
+      "revision": "2",
+      "durationMs": 135.75660000000005
+    },
+    {
+      "actor": "reclaimer",
+      "success": false,
+      "status": 409,
+      "code": "GAIA_CO02",
+      "message": "kintone API PUT /k/v1/record.json が HTTP 409 を返しました。",
+      "durationMs": 277.86979999999994
+    }
+  ],
+  "reget": {
+    "holder": "finish-record",
+    "revision": "2"
+  },
+  "apiCalls": 6,
+  "passed": true,
+  "note": "競合エラーcodeは実行環境の応答を記録する。CB_VA01等の特定codeを事前仮定しない。"
+}

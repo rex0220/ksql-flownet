@@ -1,0 +1,24 @@
+{
+  "measurementIds": [
+    "D-07"
+  ],
+  "observedAt": "2026-08-29T10:52:32.763Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "response-loss",
+  "app": "4257",
+  "key": "spike-d-lock:response-loss-1ce70adf-1da6-4f26-b064-c8b366ac71f0",
+  "transportObservation": "response-discarded",
+  "reget": {
+    "count": 1,
+    "holder": "response-loss-1ce70adf-1da6-4f26-b064-c8b366ac71f0",
+    "getError": null
+  },
+  "verdict": "ACQUIRED_BY_REGET",
+  "failClosed": false,
+  "cleanup": "deleted",
+  "durationMs": 786.1514000000001,
+  "apiCalls": 3,
+  "passed": true
+}

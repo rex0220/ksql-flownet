@@ -1,0 +1,581 @@
+{
+  "measurementIds": [
+    "D-03",
+    "D-05",
+    "D-06",
+    "D-13"
+  ],
+  "observedAt": "2026-08-29T10:43:16.512Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "lock-contention",
+  "workers": 2,
+  "iterations": 10,
+  "app": "4257",
+  "apiCalls": 50,
+  "passed": false,
+  "results": [
+    {
+      "iteration": 1,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:1",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "2",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 301.5338,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 600.5547,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 1238.0413,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:2",
+      "successWorker": "worker-2",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-2",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 595.7393999999999,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "3",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 303.9968,
+          "apiCalls": 1
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-2",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-2",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 1036.861,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:3",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "4",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 256.6239,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 478.528,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 856.3081000000002,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:4",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "5",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 231.6168,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 456.514,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 827.2655999999997,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 5,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:5",
+      "successWorker": "worker-2",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-2",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 528.3946000000001,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "6",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 247.60979999999998,
+          "apiCalls": 1
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-2",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-2",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 875.4178000000002,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 6,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:6",
+      "successWorker": "worker-2",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-2",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 597.4854,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "7",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 403.3879,
+          "apiCalls": 1
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-2",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-2",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 900.7484999999997,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 7,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:7",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "8",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 267.5934,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 435.0617,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 851.1244999999999,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 8,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:8",
+      "successWorker": "worker-2",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-2",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 408.42,
+          "apiCalls": 2
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "9",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 233.6662,
+          "apiCalls": 1
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-2",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-2",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 632.2033000000001,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 9,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:9",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "10",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 229.52159999999998,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 488.02850000000007,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 889.3763999999992,
+      "apiCalls": 5,
+      "passed": false
+    },
+    {
+      "iteration": 10,
+      "key": "spike-d-lock:7b554d5a-4b1c-4701-927d-6219acf82372:10",
+      "successWorker": "worker-1",
+      "workers": [
+        {
+          "type": "result",
+          "workerId": "worker-1",
+          "success": true,
+          "status": 200,
+          "code": null,
+          "recordId": "11",
+          "revision": "1",
+          "reget": null,
+          "durationMs": 265.24210000000005,
+          "apiCalls": 1
+        },
+        {
+          "type": "result",
+          "workerId": "worker-2",
+          "success": false,
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API POST /k/v1/record.json が HTTP 400 を返しました。",
+          "reget": {
+            "count": 1,
+            "holder": "worker-1",
+            "status": "RUNNING",
+            "verdict": "LOCK_CONFLICT"
+          },
+          "durationMs": 484.80019999999996,
+          "apiCalls": 2
+        }
+      ],
+      "persistentRecordCount": 1,
+      "persistentRecord": {
+        "holder": "worker-1",
+        "status": "RUNNING",
+        "revision": "1"
+      },
+      "duplicateCount": 0,
+      "release": {
+        "type": "released",
+        "workerId": "worker-1",
+        "success": false,
+        "error": {
+          "status": 403,
+          "code": "GAIA_NO01",
+          "message": "kintone API DELETE /k/v1/records.json が HTTP 403 を返しました。"
+        },
+        "apiCalls": 1
+      },
+      "durationMs": 873.6731,
+      "apiCalls": 5,
+      "passed": false
+    }
+  ],
+  "observationBoundary": "この結果は検証環境での観測であり、kintoneの公式保証ではありません。"
+}

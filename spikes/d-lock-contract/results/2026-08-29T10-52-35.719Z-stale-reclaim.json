@@ -1,0 +1,27 @@
+{
+  "measurementIds": [
+    "D-10"
+  ],
+  "observedAt": "2026-08-29T10:52:35.717Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "stale-reclaim-old-holder-return",
+  "app": "4257",
+  "key": "spike-d-stale:9e26b475-65d5-4b03-b9c5-205c40867429",
+  "oldRevision": "1",
+  "reclaimRevision": "2",
+  "oldHolderAttempt": {
+    "success": false,
+    "status": 409,
+    "code": "GAIA_CO02",
+    "message": "kintone API PUT /k/v1/record.json が HTTP 409 を返しました。"
+  },
+  "reget": {
+    "holder": "reclaimer",
+    "leaseIdentityPreserved": true
+  },
+  "apiCalls": 6,
+  "passed": true,
+  "safetyScope": "旧保持者停止を確認済みとする実運用のstale判定は模擬せず、revisionによる旧保持者拒否だけを測定する。"
+}
