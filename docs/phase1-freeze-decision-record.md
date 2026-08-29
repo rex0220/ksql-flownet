@@ -38,7 +38,7 @@
 | D-08 | `PROPOSED` | アプリ構成 | FlowNetの実行管理／監査2アプリと既存kSQL-Flow JOBログアプリの構成を第一候補とし、FlowNet 1アプリ案とスパイク比較 |
 | D-09 | `PROPOSED` | 二重書込み | SQL開始前ゲートとrevision付き照合・修復プロトコルを採用 |
 | D-10 | `PROPOSED` | canonical lock key | `N1:` / `J1:`等のversion付きbase64url SHA-256形式 |
-| D-11 | `VALIDATION_REQUIRED` | 重複禁止INSERT競合 | 複数プロセス・可能なら複数ホストの実機contract testを実施 |
+| D-11 | `DECIDED` | 重複禁止INSERT競合 | 複数プロセス・可能なら複数ホストの実機contract testを実施 |
 | D-12 | `OPERATIONS_REQUIRED` | bundle保持 | resume可能期間、archive、外部退避、容量上限を決定 |
 | D-13 | `OPERATIONS_REQUIRED` | Node手動解決権限 | UNKNOWN／非冪等FAILEDの認証主体、承認者、証拠、権限分離を決定 |
 | D-14 | `OPERATIONS_REQUIRED` | 新旧ロック移行 | 一括切替、二重取得、最低version拒否のいずれかを決定 |
@@ -80,6 +80,12 @@
 ### D-26: force-unlock所有境界
 
 Job lockの所有者はkSQL-Flowのままとし、FlowNetがlockレコードを直接更新・削除してはならない。force-unlockはkSQL-Flowのversion付き回復契約として定義し、旧保持者停止確認を必須にする。FlowNetは認証主体、確認者、理由、証拠、対象、時刻、kSQL-Flow側の結果をNetwork監査へ関連付ける。具体的なCLI、result schema、Exit Code、応答消失時の照会手順がcontract testを通るまでD-26は`PROPOSED`とする。
+
+2026-08-29の追記。参照: `spikes/d-lock-contract/measurements.md`、`spikes/d-lock-contract/results/2026-08-29T10-43-16.516Z-lock-contention.json`。
+
+現行kSQL-FlowのJob lock通常解放は、レコードDELETEではなく、終端status更新、`job_key`の空文字クリア、元キーの`job_key_done`への退避を単一UPDATEで行う。実装根拠は `ksql-flow/src/logapp.ts` の `finishRecord()` である。したがって、本番サービストークンへレコード削除権限を付与しない構成を可能にし、Job lockを含む監査アプリには削除権限を付与しないことを推奨する。
+
+これは通常解放方式の追記であり、D-26のforce-unlock所有境界、旧保持者停止確認、監査、応答消失時のfail-closedを置き換えない。`PROPOSED` を維持する。
 
 ### D-27: 旧run-allからの移行境界
 
@@ -135,6 +141,12 @@ ksql-flownet force-unlock-network <network_id> \
 `NETWORK_LOCK_FORCE_RELEASED`監査イベントへ、network、profile、lock key、以前のownerとlease token、認証主体、確認者、理由、証拠、停止確認方法、時刻、結果、回収後revisionを記録する。強制回収はNode Attemptを自動的に`FAILED`または`SUCCESS`へ変更しない。実行中Nodeがあった場合は開始証跡とJob lockを照合し、必要に応じて`UNKNOWN`として解決してからresumeする。
 
 D-29は、lease設定値、heartbeat、stale判定、lease tokenによる旧owner排除、force-unlockの競合・応答消失を実機と障害注入で確認するまで`PROPOSED`とする。
+
+2026-08-29の追記。参照: `spikes/d-lock-contract/measurements.md`、`spikes/d-lock-contract/results/2026-08-29T10-43-16.516Z-lock-contention.json`。
+
+FlowNet所有のNetwork lockでも、通常解放プロトコルは一意キークリアUPDATE方式を第一候補とする。終端・解放情報と一意キーのクリアをrevision付き単一UPDATEにまとめ、通常運用ではDELETEを要求しない。強制回収時も、expected owner、revision、lease token、旧owner停止証拠の確認という既存契約を維持する。
+
+Spike Aでこの方式を実装し、正常解放、revision競合、応答消失、再GET裁定、削除権限なしのサービストークンでの動作を測定する。D-29のrenewable lease、heartbeat、drain、強制回収判断を置き換えず、`PROPOSED` を維持する。
 
 ### D-30: 外部ジョブスケジューラとの責務境界
 
@@ -411,6 +423,12 @@ Nodeキーをhash化する場合は、`profile + NUL + job_id`をcanonical input
 
 既存batchロック`{profile}:__batch__`も、必要なら`B1:`として移行対象に含める。
 
+2026-08-29の追記。参照: `spikes/d-lock-contract/measurements.md`。
+
+重複禁止フィールドは実機で64文字まで入力でき、超過時は400 `CB_VA01`、`Enter less than 65 characters.` となることを再確認した。D-10のN1案は `N1:` 3文字とpaddingなしbase64url SHA-256 43文字の合計46文字であり、この実測制限内に収まる。
+
+この記録はキー長の適合性だけを補強する。canonical bytesのtest vector、J1移行、新旧lock protocol移行は未実測である。
+
 ### D-14: 新旧versionの切替
 
 新旧キーは互いに競合しないため、旧ランナーと新ランナーを無計画に混在させてはならない。Phase 0で次のいずれかを決定する。
@@ -457,6 +475,39 @@ INSERT 400
 
 試験成功は検証環境での観測であり、公式保証への格上げではない。環境、時刻、回数、レスポンス、残余リスクを記録する。
 
+2026-08-29、kintone検証環境で重複禁止INSERTのcontract testを実施した。結果は検証環境での観測であり、kintoneの公式保証ではない。重複禁止INSERTを分散ロック取得の最終裁定として採用できると判断する。
+
+実行環境は `LAPTOP5 / Windows (win32) / Node v24.14.0 / devenxyfi.cybozu.com / app 4257`、単一ホスト、ローカルロックなしである。results JSONは実行コマンド文字列を保持していないため、以下はJSONと同じworker数・反復数を再現するコマンドとして記録する。
+
+```bash
+node --env-file=.env spikes/d-lock-contract/scripts/lock-contention.mjs
+node --env-file=.env spikes/d-lock-contract/scripts/lock-contention.mjs --workers 3 --iterations 10
+node --env-file=.env spikes/d-lock-contract/scripts/response-loss.mjs
+node --env-file=.env spikes/d-lock-contract/scripts/revision-conflict.mjs
+node --env-file=.env spikes/d-lock-contract/scripts/stale-reclaim.mjs
+```
+
+反復と結果:
+
+- 2 worker × 10反復: INSERT成功10、400 `CB_VA01`拒否10、永続重複0、API 50回、Σ `durationMs` = 10,224.8544 ms、合格
+- 3 worker × 10反復: INSERT成功10、400 `CB_VA01`拒否20、永続重複0、API 70回、Σ `durationMs` = 14,482.3754 ms、合格
+- 400となった全30件は同じkeyを再GETし、`count=1` とRUNNING holderを確認して `LOCK_CONFLICT` と裁定
+- 成功応答消失: API 3回、786.1514 ms。再GETで同一holderを確認し `ACQUIRED_BY_REGET`、合格
+- revision競合: API 6回。finish-record更新は200、旧revisionのreclaimer更新は409 `GAIA_CO02`、再GETでfinish-recordを確認、合格
+- stale回収後の旧保持者復帰: API 6回。旧revision更新は409 `GAIA_CO02`、再GETでreclaimerとlease identity保持を確認、合格
+- 初回2 worker × 10反復ではロック裁定は成功10・拒否10・重複0だったが、cleanup DELETEが全10件403 `GAIA_NO01` となり削除権限不足を発見した。この実行は `passed=false` であり、上記合格集計には含めない
+
+参照results:
+
+- `spikes/d-lock-contract/results/2026-08-29T10-43-16.516Z-lock-contention.json`
+- `spikes/d-lock-contract/results/2026-08-29T10-52-31.819Z-lock-contention.json`
+- `spikes/d-lock-contract/results/2026-08-29T10-52-32.766Z-response-loss.json`
+- `spikes/d-lock-contract/results/2026-08-29T10-52-34.357Z-revision-conflict.json`
+- `spikes/d-lock-contract/results/2026-08-29T10-52-35.719Z-stale-reclaim.json`
+- `spikes/d-lock-contract/results/2026-08-29T11-05-59.901Z-lock-contention.json`
+
+残余リスクは、複数ホスト、高並列、ネットワーク分断、GET遅延、再GET確認不能分岐が未実測であること。D-14の新旧lock移行は未実施であり、本判断では閉じない。
+
 ---
 
 ## 7. bundle保持の運用決定
@@ -477,6 +528,26 @@ INSERT 400
 最低規則:
 
 > `resume_allowed = true`のRunについて、検証済みbundleを取得不能にする削除を禁止する。
+
+2026-08-29、同じ検証環境とapp 4257で、4KiB / 1MiB / 10MiBを各1回roundtripし、全件でZIP自己検証とSHA-256一致を確認した。API呼出数は各6回、計18回。10MiBではupload 4,301.0974 ms（約4.3秒）、download 7,431.3807 ms（約7.4秒）であり、10MiBはkSQL-FlowNet独自上限候補として実用域と判断する。これはkintoneの公式上限を示さない。
+
+正常download後の1 byteローカル改ざんでは、API 7回のシナリオでhash不一致を検知し、`CORRUPTION_DETECTED_FAIL_CLOSED` となった。
+
+bundle取得契約には、`POST /k/v1/file.json` の `fileKey` が添付専用であることを明記する。添付後にレコードを再GETし、添付フィールド内の新しい `fileKey` を取得してdownloadしなければならない。
+
+実行条件を再現するコマンド（results JSONは実行コマンド文字列を保持しない）:
+
+```bash
+node --env-file=.env spikes/b-bundle/scripts/bundle-roundtrip.mjs
+node --env-file=.env spikes/b-bundle/scripts/bundle-corruption.mjs
+```
+
+参照results:
+
+- `spikes/b-bundle/results/2026-08-29T11-04-00.864Z-bundle-roundtrip.json`
+- `spikes/b-bundle/results/2026-08-29T11-04-03.307Z-bundle-corruption.json`
+
+未実施のため残す項目は、添付差替え・削除権限の確認、archive先からの復元、resume可能期間と保持期間の運用、外部immutable storage、監査保持、定期復元試験、通常bundleを含む複数サイズ分布の統計、取得不能時のfail-closedである。
 
 ---
 
@@ -659,7 +730,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [ ] D-08: 1アプリ／2アプリのスパイク結果から構成を決定
 - [ ] D-09: 開始・終了・reconciliationの障害注入試験に合格
 - [ ] D-10: canonical bytesとキーversionをtest vectorで固定
-- [ ] D-11: kintone実環境の同時INSERT contract testを完了
+- [x] D-11: kintone実環境の同時INSERT contract testを完了 (2026-08-29実測、単一ホスト。詳細はD-11節)
 - [ ] D-12: bundle容量、保持、archive、復元試験を決定
 - [ ] D-13: UNKNOWN解決権限と監査主体を決定
 - [ ] D-14: 新旧lock protocolの移行方式を決定
