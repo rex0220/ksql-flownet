@@ -4,6 +4,7 @@
 - 対象: kSQL-FlowNetとの連携に必要なkSQL-Flow側の変更
 - 基準バージョン: kSQL-Flow 0.6.0
 - 詳細契約: [kSQL-Flow Execution Contract v1](./execution-contract-v1.md)
+- 変更記録: 2026-08-30: `SQL_ERROR`のExit対応を3→1へ修正（kSQL-Flow公開仕様7.1との整合。kSQL-Flowからの疑義文書による再審議）
 
 ---
 
@@ -177,7 +178,7 @@ Job lockのforce-unlockはkSQL-Flowが所有するversion付き回復契約と�
 | `NO_DATA` | `SUCCESS` | `NO_DATA` | 0 |
 | `ABORTED` | `FAILED` | `ASSERT_FAILED` | 2 |
 | runner自身が検知した`TIMEOUT` | `FAILED` | `EXECUTION_TIMEOUT` | 3 |
-| SQL実行エラー | `FAILED` | `SQL_ERROR` | 3 |
+| SQL実行エラー | `FAILED` | `SQL_ERROR` | 1 |
 | API／認証エラー | `FAILED` | `API_ERROR` / `AUTH_ERROR` | 3 |
 | ロック状態を安全に確定できない | `FAILED` | `LOCK_UNAVAILABLE` | 3 |
 | 既存Jobロックとの競合 | `FAILED` | `LOCK_CONFLICT` | 5 |

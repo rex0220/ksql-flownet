@@ -139,10 +139,21 @@
     },
     {
       "if": {
+        "properties": { "resultCode": { "const": "SQL_ERROR" } },
+        "required": ["resultCode"]
+      },
+      "then": {
+        "properties": {
+          "status": { "const": "FAILED" },
+          "exitCode": { "const": 1 }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": {
           "resultCode": {
             "enum": [
-              "SQL_ERROR",
               "API_ERROR",
               "AUTH_ERROR",
               "EXECUTION_TIMEOUT",

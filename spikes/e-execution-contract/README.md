@@ -6,6 +6,8 @@
 
 Schemaは契約§3.3の「未知フィールドは無視し、v1内の追加はadditive」に従い、各objectの`additionalProperties`を`true`にする。status・exitCode・`executionStarted`の既知resultCodeとの整合は条件schemaで表す。未知resultCodeの受理判定は§4.3のとおりControl Planeのstatus／Exit Code整合ロジックで行い、schemaでは拒否しない。
 
+2026-08-30裁定: kSQL-Flow公開仕様7.1との整合のため、`SQL_ERROR`は`FAILED`／Exit 1とする（`executionStarted`は制約しない）。
+
 ## 検証環境と前提
 
 - kintone: `https://devenxyfi.cybozu.com`（timezone: `Asia/Tokyo`）
