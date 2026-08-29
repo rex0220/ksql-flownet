@@ -3,3 +3,4 @@ node_modules/
 docs/
 .claude/
 .env.example
+spikes/*/results/

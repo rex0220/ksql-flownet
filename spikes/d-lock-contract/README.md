@@ -4,6 +4,8 @@
 
 本ディレクトリはFDR D-10、D-11、D-14を閉じるための実機contract test準備物である。観測結果をkintoneの公式保証へ格上げしない。
 
+重複禁止を設定した文字列（1行）フィールドの上限は実測64文字（CB_VA01）。canonical lock key設計（D-10、`N1:` + base64url 43文字 = 46文字）は、この実測制限内に収まる。
+
 ## 検証環境と前提
 
 - kintone: `https://devenxyfi.cybozu.com`（timezone: `Asia/Tokyo`）

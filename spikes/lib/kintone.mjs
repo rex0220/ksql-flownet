@@ -84,7 +84,28 @@ export function field(value) {
   return { value: String(value) };
 }
 
+const UNIQUE_KEY_FIELD_CODES = [
+  "record_key",
+  "node_state_key",
+  "attempt_key",
+  "lock_key",
+];
+
+export function validateUniqueKeyFields(record) {
+  for (const fieldCode of UNIQUE_KEY_FIELD_CODES) {
+    const value = record?.[fieldCode]?.value;
+    if (value === undefined || value === null || value === "") continue;
+    const length = Array.from(String(value)).length;
+    if (length > 64) {
+      throw new Error(
+        `一意キーフィールド ${fieldCode} は64文字以内で指定してください（現在${length}文字）。`,
+      );
+    }
+  }
+}
+
 export async function insertRecord(client, app, record) {
+  validateUniqueKeyFields(record);
   return client.request("record", { method: "POST", body: { app, record } });
 }
 

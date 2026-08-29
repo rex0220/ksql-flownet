@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import test from "node:test";
+import { URL } from "node:url";
 
 import { releaseWhenReady } from "../../spikes/lib/barrier.mjs";
 import {
@@ -19,7 +20,13 @@ import {
   sanitize,
 } from "../../spikes/lib/runtime.mjs";
 import { createStoreZip, readStoreZip } from "../../spikes/lib/zip-store.mjs";
-import { sha256 } from "../../spikes/b-bundle/scripts/bundle-support.mjs";
+import {
+  attachBundle,
+  downloadFile,
+  getAttachedBundleFileKey,
+  makeBundleRecordIdentity,
+  sha256,
+} from "../../spikes/b-bundle/scripts/bundle-support.mjs";
 
 test("store-only ZIP writer/readerがbyte列とCRCを往復検証する", () => {
   const data = Buffer.from("kSQL-FlowNet bundle\n", "utf8");
@@ -150,6 +157,103 @@ test("kintone clientは組込みfetch相当へtoken headerとJSON payloadを渡�
     record: { record_key: { value: "key-1" } },
   });
   assert.equal(client.apiCalls, 1);
+});
+
+test("一意キーフィールドは64文字を許可し65文字をAPI呼出前に拒否する", async () => {
+  let fetchCalls = 0;
+  const client = createKintoneClient(
+    {
+      baseUrl: "https://example.cybozu.com",
+      app: "9999",
+      token: "mock-secret",
+    },
+    async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ id: "101", revision: "1" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  );
+
+  await insertRecord(client, "9999", { record_key: field("a".repeat(64)) });
+  assert.equal(fetchCalls, 1);
+  await assert.rejects(
+    insertRecord(client, "9999", { record_key: field("a".repeat(65)) }),
+    /一意キーフィールド record_key は64文字以内.*現在65文字/,
+  );
+  await assert.rejects(
+    insertRecord(client, "9999", {
+      record_key: field("spike-d-lock:within-limit"),
+      lock_key: field("d".repeat(65)),
+    }),
+    /一意キーフィールド lock_key は64文字以内.*現在65文字/,
+  );
+  assert.equal(fetchCalls, 1);
+});
+
+test("Spike Bの全ラベルでrun_idとrecord_keyが64文字以内になる", () => {
+  const uuid = "12345678-1234-4567-89ab-123456789abc";
+  for (const label of ["small", "medium", "limit-candidate", "corruption"]) {
+    const identity = makeBundleRecordIdentity(label, uuid);
+    assert.ok(identity.runId.length <= 64);
+    assert.ok(identity.recordKey.length <= 64);
+    assert.match(identity.runId, /-123456781234456789ab$/);
+  }
+});
+
+test("添付後のレコードGETで得た新しいfileKeyをダウンロードに使う", async () => {
+  const calls = [];
+  const downloadedBytes = Buffer.from("attached bundle");
+  const fetchMock = async (url, options) => {
+    const requestUrl = new URL(url);
+    calls.push({ url: requestUrl, options });
+    if (options.method === "POST") {
+      return Response.json({ id: "101", revision: "1" });
+    }
+    if (requestUrl.pathname.endsWith("/records.json")) {
+      return Response.json({
+        records: [
+          {
+            source_bundle_attachment: {
+              value: [{ fileKey: "download-file-key" }],
+            },
+          },
+        ],
+      });
+    }
+    return new Response(downloadedBytes);
+  };
+  const client = createKintoneClient(
+    {
+      baseUrl: "https://example.cybozu.com",
+      app: "9999",
+      token: "mock-secret",
+    },
+    fetchMock,
+  );
+
+  const attached = await attachBundle(
+    client,
+    "9999",
+    "upload-file-key",
+    "expected-hash",
+    "small",
+  );
+  const downloadFileKey = await getAttachedBundleFileKey(
+    client,
+    "9999",
+    attached.recordKey,
+  );
+  const downloaded = await downloadFile(client, downloadFileKey);
+
+  assert.equal(downloadFileKey, "download-file-key");
+  assert.deepEqual(downloaded, downloadedBytes);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[1].url.pathname, "/k/v1/records.json");
+  assert.match(calls[1].url.searchParams.get("query"), /^record_key = /);
+  assert.equal(calls[2].url.pathname, "/k/v1/file.json");
+  assert.equal(calls[2].url.searchParams.get("fileKey"), "download-file-key");
 });
 
 test("既知の既存アプリIDを起動時検証で拒否する", () => {
