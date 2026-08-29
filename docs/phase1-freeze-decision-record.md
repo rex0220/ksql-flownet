@@ -37,7 +37,7 @@
 | D-07 | `PROPOSED` | 永続化の正本 | Node Stateをスケジューラの正、Node Attemptを物理実行の耐久履歴とする |
 | D-08 | `DECIDED` | アプリ構成 | FlowNetの実行管理／監査2アプリと既存kSQL-Flow JOBログアプリの構成を第一候補とし、FlowNet 1アプリ案とスパイク比較（2アプリ構成を採用） |
 | D-09 | `PROPOSED` | 二重書込み | SQL開始前ゲートとrevision付き照合・修復プロトコルを採用 |
-| D-10 | `PROPOSED` | canonical lock key | `N1:` / `J1:`等のversion付きbase64url SHA-256形式 |
+| D-10 | `DECIDED` | canonical lock key | `N1:` / `J1:`等のversion付きbase64url SHA-256形式 |
 | D-11 | `DECIDED` | 重複禁止INSERT競合 | 複数プロセス・可能なら複数ホストの実機contract testを実施 |
 | D-12 | `OPERATIONS_REQUIRED` | bundle保持 | resume可能期間、archive、外部退避、容量上限を決定 |
 | D-13 | `OPERATIONS_REQUIRED` | Node手動解決権限 | UNKNOWN／非冪等FAILEDの認証主体、承認者、証拠、権限分離を決定 |
@@ -263,6 +263,12 @@ scope = profile + network_id
 | 外部からの明示停止 | `CANCELLED` | `USER_CANCELLED` | 認証主体を記録 |
 
 `SKIPPED (LOCKED)`となった単体ジョブの結果を、Network Runの成功として流用しない。snapshot、as-of、business keyが同じとは限らないためである。下流は上流が未確定として待機する。
+
+2026-08-29、現行ログをread-onlyで431件取得した（GET 2回）。`status`を持つ429件の分布は`SUCCESS` 244件、`ABORTED` 70件、`NO_DATA` 66件、`FAILED` 29件、`SKIPPED` 16件、`TIMEOUT` 4件で、観測した全statusはD-06 fixtureでカバーされ、fixtureにない想定外statusは0件だった。参照: `spikes/c-status-migration/results/2026-08-29T13-02-37.002Z-inspect-real-logs.json`、`spikes/c-status-migration/fixtures.yaml`、`tests/unit/status-migration.test.mjs`。
+
+fixture側の`CANCELLED`は現行実ログに存在しない。特に`explicit_external_stop`の入力`current_status: CANCELLED`は今回の実データに実在しない値である。「外部からの明示停止」行の入力定義は、移行ツール実装時に実データ根拠で再確認し、必要ならfixture修正候補とする。
+
+`record_type`と`log_detail`は実ログに同名フィールドとして存在するが、`timeout_source`と`actor`はフィールドとして存在せず導出値である。移行ツールは、stale回収などを示す`log_detail`の記録文言と`record_type`等から発生源・主体を導出し、確定できない場合はfail-closedにする必要がある。`job_key`と`job_key_done`も実在し、キー退避による現行ロック解放プロトコルのフィールド構成を確認した。
 
 ---
 
@@ -497,6 +503,14 @@ Nodeキーをhash化する場合は、`profile + NUL + job_id`をcanonical input
 重複禁止フィールドは実機で64文字まで入力でき、超過時は400 `CB_VA01`、`Enter less than 65 characters.` となることを再確認した。D-10のN1案は `N1:` 3文字とpaddingなしbase64url SHA-256 43文字の合計46文字であり、この実測制限内に収まる。
 
 この記録はキー長の適合性だけを補強する。canonical bytesのtest vector、J1移行、新旧lock protocol移行は未実測である。
+
+2026-08-29、canonical lock keyのbytes契約とキーversionを固定test vectorとして記録した。`vectors.json`のmetadataは、contract version `N1/J1`、SHA-256、`base64url without padding`、UTF-8、Unicode NFC、canonical input `<version>\0<NFC(profile)>\0<NFC(identifier)>`、生成キー長46文字、NFC正規化後identifier上限128文字を定義している。参照: `tests/fixtures/canonical-lock-key/vectors.json`、`tests/unit/canonical-lock-key.test.mjs`、`src/domain/canonical-lock-key.ts`。
+
+固定vectorは有効9件と拒否6件である。有効vectorにはNetwork/Job、ASCII/日本語、NFC/NFD同値、大文字小文字の区別、128文字境界を含む。拒否vectorには空値、区切り文字、予約値、NUL、129文字境界超過を含み、安定したerror codeと対象componentを固定している。
+
+Node.js標準`crypto`だけを使い、実装関数を経由せずmetadataどおりにcanonical bytesを組み立てて全9件を独立再計算した結果、expected keyとの不一致は0件だった。実装は`src/domain/canonical-lock-key.ts`にあり、固定vector全件・NFC同値・case sensitivity・拒否ケースを`tests/unit/canonical-lock-key.test.mjs`で検証する。
+
+以上によりD-10を`DECIDED`とし、対応する凍結ゲートを閉じる。ただし、J1への実データ移行と新旧lock protocol切替はD-14の範囲であり未実施である。D-14は別項目として未完了のまま残す。
 
 ### D-14: 新旧versionの切替
 
@@ -798,7 +812,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [ ] D-07: Source of TruthとNode Attempt lifecycleをレビュー承認
 - [x] D-08: 1アプリ／2アプリのスパイク結果から構成を決定 (2026-08-29実測により2アプリ案を決定。ACL実地・通知・archive運用・テンプレート配布は残余の手動確認。詳細はD-08節)
 - [ ] D-09: 開始・終了・reconciliationの障害注入試験に合格
-- [ ] D-10: canonical bytesとキーversionをtest vectorで固定
+- [x] D-10: canonical bytesとキーversionをtest vectorで固定 (2026-08-29 test vector固定。詳細はD-10節)
 - [x] D-11: kintone実環境の同時INSERT contract testを完了 (2026-08-29実測、単一ホスト。詳細はD-11節)
 - [ ] D-12: bundle容量、保持、archive、復元試験を決定
 - [ ] D-13: UNKNOWN解決権限と監査主体を決定
@@ -817,7 +831,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [ ] D-27: 旧`batch_id`が`run_id`へ変換されず、監査参照からresumeできないことを確認
 - [ ] D-28: `validate`／`plan`／`status`が外部状態を変更せず、`status`が復旧に必要な識別子を返すことを確認
 - [ ] D-29: 正常な長時間RunでNetwork leaseを維持し、heartbeat障害時はdrainし、FlowNetプロセスkill後はruntime停止確認と監査を伴って安全に回収できる
-- [ ] 現行status移行fixtureの全ケースに合格
+- [ ] 現行status移行fixtureの全ケースに合格 (2026-08-29変換試作はD-06 fixture全14ケースに合格し、原因情報が欠落・矛盾する4ケースと未知status 1ケースのfail-closedを確認。本実装（M7）で全件実行後に閉じる)
 - [ ] ensure-runの0件／未完了1件／完了1件／複数件試験に合格
 - [ ] snapshot破損・取得不能時のfail-closed試験に合格
 - [ ] stale検知から旧保持者停止確認、突合、解決、resumeまでの復旧訓練に合格
