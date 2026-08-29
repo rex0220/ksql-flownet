@@ -10,6 +10,7 @@ import {
   attachBundle,
   deleteAttachedRecord,
   downloadFile,
+  getAttachedBundleFileKey,
   makeVerifiedBundle,
   sha256,
   uploadFile,
@@ -56,8 +57,13 @@ async function measureSize(client, config, definition) {
       definition.label,
     );
     attachMs = performance.now() - attachStarted;
+    const downloadFileKey = await getAttachedBundleFileKey(
+      client,
+      config.app,
+      attached.recordKey,
+    );
     const downloadStarted = performance.now();
-    const downloaded = await downloadFile(client, fileKey);
+    const downloaded = await downloadFile(client, downloadFileKey);
     downloadMs = performance.now() - downloadStarted;
     const downloadHashStarted = performance.now();
     downloadedHash = sha256(downloaded);

@@ -9,6 +9,7 @@ import {
   attachBundle,
   deleteAttachedRecord,
   downloadFile,
+  getAttachedBundleFileKey,
   makeVerifiedBundle,
   sha256,
   uploadFile,
@@ -32,7 +33,12 @@ export async function runBundleCorruption() {
       expectedHash,
       "corruption",
     );
-    const downloaded = await downloadFile(client, fileKey);
+    const downloadFileKey = await getAttachedBundleFileKey(
+      client,
+      config.app,
+      attached.recordKey,
+    );
+    const downloaded = await downloadFile(client, downloadFileKey);
     const [record] = await getRecordsByKey(
       client,
       config.app,

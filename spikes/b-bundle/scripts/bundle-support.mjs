@@ -51,9 +51,14 @@ export async function downloadFile(client, fileKey) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+export function makeBundleRecordIdentity(label, uuid = randomUUID()) {
+  const shortId = uuid.replaceAll("-", "").slice(0, 20);
+  const runId = `spike-b-${label}-${shortId}`;
+  return { runId, recordKey: `NETWORK_RUN:${runId}` };
+}
+
 export async function attachBundle(client, app, fileKey, expectedHash, label) {
-  const runId = `spike-b-${label}-${randomUUID()}`;
-  const recordKey = `NETWORK_RUN:${runId}`;
+  const { runId, recordKey } = makeBundleRecordIdentity(label);
   const response = await insertRecord(client, app, {
     record_key: field(recordKey),
     record_type: field("NETWORK_RUN"),
@@ -68,6 +73,18 @@ export async function attachBundle(client, app, fileKey, expectedHash, label) {
     created_at: field(new Date().toISOString()),
   });
   return { recordKey, recordId: response.id, revision: response.revision };
+}
+
+export async function getAttachedBundleFileKey(client, app, recordKey) {
+  const records = await getRecordsByKey(client, app, recordKey);
+  const downloadFileKey =
+    records[0]?.source_bundle_attachment?.value?.[0]?.fileKey;
+  if (!downloadFileKey) {
+    throw new Error(
+      "添付後のNetwork Runからダウンロード用fileKeyを再取得できませんでした。",
+    );
+  }
+  return downloadFileKey;
 }
 
 export async function deleteAttachedRecord(client, app, attached) {
