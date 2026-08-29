@@ -1,0 +1,1170 @@
+{
+  "measurementIds": [
+    "A-03",
+    "A-12"
+  ],
+  "observedAt": "2026-08-29T12:13:29.889Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "resume",
+  "dataset": {
+    "runId": "spike_a_resume_b76eb0db2af73040",
+    "networkId": "spike_a_serial_3",
+    "businessKey": "spike_a_serial_3@b76eb0db2af73040",
+    "nodeOrder": [
+      "extract",
+      "aggregate",
+      "send"
+    ]
+  },
+  "layouts": {
+    "1app": {
+      "passed": true,
+      "aggregateStatus": "SUCCESS",
+      "selectedNodeIds": [
+        "aggregate",
+        "send"
+      ],
+      "preservedNodeIds": [
+        "extract"
+      ],
+      "attemptsAdded": {
+        "extract": 0,
+        "aggregate": 1,
+        "send": 1
+      },
+      "aggregateAttemptNo": 2,
+      "release": {
+        "released": true,
+        "protocol": "tombstone-and-unique-key-clear"
+      },
+      "durationMs": 9995.259300000002,
+      "apiCalls": 35,
+      "payload": {
+        "requestBytes": 13331,
+        "responseBytes": 670,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "role": "integrated",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 556,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 939,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 3,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 571,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 4,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 663,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 5,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 669,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 6,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 654,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 7,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 555,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 8,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 361,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 9,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 244,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 10,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 11,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 12,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 563,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 13,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 363,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 14,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 246,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 15,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 16,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 321,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 17,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 250,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 18,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 229,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 19,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 167,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 20,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 593,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 21,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 183,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 22,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 211,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 23,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 566,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 24,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 363,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 25,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 246,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 26,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 27,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 28,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 546,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 29,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 358,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 30,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 241,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 31,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 32,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 33,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 230,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 34,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 159,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 35,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 252,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      },
+      "operationLog": [
+        {
+          "operation": "acquireNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        },
+        {
+          "operation": "createRun",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "updateRunAggregate",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "updateRunAggregate",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "releaseNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        }
+      ],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "必須+重複禁止のキーはtombstone書き換え方式が必要（実測CB_VA01）。本番アプリ設計（D-08）ではlock keyフィールドを非必須にするか、lock_key_done等の退避フィールドとRELEASED statusを設ける。"
+        },
+        {
+          "code": "A_DROPDOWN_QUERY_OPERATOR_CONSTRAINT",
+          "severity": "decision-input",
+          "detail": "ドロップダウンは=ではなくin/not inのみ対応する（実測GAIA_IQ03）。FN-04 repositoryのクエリ層はフィールド型ごとの演算子制約を吸収する必要がある。"
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    },
+    "2app": {
+      "passed": true,
+      "aggregateStatus": "SUCCESS",
+      "selectedNodeIds": [
+        "aggregate",
+        "send"
+      ],
+      "preservedNodeIds": [
+        "extract"
+      ],
+      "attemptsAdded": {
+        "extract": 0,
+        "aggregate": 1,
+        "send": 1
+      },
+      "aggregateAttemptNo": 2,
+      "release": {
+        "released": true,
+        "protocol": "tombstone-and-unique-key-clear"
+      },
+      "durationMs": 10127.5514,
+      "apiCalls": 35,
+      "payload": {
+        "requestBytes": 13331,
+        "responseBytes": 670,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "role": "execution",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 556,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 939,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 3,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 663,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 4,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 669,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 5,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 654,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 6,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 361,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 7,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 8,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 363,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 9,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 321,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 10,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 250,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 11,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 229,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 12,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 183,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 13,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 211,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 14,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 363,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 15,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 16,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 358,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 17,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 18,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 230,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 19,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 252,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 571,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 555,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 3,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 244,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 4,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 5,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 563,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 6,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 246,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 7,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 301,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 8,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 167,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 9,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 593,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 10,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 566,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 11,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 246,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 12,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 13,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 546,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 14,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 241,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 15,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 16,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 159,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      },
+      "operationLog": [
+        {
+          "operation": "acquireNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        },
+        {
+          "operation": "createRun",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "updateRunAggregate",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "updateRunAggregate",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "releaseNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        }
+      ],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "必須+重複禁止のキーはtombstone書き換え方式が必要（実測CB_VA01）。本番アプリ設計（D-08）ではlock keyフィールドを非必須にするか、lock_key_done等の退避フィールドとRELEASED statusを設ける。"
+        },
+        {
+          "code": "A_DROPDOWN_QUERY_OPERATOR_CONSTRAINT",
+          "severity": "decision-input",
+          "detail": "ドロップダウンは=ではなくin/not inのみ対応する（実測GAIA_IQ03）。FN-04 repositoryのクエリ層はフィールド型ごとの演算子制約を吸収する必要がある。"
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    }
+  },
+  "passed": true
+}

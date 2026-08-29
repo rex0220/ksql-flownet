@@ -1,0 +1,220 @@
+{
+  "measurementIds": [
+    "A-06"
+  ],
+  "observedAt": "2026-08-29T12:13:59.385Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "audit-unreachable",
+  "dataset": {
+    "runId": "spike_a_audit_unreachable_e2adc185fc1ada2a",
+    "networkId": "spike_a_serial_3",
+    "businessKey": "spike_a_serial_3@e2adc185fc1ada2a",
+    "nodeOrder": [
+      "extract",
+      "aggregate",
+      "send"
+    ]
+  },
+  "layouts": {
+    "1app": {
+      "passed": true,
+      "applicable": false,
+      "skippedReason": "監査アプリ分離障害は2アプリ案だけに適用する",
+      "durationMs": 0.2604000000000042,
+      "apiCalls": 0,
+      "payload": {
+        "requestBytes": 0,
+        "responseBytes": 0,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": []
+      },
+      "operationLog": [],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "必須+重複禁止のキーはtombstone書き換え方式が必要（実測CB_VA01）。本番アプリ設計（D-08）ではlock keyフィールドを非必須にするか、lock_key_done等の退避フィールドとRELEASED statusを設ける。"
+        },
+        {
+          "code": "A_DROPDOWN_QUERY_OPERATOR_CONSTRAINT",
+          "severity": "decision-input",
+          "detail": "ドロップダウンは=ではなくin/not inのみ対応する（実測GAIA_IQ03）。FN-04 repositoryのクエリ層はフィールド型ごとの演算子制約を吸収する必要がある。"
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    },
+    "2app": {
+      "passed": true,
+      "applicable": true,
+      "injection": {
+        "kind": "fetch-wrapper",
+        "failFromAuditCall": 2,
+        "explicitlySynthetic": true,
+        "note": "障害注入であり、kintone実挙動の観測ではない"
+      },
+      "attemptWrite": {
+        "failed": true,
+        "error": {
+          "status": null,
+          "code": null,
+          "message": "INJECTED_AUDIT_UNREACHABLE: audit call 2 (injected, not kintone behavior)"
+        }
+      },
+      "sqlStarted": false,
+      "failClosed": true,
+      "release": {
+        "released": true,
+        "protocol": "tombstone-and-unique-key-clear"
+      },
+      "durationMs": 2073.5872000000004,
+      "apiCalls": 8,
+      "payload": {
+        "requestBytes": 4936,
+        "responseBytes": 173,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "role": "execution",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 556,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 961,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 3,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 674,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 4,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 680,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 5,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 665,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 6,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 252,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 582,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 566,
+            "responseBytes": 0,
+            "status": null,
+            "ok": false,
+            "error": "INJECTED_AUDIT_UNREACHABLE: audit call 2 (injected, not kintone behavior)"
+          }
+        ]
+      },
+      "operationLog": [
+        {
+          "operation": "acquireNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        },
+        {
+          "operation": "createRun",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "releaseNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        }
+      ],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "必須+重複禁止のキーはtombstone書き換え方式が必要（実測CB_VA01）。本番アプリ設計（D-08）ではlock keyフィールドを非必須にするか、lock_key_done等の退避フィールドとRELEASED statusを設ける。"
+        },
+        {
+          "code": "A_DROPDOWN_QUERY_OPERATOR_CONSTRAINT",
+          "severity": "decision-input",
+          "detail": "ドロップダウンは=ではなくin/not inのみ対応する（実測GAIA_IQ03）。FN-04 repositoryのクエリ層はフィールド型ごとの演算子制約を吸収する必要がある。"
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    }
+  },
+  "passed": true
+}

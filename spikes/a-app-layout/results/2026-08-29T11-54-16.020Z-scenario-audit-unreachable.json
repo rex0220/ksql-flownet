@@ -1,0 +1,219 @@
+{
+  "measurementIds": [
+    "A-06"
+  ],
+  "observedAt": "2026-08-29T11:54:16.017Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "audit-unreachable",
+  "dataset": {
+    "runId": "spike_a_audit_unreachable_b1229d29ebe897fc",
+    "networkId": "spike_a_serial_3",
+    "businessKey": "spike_a_serial_3@b1229d29ebe897fc",
+    "nodeOrder": [
+      "extract",
+      "aggregate",
+      "send"
+    ]
+  },
+  "layouts": {
+    "1app": {
+      "passed": true,
+      "applicable": false,
+      "skippedReason": "監査アプリ分離障害は2アプリ案だけに適用する",
+      "durationMs": 0.14269999999999072,
+      "apiCalls": 0,
+      "payload": {
+        "requestBytes": 0,
+        "responseBytes": 0,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": []
+      },
+      "operationLog": [],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "現schemaにはlock_key_done、解放時刻、RELEASED statusがない。SUCCESSを代替statusとして使い、退避なしで一意キーをクリアする。record_keyが必須のため空文字UPDATEが拒否される可能性も実測対象とする。"
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    },
+    "2app": {
+      "passed": true,
+      "applicable": true,
+      "injection": {
+        "kind": "fetch-wrapper",
+        "failFromAuditCall": 2,
+        "explicitlySynthetic": true,
+        "note": "障害注入であり、kintone実挙動の観測ではない"
+      },
+      "attemptWrite": {
+        "failed": true,
+        "error": {
+          "status": null,
+          "code": null,
+          "message": "INJECTED_AUDIT_UNREACHABLE: audit call 2 (injected, not kintone behavior)"
+        }
+      },
+      "sqlStarted": false,
+      "failClosed": true,
+      "release": {
+        "released": false,
+        "protocol": "unique-key-clear-update",
+        "error": {
+          "status": 400,
+          "code": "CB_VA01",
+          "message": "kintone API PUT /k/v1/record.json が HTTP 400 を返しました。"
+        }
+      },
+      "durationMs": 2442.3349,
+      "apiCalls": 8,
+      "payload": {
+        "requestBytes": 4900,
+        "responseBytes": 304,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "role": "execution",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 556,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 961,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 3,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 674,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 4,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 680,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 5,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 665,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 6,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 216,
+            "responseBytes": 148,
+            "status": 400,
+            "ok": false
+          },
+          {
+            "role": "audit",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 582,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 566,
+            "responseBytes": 0,
+            "status": null,
+            "ok": false,
+            "error": "INJECTED_AUDIT_UNREACHABLE: audit call 2 (injected, not kintone behavior)"
+          }
+        ]
+      },
+      "operationLog": [
+        {
+          "operation": "acquireNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        },
+        {
+          "operation": "createRun",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        }
+      ],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "現schemaにはlock_key_done、解放時刻、RELEASED statusがない。SUCCESSを代替statusとして使い、退避なしで一意キーをクリアする。record_keyが必須のため空文字UPDATEが拒否される可能性も実測対象とする。"
+        },
+        {
+          "code": "A_LOCK_RELEASE_UPDATE_REJECTED",
+          "severity": "observed",
+          "detail": {
+            "status": 400,
+            "code": "CB_VA01",
+            "message": "kintone API PUT /k/v1/record.json が HTTP 400 を返しました。"
+          }
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    }
+  },
+  "passed": true
+}

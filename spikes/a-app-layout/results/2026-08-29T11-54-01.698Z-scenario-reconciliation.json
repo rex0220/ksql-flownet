@@ -1,0 +1,403 @@
+{
+  "measurementIds": [
+    "A-04"
+  ],
+  "observedAt": "2026-08-29T11:54:01.694Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "reconciliation",
+  "dataset": {
+    "runId": "spike_a_reconciliation_21be3a6b04ce712d",
+    "networkId": "spike_a_serial_3",
+    "businessKey": "spike_a_serial_3@21be3a6b04ce712d",
+    "nodeOrder": [
+      "extract",
+      "aggregate",
+      "send"
+    ]
+  },
+  "layouts": {
+    "1app": {
+      "passed": false,
+      "error": {
+        "status": 400,
+        "code": "GAIA_IQ03",
+        "message": "kintone API GET /k/v1/records.json が HTTP 400 を返しました。"
+      },
+      "durationMs": 4117.1993999999995,
+      "apiCalls": 11,
+      "payload": {
+        "requestBytes": 5544,
+        "responseBytes": 367,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "role": "integrated",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 556,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 955,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 3,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 579,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 4,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 671,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 5,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 677,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 6,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 662,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 7,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 563,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 8,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 361,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 9,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 244,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 10,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "integrated",
+            "call": 11,
+            "method": "GET",
+            "path": "/k/v1/records.json",
+            "requestBytes": 0,
+            "responseBytes": 137,
+            "status": 400,
+            "ok": false
+          }
+        ]
+      },
+      "operationLog": [
+        {
+          "operation": "acquireNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        },
+        {
+          "operation": "createRun",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        }
+      ],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "現schemaにはlock_key_done、解放時刻、RELEASED statusがない。SUCCESSを代替statusとして使い、退避なしで一意キーをクリアする。record_keyが必須のため空文字UPDATEが拒否される可能性も実測対象とする。"
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    },
+    "2app": {
+      "passed": false,
+      "error": {
+        "status": 400,
+        "code": "GAIA_IQ03",
+        "message": "kintone API GET /k/v1/records.json が HTTP 400 を返しました。"
+      },
+      "durationMs": 3225.974699999999,
+      "apiCalls": 11,
+      "payload": {
+        "requestBytes": 5544,
+        "responseBytes": 367,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "role": "execution",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 556,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 955,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 3,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 671,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 4,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 677,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 5,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 662,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 6,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 361,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "execution",
+            "call": 7,
+            "method": "GET",
+            "path": "/k/v1/records.json",
+            "requestBytes": 0,
+            "responseBytes": 137,
+            "status": 400,
+            "ok": false
+          },
+          {
+            "role": "audit",
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 579,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 563,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 3,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 244,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "role": "audit",
+            "call": 4,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 276,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      },
+      "operationLog": [
+        {
+          "operation": "acquireNetworkLock",
+          "recordType": "NETWORK_LOCK",
+          "phase": "completed"
+        },
+        {
+          "operation": "createRun",
+          "recordType": "NETWORK_RUN",
+          "phase": "completed"
+        },
+        {
+          "operation": "createInvocation",
+          "recordType": "RUN_INVOCATION",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.insert",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "insertAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "upsertNodeState.update",
+          "recordType": "NODE_STATE",
+          "phase": "completed"
+        },
+        {
+          "operation": "markAttemptExecutionStarted",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        },
+        {
+          "operation": "finalizeAttempt",
+          "recordType": "NODE_ATTEMPT",
+          "phase": "completed"
+        }
+      ],
+      "findings": [
+        {
+          "code": "A_LOCK_RELEASE_SCHEMA_GAP",
+          "severity": "decision-input",
+          "detail": "現schemaにはlock_key_done、解放時刻、RELEASED statusがない。SUCCESSを代替statusとして使い、退避なしで一意キーをクリアする。record_keyが必須のため空文字UPDATEが拒否される可能性も実測対象とする。"
+        }
+      ],
+      "cleanup": {
+        "warnings": [],
+        "residualIds": []
+      }
+    }
+  },
+  "passed": false
+}
