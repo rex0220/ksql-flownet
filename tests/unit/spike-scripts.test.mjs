@@ -14,6 +14,7 @@ import {
   createKintoneClient,
   field,
   insertRecord,
+  updateRecord,
 } from "../../spikes/lib/kintone.mjs";
 import {
   requireExecutionEnvironment,
@@ -188,6 +189,12 @@ test("一意キーフィールドは64文字を許可し65文字をAPI呼出前�
       lock_key: field("d".repeat(65)),
     }),
     /一意キーフィールド lock_key は64文字以内.*現在65文字/,
+  );
+  await assert.rejects(
+    updateRecord(client, "9999", "101", "1", {
+      record_key: field("u".repeat(65)),
+    }),
+    /一意キーフィールド record_key は64文字以内.*現在65文字/,
   );
   assert.equal(fetchCalls, 1);
 });
