@@ -15,6 +15,19 @@
 
 トークン値、`.env`、Authorization header、顧客データを記録・commitしない。
 
+## Consoleスクリプトによるアプリ作成
+
+ブラウザ用スクリプトは[`console/`](./console/)にある。2アプリ案と1アプリ案は比較対象なので、同じスペースへ次の順で作成する。
+
+1. kintoneへアプリ作成・管理権限のあるアカウントでログインし、作成先スペースのポータル（URLが`/k/#/space/<spaceId>`となるページ）を開く。
+2. ブラウザの開発者ツールでConsoleを開き、[`create-spike-apps-2app.console.js`](./console/create-spike-apps-2app.console.js)の内容を丸ごと貼り付けて実行する。
+3. 表示されたアプリ名・ID・フィールド数を確認し、確認ダイアログでOKを押して2アプリをデプロイする。
+4. デプロイ完了後、同じスペースポータルで[`create-spike-app-1app.console.js`](./console/create-spike-app-1app.console.js)を同様に実行する。
+5. 各アプリの設定画面からAPIトークンを手動生成する。APIトークンはREST APIでは生成できない。2アプリ案は実行管理を`KSQL_SPIKE_TOKEN_EXEC`、監査履歴を`KSQL_SPIKE_TOKEN_AUDIT`、1アプリ案は`KSQL_SPIKE_TOKEN_INTEGRATED`へ対応させ、値はリポジトリやConsoleへ記録しない。
+6. 作成された3つのapp IDを[`measurements.md`](./measurements.md)の環境欄へ記録する。
+
+スクリプトはURLからスペースIDを自動判定する。判定できないURL構成では、各ファイル冒頭の`SPACE_ID_OVERRIDE`へスペースIDを指定する。同名アプリが既にある場合は既存アプリを変更せず中止する。途中で失敗またはデプロイ確認をキャンセルした場合は、Consoleに表示されたapp IDを確認し、kintoneのアプリ管理画面からpreviewの「変更を中止」を行う。
+
 ## 再実行可能な手順
 
 1. 実施者、日時、ホスト、OS、Node.js・kSQL-Flow・FlowNetのversion、各新規app IDを`measurements.md`へ記録する。
