@@ -23,8 +23,29 @@ export default tseslint.config(
     files: ["tests/**/*.mjs"],
     languageOptions: {
       globals: {
+        Buffer: "readonly",
         process: "readonly",
+        Response: "readonly",
+        setImmediate: "readonly",
       },
+    },
+  },
+  {
+    files: ["spikes/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        Blob: "readonly",
+        Buffer: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        FormData: "readonly",
+        performance: "readonly",
+        process: "readonly",
+        URL: "readonly",
+      },
+    },
+    rules: {
+      "no-console": "off",
     },
   },
   {

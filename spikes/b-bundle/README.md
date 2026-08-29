@@ -31,3 +31,28 @@
 - `resume_allowed = true`の検証済みbundleを回復不能にする操作が必要になる。
 - hash、Run、添付、archive objectの対応を一意に追跡できない。
 - 権限境界を確認できないまま差替え・削除操作へ進む。
+
+## スクリプトによる実行
+
+前提として、`.env.example`を基に`.env`を用意し、作成済みの2アプリ案の実行管理Spikeアプリを`KSQL_SPIKE_APP_EXEC`へ、同アプリでレコード閲覧・追加・編集・削除を許可したtokenを`KSQL_SPIKE_TOKEN_EXEC`へ設定する。スクリプトは`KSQL_SPIKE_APP_EXEC`以外を対象にせず、既存アプリ4246、4247、4249を拒否する。Node.js 22以上で、リポジトリルートから次を実行する。
+
+```bash
+node --env-file=.env spikes/b-bundle/scripts/bundle-roundtrip.mjs
+node --env-file=.env spikes/b-bundle/scripts/bundle-roundtrip.mjs --size-mb 20
+node --env-file=.env spikes/b-bundle/scripts/bundle-corruption.mjs
+```
+
+`bundle-roundtrip.mjs`はstore-only（無圧縮）のZIPを自己検証してから、小（4KiB）、中（1MiB）、上限候補（既定10MiB、`--size-mb`で変更）の順にupload、Network Runへの添付、download、SHA-256照合を行う。指定値は候補であり、kintoneの公式上限を表さない。作成した測定用Network Runは照合後に削除する。`bundle-corruption.mjs`は正常download後の1 byteをローカルで改ざんし、レコードの`source_bundle_sha256`との不一致をfail-closedとして検知する。
+
+結果は実行ごとに`spikes/b-bundle/results/<timestamp>-<script>.json`へ保存される。JSONの`measurementIds`と各サイズの`measurementIds`を`measurements.md`の同じIDへ転記し、環境、日時、回数、API呼出数、ZIP byte数、各所要時間、hash照合結果、残余リスクを埋める。tokenやAuthorizationを含むキーと実際のtoken値は保存前に除去され、混入を検知した場合は結果保存を中止する。
+
+### 権限・archive・復元の手動確認
+
+添付差替え（B-07）、添付削除と承認（B-08）、archiveからの復元（B-09）、保持・外部保管・定期復元（B-11〜B-14）は、権限主体とarchive先が環境ごとに異なるため手動で確認する。
+
+1. 検証専用Run、期待SHA-256、添付fileKey、実施主体、承認者を記録する。
+2. 閲覧のみ主体と更新主体を分け、添付差替え・削除が期待した主体だけに許可または拒否されることを確認する。
+3. `resume_allowed = true`の元bundleを失わない状態でarchiveへ複製し、object version、SHA-256、取得先を記録する。
+4. archiveから別の検証用Runへ復元し、download後SHA-256とresumeに必要なZIP読取りを確認する。
+5. 復元確認前には元添付を削除しない。取得不能またはhash不一致なら作業ツリーへfallbackせずfail-closedとする。
+6. 結果と承認証跡を対応する測定行へ転記する。

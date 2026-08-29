@@ -33,3 +33,19 @@ token値、`.env`、Authorization header、lock以外の実レコード内容を
 - 旧保持者の停止を確認できないままstale回収・再取得へ進む必要がある。
 - 競合・通信異常を成功扱いする可能性がある。
 - 秘密情報または非スパイクレコードを変更するおそれがある。
+
+## スクリプトによる実行
+
+前提として、`.env.example`を基に`.env`を用意し、作成済みの2アプリ案の実行管理Spikeアプリを`KSQL_SPIKE_APP_EXEC`へ、同アプリでレコード閲覧・追加・編集・削除を許可したtokenを`KSQL_SPIKE_TOKEN_EXEC`へ設定する。スクリプトは`KSQL_SPIKE_APP_EXEC`以外を対象にせず、既存アプリ4246、4247、4249を拒否する。Node.js 22以上で、リポジトリルートから次を実行する。
+
+```bash
+node --env-file=.env spikes/d-lock-contract/scripts/lock-contention.mjs
+node --env-file=.env spikes/d-lock-contract/scripts/lock-contention.mjs --workers 4 --iterations 50
+node --env-file=.env spikes/d-lock-contract/scripts/response-loss.mjs
+node --env-file=.env spikes/d-lock-contract/scripts/revision-conflict.mjs
+node --env-file=.env spikes/d-lock-contract/scripts/stale-reclaim.mjs
+```
+
+`lock-contention.mjs`の既定値は2 worker、10反復である。同一ホスト・ローカルロックなしの経路を測る。別ホスト（D-04）、GET遅延（D-08）、通信断（D-09）、ローカルロックあり（D-12）、キー移行（D-14〜D-16）はこのスクリプト群の自動判定対象外であり、既存の再実行可能な手順に従って別途測定する。`stale-reclaim.mjs`は停止確認済みの回収を模擬し、旧revision拒否だけを測る。実運用の停止確認を代替しない。
+
+結果は実行ごとに`spikes/d-lock-contract/results/<timestamp>-<script>.json`へ保存される。JSONの`measurementIds`と反復内の結果を`measurements.md`の同じIDへ転記し、環境、日時、回数、API呼出数、結果、障害注入方法、残余リスクを埋める。tokenやAuthorizationを含むキーと実際のtoken値は保存前に除去され、混入を検知した場合は結果保存を中止する。
