@@ -95,6 +95,10 @@ test("node identity and dependency rules reject all invalid relationships", () =
   const duplicate = validDefinition();
   duplicate.nodes.push({ ...duplicate.nodes[0] });
   assertInvalid(duplicate, /duplicate node id 'one'/);
+  assert.deepEqual(
+    validateNetworkDefinition(duplicate).errors.map((error) => error.code),
+    ["DUPLICATE_NODE_ID"],
+  );
 
   const unknown = validDefinition();
   unknown.nodes[0].depends_on = ["missing"];
@@ -169,6 +173,40 @@ test("business key policy validates variants, timezone, and placeholders", () =>
     },
   };
   assert.equal(messages(scheduled).length, 0);
+
+  for (const [period, format] of [
+    ["month", "{yyyy}-{MM}-{dd}"],
+    ["month", "{yyyy}"],
+    ["day", "{yyyy}-{MM}"],
+  ]) {
+    const mismatch = {
+      ...validDefinition(),
+      business_key_policy: {
+        type: "scheduled_period",
+        period,
+        timezone: "UTC",
+        format,
+      },
+    };
+    assert.ok(
+      validateNetworkDefinition(mismatch).errors.some(
+        (error) => error.code === "FORMAT_PERIOD_MISMATCH",
+      ),
+    );
+  }
+});
+
+test("every validation error has a stable code", () => {
+  const definition = validDefinition();
+  definition.nodes = [
+    { ...definition.nodes[0], depends_on: ["missing"] },
+    { ...definition.nodes[0] },
+  ];
+  const result = validateNetworkDefinition(definition);
+  assert.ok(result.errors.length > 0);
+  assert.ok(
+    result.errors.every((error) => /^[A-Z][A-Z0-9_]+$/.test(error.code)),
+  );
 });
 
 test("network lock rejects invalid boundary values and accepts the exact one-third boundary", () => {

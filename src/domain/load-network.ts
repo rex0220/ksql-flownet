@@ -15,7 +15,11 @@ export function loadNetworkDefinition(path: string): ValidationResult {
   } catch (error) {
     return {
       errors: [
-        { path: "$", message: `cannot read network file: ${String(error)}` },
+        {
+          code: "NETWORK_FILE_UNREADABLE",
+          path: "$",
+          message: `cannot read network file: ${String(error)}`,
+        },
       ],
     };
   }
@@ -23,6 +27,7 @@ export function loadNetworkDefinition(path: string): ValidationResult {
   const document = parseDocument(source, { uniqueKeys: true });
   if (document.errors.length > 0) {
     const errors: ValidationError[] = document.errors.map((error) => ({
+      code: "YAML_PARSE_ERROR",
       path: "$",
       message: `invalid YAML: ${error.message}`,
     }));
@@ -32,7 +37,13 @@ export function loadNetworkDefinition(path: string): ValidationResult {
     return validateNetworkDefinition(document.toJS());
   } catch (error) {
     return {
-      errors: [{ path: "$", message: `invalid YAML value: ${String(error)}` }],
+      errors: [
+        {
+          code: "YAML_VALUE_INVALID",
+          path: "$",
+          message: `invalid YAML value: ${String(error)}`,
+        },
+      ],
     };
   }
 }

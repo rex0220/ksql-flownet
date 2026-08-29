@@ -17,7 +17,8 @@ Options:
 
 Commands:
   validate <network>  validate a network definition and its SQL files
-  plan <network>      not implemented (FN-03)
+  plan <network> [--scheduled-for <timestamp>] [--business-key <key>]
+                      display the business key and stable execution plan (read-only)
 `;
 
 function getVersion(): string {
@@ -40,11 +41,6 @@ function getVersion(): string {
 
 function printHelp(): void {
   process.stdout.write(HELP_TEXT);
-}
-
-function failNotImplemented(command: "plan"): void {
-  process.stderr.write(`Error: ${command} is not implemented (FN-03).\n`);
-  process.exitCode = 1;
 }
 
 async function main(args: readonly string[]): Promise<void> {
@@ -74,7 +70,8 @@ async function main(args: readonly string[]): Promise<void> {
   }
 
   if (command === "plan") {
-    failNotImplemented(command);
+    const { runPlanCommand } = await import("./plan-command.js");
+    process.exitCode = runPlanCommand(commandArgs);
     return;
   }
 
