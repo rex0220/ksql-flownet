@@ -1,11 +1,18 @@
 # kSQL-FlowNet
 
-`kSQL-FlowNet` is the Control Plane CLI for kSQL-Flow job networks.
+kSQL-FlowNet is the Control Plane CLI for defining and validating kSQL-Flow job
+networks. Phase 1 accepts DAGs such as branches and joins, but executes every
+eligible node sequentially in a stable topological order.
 
-## Requirements
+## Installation
 
-- Node.js 22 or later (an LTS release)
-- npm
+Node.js 22 or later is required.
+
+After the package is published to npm:
+
+```sh
+npm install --global @rex0220/ksql-flownet
+```
 
 ## Development
 
@@ -18,13 +25,18 @@ npm run typecheck
 npm test
 ```
 
-The unit tests use the built-in `node:test` runner to keep the bootstrap dependency set small.
-
-## CLI
+## CLI usage
 
 ```sh
 ksql-flownet --help
 ksql-flownet --version
+ksql-flownet validate path/to/network.yaml
 ```
 
-The `validate` and `plan` commands belong to FN-02. They are listed for discoverability but fail explicitly until FN-02 is implemented.
+`validate` checks the YAML schema, Phase 1 DAG rules, and referenced SQL files
+without changing external state. `plan` is reserved for FN-03 and currently
+fails explicitly as not implemented.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).
