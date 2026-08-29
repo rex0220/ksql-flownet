@@ -5,7 +5,7 @@
  *   1. kintone にアプリ作成・管理権限のあるアカウントでログインする
  *   2. 作成先スペースのポータル（/k/#/space/<spaceId>）を開く
  *   3. ブラウザの開発者ツール → Console にこのファイルの内容を丸ごと貼り付けて実行する
- *   4. フィールド追加後の確認ダイアログで内容を確認し、OK を押してデプロイする
+ *   4. フィールド・レイアウト・一覧設定後の確認ダイアログで内容を確認し、OK を押してデプロイする
  *
  * 安全性:
  *   - 同名アプリが1つでも存在する場合は、既存アプリを変更せずに中止する
@@ -25,11 +25,15 @@
       name: "FlowNet 実行管理 Spike",
       tokenEnvironmentVariable: "KSQL_SPIKE_TOKEN_EXEC",
       fields: createExecutionFields(),
+      layoutSections: createExecutionLayoutSections(),
+      views: createExecutionViews(),
     },
     {
       name: "FlowNet 監査履歴 Spike",
       tokenEnvironmentVariable: "KSQL_SPIKE_TOKEN_AUDIT",
       fields: createAuditFields(),
+      layoutSections: createAuditLayoutSections(),
+      views: createAuditViews(),
     },
   ];
 
@@ -74,6 +78,81 @@
 
   function toProperties(fields) {
     return Object.fromEntries(fields.map((field) => [field.code, field]));
+  }
+
+  function section(label, rows) {
+    return { label, rows };
+  }
+
+  function listView(name, recordType, fields, sort, index) {
+    return {
+      name,
+      type: "LIST",
+      fields,
+      filterCond: recordType ? `record_type in ("${recordType}")` : "",
+      sort,
+      index: String(index),
+    };
+  }
+
+  function createLayout(fields, sections, currentLayout) {
+    const layout = [];
+    sections.forEach(({ label, rows }, sectionIndex) => {
+      if (sectionIndex > 0) {
+        layout.push({
+          type: "ROW",
+          fields: [{ type: "HR", elementId: `hr_${sectionIndex}` }],
+        });
+      }
+      layout.push({
+        type: "ROW",
+        fields: [
+          {
+            type: "LABEL",
+            label: `■ ${label}`,
+            elementId: `label_${sectionIndex}`,
+          },
+        ],
+      });
+      for (const codes of rows) {
+        layout.push({
+          type: "ROW",
+          fields: codes.map((code) => ({ type: fields[code].type, code })),
+        });
+      }
+    });
+    // 実行時に要確認: 自動生成フィールドのコードと並びはpreviewレイアウトの応答を正とする。
+    // レイアウト更新APIはフォーム上の全フィールドを要求するため、設計対象外の行も保持する。
+    const systemRows = currentLayout
+      .filter((row) => row.type === "ROW")
+      .map((row) => ({
+        type: "ROW",
+        fields: row.fields.filter(
+          (field) => field.code && !Object.hasOwn(fields, field.code),
+        ),
+      }))
+      .filter((row) => row.fields.length > 0);
+    if (systemRows.length > 0) {
+      const sectionIndex = sections.length;
+      layout.push(
+        {
+          type: "ROW",
+          fields: [{ type: "HR", elementId: `hr_${sectionIndex}` }],
+        },
+        {
+          type: "ROW",
+          fields: [
+            {
+              type: "LABEL",
+              label: "■ System",
+              elementId: `label_${sectionIndex}`,
+            },
+          ],
+        },
+        ...systemRows,
+      );
+    }
+    return layout;
   }
 
   function createExecutionFields() {
@@ -202,6 +281,231 @@
     ]);
   }
 
+  function createExecutionLayoutSections() {
+    return [
+      section("Common", [["record_key", "record_type"]]),
+      section("Network Run", [
+        ["run_id", "network_id", "business_key"],
+        ["max_active_runs", "status", "lifecycle_status"],
+        ["resume_allowed", "as_of", "definition_schema_version"],
+        ["definition_sha256", "source_bundle_sha256"],
+        ["source_bundle_attachment"],
+        ["resolved_profile_snapshot"],
+        ["resolved_profile_sha256"],
+        ["ksql_flow_version", "engine_version", "dialect"],
+        ["created_at", "started_at", "finished_at"],
+        ["updated_at"],
+      ]),
+      section("Node State", [
+        ["revision"],
+        ["node_state_id", "node_state_key"],
+        ["node_id", "job_id"],
+        ["latest_attempt_no", "active_attempt_id"],
+        ["idempotent", "trigger_rule"],
+        ["blocked_by"],
+        ["status_reason"],
+      ]),
+      section("Network Lock", [
+        ["lock_key", "profile"],
+        ["owner_invocation_id", "lease_token"],
+        ["lease_expires_at", "heartbeat_at"],
+      ]),
+    ];
+  }
+
+  function createAuditLayoutSections() {
+    return [
+      section("Common", [["record_key", "record_type"]]),
+      section("Run Invocation", [
+        ["run_id", "started_at", "finished_at"],
+        ["status", "result_code"],
+        ["invocation_id", "mode"],
+        ["requested_by", "host"],
+        ["selected_node_ids"],
+        ["preserved_node_ids"],
+        ["blocked_node_ids"],
+        ["reason"],
+      ]),
+      section("Node Attempt", [
+        ["node_attempt_id", "attempt_key"],
+        ["node_id", "job_id", "attempt_no"],
+        ["execution_started_at", "runner_execution_started_at"],
+        ["execution_id", "duration_sec"],
+        ["error_message"],
+        ["read_count", "written_count", "last_successful_chunk_no"],
+        ["last_written_key"],
+      ]),
+      section("Attempt Resolution", [
+        ["event_type", "attempt_id", "resolved_outcome"],
+        ["evidence_ref", "service_principal"],
+        ["approved_by", "resolved_at"],
+      ]),
+      // Operation Audit 固有フィールドはない。共有フィールドは最初に該当する上記セクションへ置く。
+      section("Operation Audit", []),
+    ];
+  }
+
+  function createExecutionViews() {
+    return [
+      listView(
+        "Network Run",
+        "NETWORK_RUN",
+        [
+          "record_key",
+          "run_id",
+          "network_id",
+          "business_key",
+          "status",
+          "lifecycle_status",
+          "resume_allowed",
+          "max_active_runs",
+          "started_at",
+          "finished_at",
+          "updated_at",
+        ],
+        "updated_at desc",
+        0,
+      ),
+      listView(
+        "Node State",
+        "NODE_STATE",
+        [
+          "record_key",
+          "run_id",
+          "node_state_key",
+          "node_id",
+          "job_id",
+          "status",
+          "latest_attempt_no",
+          "active_attempt_id",
+          "revision",
+          "updated_at",
+        ],
+        "updated_at desc",
+        1,
+      ),
+      listView(
+        "Network Lock",
+        "NETWORK_LOCK",
+        [
+          "record_key",
+          "lock_key",
+          "profile",
+          "owner_invocation_id",
+          "status",
+          "lease_expires_at",
+          "heartbeat_at",
+          "revision",
+        ],
+        "lease_expires_at desc",
+        2,
+      ),
+      listView(
+        "全レコード",
+        null,
+        [
+          "record_key",
+          "record_type",
+          "run_id",
+          "updated_at",
+          "started_at",
+          "lease_expires_at",
+        ],
+        "record_key desc",
+        3,
+      ),
+    ];
+  }
+
+  function createAuditViews() {
+    return [
+      listView(
+        "Run Invocation",
+        "RUN_INVOCATION",
+        [
+          "record_key",
+          "run_id",
+          "invocation_id",
+          "mode",
+          "status",
+          "result_code",
+          "requested_by",
+          "host",
+          "started_at",
+          "finished_at",
+        ],
+        "started_at desc",
+        0,
+      ),
+      listView(
+        "Node Attempt",
+        "NODE_ATTEMPT",
+        [
+          "record_key",
+          "run_id",
+          "node_attempt_id",
+          "attempt_key",
+          "node_id",
+          "job_id",
+          "attempt_no",
+          "status",
+          "result_code",
+          "runner_execution_started_at",
+          "finished_at",
+          "duration_sec",
+        ],
+        "runner_execution_started_at desc",
+        1,
+      ),
+      listView(
+        "Attempt Resolution",
+        "ATTEMPT_RESOLUTION",
+        [
+          "record_key",
+          "attempt_id",
+          "resolved_outcome",
+          "event_type",
+          "evidence_ref",
+          "service_principal",
+          "requested_by",
+          "approved_by",
+          "resolved_at",
+        ],
+        "resolved_at desc",
+        2,
+      ),
+      listView(
+        "Operation Audit",
+        "OPERATION_AUDIT",
+        [
+          "record_key",
+          "event_type",
+          "reason",
+          "evidence_ref",
+          "service_principal",
+          "requested_by",
+          "resolved_at",
+        ],
+        "resolved_at desc",
+        3,
+      ),
+      listView(
+        "全レコード",
+        null,
+        [
+          "record_key",
+          "record_type",
+          "run_id",
+          "started_at",
+          "finished_at",
+          "resolved_at",
+        ],
+        "record_key desc",
+        4,
+      ),
+    ];
+  }
+
   function detectSpaceId() {
     const match = location.href.match(
       /\/k\/(?:guest\/\d+\/)?#\/space\/(\d+)(?:\/|$|\?)/,
@@ -300,7 +604,8 @@
         thread: space.defaultThread,
       });
       const app = String(created.app);
-      createdApps.push({ ...definition, app });
+      const appSummary = { ...definition, app };
+      createdApps.push(appSummary);
       console.log(`新規アプリをpreviewへ作成: ${definition.name} (app ${app})`);
 
       step = `フィールド追加: ${definition.name}`;
@@ -311,6 +616,42 @@
       console.log(
         `全${Object.keys(definition.fields).length}フィールドを追加: ${definition.name} (revision ${fieldResponse.revision})`,
       );
+
+      step = `レイアウト設定: ${definition.name}`;
+      const currentLayoutResponse = await api(
+        "/preview/app/form/layout",
+        "GET",
+        { app },
+      );
+      if (!Array.isArray(currentLayoutResponse.layout)) {
+        throw new Error("previewレイアウトの応答にlayout配列がありません。");
+      }
+      const layout = createLayout(
+        definition.fields,
+        definition.layoutSections,
+        currentLayoutResponse.layout,
+      );
+      const layoutResponse = await api("/preview/app/form/layout", "PUT", {
+        app,
+        layout,
+      });
+      appSummary.configuredLayoutSectionCount = layout.filter(
+        (row) => row.fields[0]?.type === "LABEL",
+      ).length;
+      console.log(
+        `フォームレイアウトを設定: ${definition.name} (revision ${layoutResponse.revision})`,
+      );
+
+      step = `一覧設定: ${definition.name}`;
+      const viewsResponse = await api("/preview/app/views", "PUT", {
+        app,
+        views: Object.fromEntries(
+          definition.views.map((view) => [view.name, view]),
+        ),
+      });
+      console.log(
+        `全${definition.views.length}一覧を設定: ${definition.name} (revision ${viewsResponse.revision})`,
+      );
     }
 
     console.table(
@@ -318,6 +659,8 @@
         アプリID: app.app,
         アプリ名: app.name,
         フィールド数: Object.keys(app.fields).length,
+        レイアウトセクション数: app.configuredLayoutSectionCount,
+        一覧数: app.views.length,
       })),
     );
 
