@@ -1,0 +1,130 @@
+{
+  "measurementIds": [
+    "F-07",
+    "F-08"
+  ],
+  "observedAt": "2026-08-29T14:34:29.737Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "lease-token-fencing",
+  "ownerTransition": {
+    "from": "f-fencing-a-6b675bf5-f9eb-44b6-b02c-f07274a45789",
+    "to": "fencing-owner-b"
+  },
+  "oldOwnerRejections": {
+    "heartbeatRegetLeaseIdentityCheck": {
+      "rejected": true,
+      "code": "LEASE_TOKEN_MISMATCH",
+      "safeError": {
+        "status": null,
+        "code": null,
+        "message": "LEASE_TOKEN_MISMATCH"
+      }
+    },
+    "nodeStateRevision409": {
+      "rejected": true,
+      "status": 409,
+      "code": "GAIA_CO02",
+      "safeError": {
+        "status": 409,
+        "code": "GAIA_CO02",
+        "message": "kintone API PUT /k/v1/record.json が HTTP 409 を返しました。"
+      }
+    }
+  },
+  "nextNodeAllowedForOldOwner": false,
+  "stateUpdateAllowedForOldOwner": false,
+  "release": {
+    "released": true,
+    "protocol": "unique-tombstone-update",
+    "recordKey": "LOCKDONE:0ecbRSPaCSO1XeLfBcRPcXbS_pxxIhy9aOt-7a2uIg8",
+    "lockKey": "N1:DONE:0ecbRSPaCSO1XeLfBcRPcXbS_pxxIhy9aOt-7a2uIg8"
+  },
+  "measurements": {
+    "control_plane_api_calls": 7,
+    "execution": {
+      "apiCalls": 7,
+      "payload": {
+        "requestBytes": 2432,
+        "responseBytes": 3008,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 662,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 635,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 3,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 297,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 4,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2785,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 5,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 210,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 6,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 222,
+            "responseBytes": 121,
+            "status": 409,
+            "ok": false
+          },
+          {
+            "call": 7,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 406,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      }
+    },
+    "audit": {
+      "apiCalls": 0,
+      "payload": {
+        "requestBytes": 0,
+        "responseBytes": 0,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": []
+      }
+    }
+  },
+  "passed": true
+}

@@ -1,0 +1,182 @@
+{
+  "measurementIds": [
+    "F-16",
+    "F-17"
+  ],
+  "observedAt": "2026-08-29T14:36:07.555Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "force-unlock-network-contract",
+  "cases": {
+    "ownerMismatch": {
+      "released": false,
+      "failClosed": true,
+      "checks": {
+        "expectedOwner": false,
+        "expectedRevision": true,
+        "expectedLeaseIdentity": true,
+        "staleCandidate": true,
+        "stopEvidencePresent": true,
+        "noNewHeartbeatOrOwner": false
+      },
+      "auditWritten": false
+    },
+    "revisionMismatch": {
+      "released": false,
+      "failClosed": true,
+      "checks": {
+        "expectedOwner": true,
+        "expectedRevision": false,
+        "expectedLeaseIdentity": true,
+        "staleCandidate": true,
+        "stopEvidencePresent": true,
+        "noNewHeartbeatOrOwner": true
+      },
+      "auditWritten": false
+    },
+    "responseLoss": {
+      "released": true,
+      "failClosed": false,
+      "checks": {
+        "expectedOwner": true,
+        "expectedRevision": true,
+        "expectedLeaseIdentity": true,
+        "staleCandidate": true,
+        "stopEvidencePresent": true,
+        "noNewHeartbeatOrOwner": true
+      },
+      "responseLost": true,
+      "regetAdjudication": "RELEASE_CONFIRMED",
+      "auditWritten": true,
+      "audit": {
+        "id": "38",
+        "revision": "1"
+      },
+      "postReleaseRevision": "2"
+    }
+  },
+  "measurements": {
+    "control_plane_api_calls": 11,
+    "execution": {
+      "apiCalls": 10,
+      "payload": {
+        "requestBytes": 3284,
+        "responseBytes": 11365,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 664,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 2,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 673,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 3,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 676,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 4,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2829,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 5,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2832,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 6,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2820,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 7,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 429,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 8,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2755,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 9,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 421,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 10,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 421,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      }
+    },
+    "audit": {
+      "apiCalls": 1,
+      "payload": {
+        "requestBytes": 874,
+        "responseBytes": 26,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 874,
+            "responseBytes": 26,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      }
+    }
+  },
+  "passed": true
+}

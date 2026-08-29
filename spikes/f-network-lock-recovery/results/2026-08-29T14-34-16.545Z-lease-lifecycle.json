@@ -1,0 +1,127 @@
+{
+  "measurementIds": [
+    "F-01",
+    "F-02",
+    "F-14"
+  ],
+  "observedAt": "2026-08-29T14:34:16.536Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "lease-lifecycle",
+  "settings": {
+    "leaseSeconds": 6,
+    "heartbeatSeconds": 2,
+    "subprocessSeconds": 5,
+    "ratioValid": true,
+    "scaledDownForSpike": true,
+    "productionValuesPendingSpikeDecision": true
+  },
+  "subprocessResult": {
+    "exitCode": 0
+  },
+  "heartbeat": {
+    "count": 2,
+    "samples": [
+      {
+        "sequence": 1,
+        "intervalMs": 2005.7992,
+        "elapsedMs": 2005.7992,
+        "durationMs": 715.6856000000002
+      },
+      {
+        "sequence": 2,
+        "intervalMs": 2734.3747,
+        "elapsedMs": 4740.1739,
+        "durationMs": 536.6504999999997
+      }
+    ],
+    "control_plane_api_calls": 4,
+    "callsPerExecutionSecond": 0.7580237668497788
+  },
+  "release": {
+    "released": true,
+    "protocol": "unique-tombstone-update",
+    "recordKey": "LOCKDONE:viHoK3oJWhycyLbwLWLfESKl5qnVaiFo-Wtl4NveJWI",
+    "lockKey": "N1:DONE:viHoK3oJWhycyLbwLWLfESKl5qnVaiFo-Wtl4NveJWI"
+  },
+  "measurements": {
+    "control_plane_api_calls": 6,
+    "execution": {
+      "apiCalls": 6,
+      "payload": {
+        "requestBytes": 1436,
+        "responseBytes": 5711,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 662,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 2,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2818,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 3,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 184,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 4,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2818,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 5,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 184,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 6,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 406,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      }
+    },
+    "audit": {
+      "apiCalls": 0,
+      "payload": {
+        "requestBytes": 0,
+        "responseBytes": 0,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": []
+      }
+    }
+  },
+  "subprocessDurationMs": 5276.8794,
+  "durationMs": 5630.1939,
+  "passed": true
+}

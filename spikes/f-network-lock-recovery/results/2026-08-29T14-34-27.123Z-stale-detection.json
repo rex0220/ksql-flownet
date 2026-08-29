@@ -1,0 +1,82 @@
+{
+  "measurementIds": [
+    "F-03"
+  ],
+  "observedAt": "2026-08-29T14:34:27.122Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "kill-simulation-stale-observer",
+  "heartbeatStopped": true,
+  "observation": {
+    "staleCandidate": true,
+    "heartbeatAgeMs": 26800,
+    "leaseExpired": true,
+    "ownerStopped": false,
+    "reclaimAllowed": false,
+    "reason": "lease期限超過はstale候補であり、旧ownerの停止証明ではない"
+  },
+  "observer": {
+    "apiCalls": 1,
+    "lockWrites": 0,
+    "persistedRevisionBeforeOwnerCleanup": "1",
+    "failClosed": true
+  },
+  "note": "lease期限超過は死亡確認ではない。観測者は判定のみでlockを更新しない。",
+  "ownerCleanup": {
+    "released": true,
+    "protocol": "unique-tombstone-update",
+    "recordKey": "LOCKDONE:LsO4tj6tCJ3BAWKvuyUg-EXH_fjxdz1me-StsSVem7M",
+    "lockKey": "N1:DONE:LsO4tj6tCJ3BAWKvuyUg-EXH_fjxdz1me-StsSVem7M"
+  },
+  "measurements": {
+    "control_plane_api_calls": 3,
+    "execution": {
+      "apiCalls": 3,
+      "payload": {
+        "requestBytes": 1097,
+        "responseBytes": 2857,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": [
+          {
+            "call": 1,
+            "method": "POST",
+            "path": "/k/v1/record.json",
+            "requestBytes": 658,
+            "responseBytes": 27,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 2,
+            "method": "GET",
+            "path": "/k/v1/record.json",
+            "requestBytes": 0,
+            "responseBytes": 2814,
+            "status": 200,
+            "ok": true
+          },
+          {
+            "call": 3,
+            "method": "PUT",
+            "path": "/k/v1/record.json",
+            "requestBytes": 439,
+            "responseBytes": 16,
+            "status": 200,
+            "ok": true
+          }
+        ]
+      }
+    },
+    "audit": {
+      "apiCalls": 0,
+      "payload": {
+        "requestBytes": 0,
+        "responseBytes": 0,
+        "unmeasuredRequestBodies": 0,
+        "breakdown": []
+      }
+    }
+  },
+  "passed": true
+}

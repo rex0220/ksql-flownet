@@ -1,0 +1,344 @@
+{
+  "measurementIds": [
+    "F-04",
+    "F-05",
+    "F-06"
+  ],
+  "observedAt": "2026-08-29T14:34:43.892Z",
+  "nodeVersion": "v24.14.0",
+  "platform": "win32",
+  "host": "LAPTOP5",
+  "scenario": "heartbeat-failure-drain",
+  "settings": {
+    "leaseSeconds": 6,
+    "heartbeatSeconds": 2,
+    "consecutiveFailureThreshold": 2,
+    "scaledDownForSpike": true,
+    "productionValuesPendingSpikeDecision": true
+  },
+  "branches": {
+    "recovered": {
+      "leaseUncertain": true,
+      "subprocessResult": {
+        "exitCode": 0,
+        "outputRef": "local-result-file"
+      },
+      "failures": [
+        {
+          "status": null,
+          "code": null,
+          "message": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+        },
+        {
+          "status": null,
+          "code": null,
+          "message": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+        }
+      ],
+      "branch": "RECOVERED_AND_CANCELLED",
+      "resultPersisted": true,
+      "reconciliation": false,
+      "localControlState": "LEASE_UNCERTAIN",
+      "newNodeStartsAfterDrain": 0,
+      "stateWritesAfterDrain": 1,
+      "reconciliationMaterialRetained": false,
+      "injectedFailures": 2,
+      "injectionScope": "fetch wrapper injection; not observed kintone behavior",
+      "release": {
+        "released": true,
+        "protocol": "unique-tombstone-update",
+        "recordKey": "LOCKDONE:t_sRIrRJbsz0SvgnkxoCIV7bglMeIeobd2kKJd_x16A",
+        "lockKey": "N1:DONE:t_sRIrRJbsz0SvgnkxoCIV7bglMeIeobd2kKJd_x16A"
+      },
+      "measurements": {
+        "control_plane_api_calls": 12,
+        "execution": {
+          "apiCalls": 10,
+          "payload": {
+            "requestBytes": 2567,
+            "responseBytes": 8568,
+            "unmeasuredRequestBodies": 0,
+            "breakdown": [
+              {
+                "call": 1,
+                "method": "POST",
+                "path": "/k/v1/record.json",
+                "requestBytes": 666,
+                "responseBytes": 27,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 2,
+                "method": "POST",
+                "path": "/k/v1/record.json",
+                "requestBytes": 683,
+                "responseBytes": 27,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 3,
+                "method": "GET",
+                "path": "/k/v1/record.json",
+                "requestBytes": 0,
+                "responseBytes": 2822,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 4,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 184,
+                "responseBytes": 0,
+                "status": null,
+                "ok": false,
+                "error": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+              },
+              {
+                "call": 5,
+                "method": "GET",
+                "path": "/k/v1/record.json",
+                "requestBytes": 0,
+                "responseBytes": 2822,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 6,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 184,
+                "responseBytes": 0,
+                "status": null,
+                "ok": false,
+                "error": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+              },
+              {
+                "call": 7,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 184,
+                "responseBytes": 16,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 8,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 239,
+                "responseBytes": 16,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 9,
+                "method": "GET",
+                "path": "/k/v1/record.json",
+                "requestBytes": 0,
+                "responseBytes": 2822,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 10,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 427,
+                "responseBytes": 16,
+                "status": 200,
+                "ok": true
+              }
+            ]
+          }
+        },
+        "audit": {
+          "apiCalls": 2,
+          "payload": {
+            "requestBytes": 801,
+            "responseBytes": 42,
+            "unmeasuredRequestBodies": 0,
+            "breakdown": [
+              {
+                "call": 1,
+                "method": "POST",
+                "path": "/k/v1/record.json",
+                "requestBytes": 617,
+                "responseBytes": 26,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 2,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 184,
+                "responseBytes": 16,
+                "status": 200,
+                "ok": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    "unrecovered": {
+      "leaseUncertain": true,
+      "subprocessResult": {
+        "exitCode": 0,
+        "outputRef": "local-result-file"
+      },
+      "failures": [
+        {
+          "status": null,
+          "code": null,
+          "message": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+        },
+        {
+          "status": null,
+          "code": null,
+          "message": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+        }
+      ],
+      "branch": "RECONCILIATION",
+      "resultPersisted": false,
+      "reconciliation": true,
+      "recoveryError": {
+        "status": null,
+        "code": null,
+        "message": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+      },
+      "localControlState": "LEASE_UNCERTAIN",
+      "newNodeStartsAfterDrain": 0,
+      "stateWritesAfterDrain": 0,
+      "reconciliationMaterialRetained": true,
+      "injectedFailures": 3,
+      "injectionScope": "fetch wrapper injection; not observed kintone behavior",
+      "release": {
+        "released": true,
+        "protocol": "unique-tombstone-update",
+        "recordKey": "LOCKDONE:DVl-MLjOBLJ6ux71Q-3Q1jIATCPCg_de_5wVnI5jicE",
+        "lockKey": "N1:DONE:DVl-MLjOBLJ6ux71Q-3Q1jIATCPCg_de_5wVnI5jicE"
+      },
+      "measurements": {
+        "control_plane_api_calls": 10,
+        "execution": {
+          "apiCalls": 9,
+          "payload": {
+            "requestBytes": 2325,
+            "responseBytes": 8527,
+            "unmeasuredRequestBodies": 0,
+            "breakdown": [
+              {
+                "call": 1,
+                "method": "POST",
+                "path": "/k/v1/record.json",
+                "requestBytes": 663,
+                "responseBytes": 27,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 2,
+                "method": "POST",
+                "path": "/k/v1/record.json",
+                "requestBytes": 683,
+                "responseBytes": 27,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 3,
+                "method": "GET",
+                "path": "/k/v1/record.json",
+                "requestBytes": 0,
+                "responseBytes": 2819,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 4,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 184,
+                "responseBytes": 0,
+                "status": null,
+                "ok": false,
+                "error": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+              },
+              {
+                "call": 5,
+                "method": "GET",
+                "path": "/k/v1/record.json",
+                "requestBytes": 0,
+                "responseBytes": 2819,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 6,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 184,
+                "responseBytes": 0,
+                "status": null,
+                "ok": false,
+                "error": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+              },
+              {
+                "call": 7,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 184,
+                "responseBytes": 0,
+                "status": null,
+                "ok": false,
+                "error": "INJECTED_HEARTBEAT_UNREACHABLE (fetch wrapper injection; not kintone behavior)"
+              },
+              {
+                "call": 8,
+                "method": "GET",
+                "path": "/k/v1/record.json",
+                "requestBytes": 0,
+                "responseBytes": 2819,
+                "status": 200,
+                "ok": true
+              },
+              {
+                "call": 9,
+                "method": "PUT",
+                "path": "/k/v1/record.json",
+                "requestBytes": 427,
+                "responseBytes": 16,
+                "status": 200,
+                "ok": true
+              }
+            ]
+          }
+        },
+        "audit": {
+          "apiCalls": 1,
+          "payload": {
+            "requestBytes": 617,
+            "responseBytes": 26,
+            "unmeasuredRequestBodies": 0,
+            "breakdown": [
+              {
+                "call": 1,
+                "method": "POST",
+                "path": "/k/v1/record.json",
+                "requestBytes": 617,
+                "responseBytes": 26,
+                "status": 200,
+                "ok": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "passed": true
+}
