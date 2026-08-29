@@ -1,0 +1,225 @@
+schema_version: 1
+source: docs/phase1-freeze-decision-record.md#d-06-現行statusの移行規則
+cases:
+  - id: success
+    input:
+      current_status: SUCCESS
+      record_type: JOB
+      log_detail:
+        outcome: completed
+        error_category: null
+      timeout_source: none
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: SUCCESS
+      result_code: OK
+      note: 正常完了
+
+  - id: no_data
+    input:
+      current_status: NO_DATA
+      record_type: JOB
+      log_detail:
+        outcome: no_target_records
+        error_category: null
+      timeout_source: none
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: SUCCESS
+      result_code: NO_DATA
+      note: 正常な対象0件。下流のall_successを満たす
+
+  - id: aborted_assert
+    input:
+      current_status: ABORTED
+      record_type: JOB
+      log_detail:
+        outcome: assert_condition_failed
+        error_category: ASSERT
+      timeout_source: none
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: FAILED
+      result_code: ASSERT_FAILED
+      note: 現行ABORTEDはASSERT条件違反でありuser cancelではない
+
+  - id: failed_sql
+    input:
+      current_status: FAILED
+      record_type: JOB
+      log_detail:
+        outcome: execution_error
+        error_category: SQL
+      timeout_source: none
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: FAILED
+      result_code: SQL_ERROR
+      note: 実エラー種別をlog_detailから分類する代表case
+
+  - id: failed_api
+    input:
+      current_status: FAILED
+      record_type: JOB
+      log_detail:
+        outcome: request_failed_after_retry
+        error_category: API
+      timeout_source: none
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: FAILED
+      result_code: API_ERROR
+      note: 実エラー種別をlog_detailから分類する代表case
+
+  - id: failed_auth
+    input:
+      current_status: FAILED
+      record_type: JOB
+      log_detail:
+        outcome: authentication_or_permission_error
+        error_category: AUTH
+      timeout_source: none
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: FAILED
+      result_code: AUTH_ERROR
+      note: 実エラー種別をlog_detailから分類する代表case
+
+  - id: timeout_detected_by_runner
+    input:
+      current_status: TIMEOUT
+      record_type: JOB
+      log_detail:
+        outcome: runner_aborted_at_deadline
+        completion_known: true
+      timeout_source: runner
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: FAILED
+      result_code: EXECUTION_TIMEOUT
+      note: runnerが中断結果を認識している
+
+  - id: timeout_from_stale_recovery
+    input:
+      current_status: TIMEOUT
+      record_type: LOCK_RECOVERY
+      log_detail:
+        outcome: stale_lease_reclaimed_by_other_execution
+        completion_known: false
+      timeout_source: stale_recovery
+      actor:
+        type: recovery_process
+        authenticated: true
+    expected:
+      new_node_state_status: UNKNOWN
+      result_code: LEASE_EXPIRED
+      note: 旧実行の完走・部分適用を確定できない
+
+  - id: skipped_filtered
+    input:
+      current_status: SKIPPED
+      record_type: BATCH_JOB
+      log_detail:
+        skip_reason: filtered
+      timeout_source: none
+      actor:
+        type: legacy_run_all
+        authenticated: true
+    expected:
+      new_node_state_status: null
+      result_code: LEGACY_FILTERED
+      result_destination: invocation
+      note: Node Stateを作成せず旧run-allの選抜外として監査移行する
+
+  - id: skipped_dependency
+    input:
+      current_status: SKIPPED
+      record_type: BATCH_JOB
+      log_detail:
+        skip_reason: dependency
+        dependency_id: job_x
+      timeout_source: none
+      actor:
+        type: legacy_run_all
+        authenticated: true
+    expected:
+      new_node_state_status: BLOCKED
+      result_code: DEPENDENCY_FAILED
+      note: 依存不成立による未着手
+
+  - id: skipped_stop_on_error
+    input:
+      current_status: SKIPPED
+      record_type: BATCH_JOB
+      log_detail:
+        skip_reason: stop_on_error
+      timeout_source: none
+      actor:
+        type: legacy_run_all
+        authenticated: true
+    expected:
+      new_node_state_status: CANCELLED
+      result_code: BATCH_STOPPED
+      note: グローバル停止方針による未着手
+
+  - id: skipped_batch_timeout
+    input:
+      current_status: SKIPPED
+      record_type: BATCH_JOB
+      log_detail:
+        skip_reason: batch_timeout
+      timeout_source: batch
+      actor:
+        type: legacy_run_all
+        authenticated: true
+    expected:
+      new_node_state_status: CANCELLED
+      result_code: BATCH_TIMEOUT
+      note: バッチ全体停止による未着手
+
+  - id: skipped_locked
+    input:
+      current_status: SKIPPED
+      record_type: JOB
+      log_detail:
+        skip_reason: locked
+        lock_holder_confirmed: true
+      timeout_source: none
+      actor:
+        type: ksql_flow_runner
+        authenticated: true
+    expected:
+      new_node_state_status: WAITING
+      result_code: LOCK_CONFLICT
+      result_destination: invocation
+      note: snapshot一致を仮定せずNodeは未実行のままにする
+
+  - id: explicit_external_stop
+    input:
+      current_status: CANCELLED
+      record_type: JOB
+      log_detail:
+        outcome: explicit_external_stop
+        stop_confirmed: true
+      timeout_source: none
+      actor:
+        type: authenticated_operator
+        authenticated: true
+    expected:
+      new_node_state_status: CANCELLED
+      result_code: USER_CANCELLED
+      note: 認証主体を監査記録する

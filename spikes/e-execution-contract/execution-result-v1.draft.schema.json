@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kSQL-Flow Execution Result v1 (DRAFT)",
+  "$comment": "P0-00 draft only. Distribution and package location remain undecided under Execution Contract v1 section 13. Unknown fields are additive and ignored by consumers.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "formatVersion",
+    "kind",
+    "contract",
+    "correlationId",
+    "attemptId",
+    "executionId",
+    "jobId",
+    "profile",
+    "status",
+    "resultCode",
+    "executionStarted",
+    "exitCode",
+    "asOf",
+    "startedAt",
+    "finishedAt",
+    "durationMs",
+    "readCount",
+    "writtenCount",
+    "deletedCount",
+    "apiCalls",
+    "ksqlFlowVersion",
+    "engineVersion",
+    "error"
+  ],
+  "properties": {
+    "formatVersion": { "type": "number", "const": 1 },
+    "kind": { "type": "string", "const": "EXECUTION_RESULT" },
+    "contract": { "type": "string", "const": "ksql-flow.execution/v1" },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "attemptId": { "type": "string", "minLength": 1 },
+    "executionId": { "type": "string", "minLength": 1 },
+    "jobId": { "type": "string", "minLength": 1 },
+    "profile": { "type": "string", "minLength": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["SUCCESS", "FAILED", "CANCELLED"]
+    },
+    "resultCode": { "type": "string", "minLength": 1 },
+    "executionStarted": { "type": "boolean" },
+    "exitCode": { "type": "number", "enum": [0, 1, 2, 3, 5] },
+    "asOf": { "type": ["string", "null"] },
+    "startedAt": {
+      "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "Z$" }]
+    },
+    "finishedAt": { "type": "string", "pattern": "Z$" },
+    "durationMs": { "type": "number", "minimum": 0 },
+    "readCount": { "$ref": "#/$defs/nonNegativeInteger" },
+    "writtenCount": { "$ref": "#/$defs/nonNegativeInteger" },
+    "deletedCount": { "$ref": "#/$defs/nonNegativeInteger" },
+    "apiCalls": { "$ref": "#/$defs/nonNegativeInteger" },
+    "lastSuccessfulChunkNo": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "lastWrittenKey": { "type": ["string", "null"] },
+    "ksqlFlowVersion": { "type": "string", "minLength": 1 },
+    "engineVersion": { "type": "string", "minLength": 1 },
+    "error": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/error" }]
+    }
+  },
+  "$defs": {
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "category",
+        "code",
+        "message",
+        "retryable",
+        "detailsTruncated"
+      ],
+      "properties": {
+        "category": { "type": "string", "minLength": 1 },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" },
+        "retryable": { "type": "boolean" },
+        "detailsTruncated": { "type": "boolean" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "executionStarted": { "const": false } },
+        "required": ["executionStarted"]
+      },
+      "then": { "properties": { "startedAt": { "type": "null" } } },
+      "else": { "properties": { "startedAt": { "type": "string" } } }
+    },
+    {
+      "if": {
+        "properties": { "resultCode": { "enum": ["OK", "NO_DATA"] } },
+        "required": ["resultCode"]
+      },
+      "then": {
+        "properties": {
+          "status": { "const": "SUCCESS" },
+          "exitCode": { "const": 0 },
+          "error": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "resultCode": { "const": "VALIDATION_ERROR" } },
+        "required": ["resultCode"]
+      },
+      "then": {
+        "properties": {
+          "status": { "const": "FAILED" },
+          "exitCode": { "const": 1 },
+          "executionStarted": { "const": false }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "resultCode": { "const": "ASSERT_FAILED" } },
+        "required": ["resultCode"]
+      },
+      "then": {
+        "properties": {
+          "status": { "const": "FAILED" },
+          "exitCode": { "const": 2 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resultCode": {
+            "enum": [
+              "SQL_ERROR",
+              "API_ERROR",
+              "AUTH_ERROR",
+              "EXECUTION_TIMEOUT",
+              "LOCK_UNAVAILABLE",
+              "INTERNAL_ERROR"
+            ]
+          }
+        },
+        "required": ["resultCode"]
+      },
+      "then": {
+        "properties": {
+          "status": { "const": "FAILED" },
+          "exitCode": { "const": 3 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "resultCode": { "const": "CANCELLED" } },
+        "required": ["resultCode"]
+      },
+      "then": {
+        "properties": {
+          "status": { "const": "CANCELLED" },
+          "exitCode": { "const": 3 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "resultCode": { "const": "LOCK_CONFLICT" } },
+        "required": ["resultCode"]
+      },
+      "then": {
+        "properties": {
+          "status": { "const": "FAILED" },
+          "exitCode": { "const": 5 },
+          "executionStarted": { "const": false }
+        }
+      }
+    }
+  ]
+}
