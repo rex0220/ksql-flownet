@@ -4,11 +4,21 @@ import { URL } from "node:url";
 
 import { createKintoneClient, field } from "../../spikes/lib/kintone.mjs";
 import { createDataset } from "../../spikes/a-app-layout/scripts/dataset.mjs";
-import { createLayoutAdapter } from "../../spikes/a-app-layout/scripts/layout-adapter.mjs";
+import {
+  createLayoutAdapter,
+  lockReleaseTombstone,
+  nodeStateQuery,
+} from "../../spikes/a-app-layout/scripts/layout-adapter.mjs";
 import {
   prepareRun,
   runNodeAttempt,
 } from "../../spikes/a-app-layout/scripts/scenario-support.mjs";
+import { runAuditUnreachable } from "../../spikes/a-app-layout/scripts/scenario-audit-unreachable.mjs";
+import { runMidFailure } from "../../spikes/a-app-layout/scripts/scenario-mid-failure.mjs";
+import { runNewSuccess } from "../../spikes/a-app-layout/scripts/scenario-new-success.mjs";
+import { runReconciliation } from "../../spikes/a-app-layout/scripts/scenario-reconciliation.mjs";
+import { runResume } from "../../spikes/a-app-layout/scripts/scenario-resume.mjs";
+import { runStateRevisionConflict } from "../../spikes/a-app-layout/scripts/scenario-state-revision-conflict.mjs";
 
 const CONFIG = {
   baseUrl: "https://example.cybozu.com",
@@ -17,6 +27,16 @@ const CONFIG = {
     execution: { app: "9002", token: "exec-secret" },
     audit: { app: "9003", token: "audit-secret" },
   },
+};
+
+const ENVIRONMENT = {
+  KSQL_SPIKE_BASE_URL: CONFIG.baseUrl,
+  KSQL_SPIKE_APP_INTEGRATED: CONFIG.oneApp.integrated.app,
+  KSQL_SPIKE_TOKEN_INTEGRATED: CONFIG.oneApp.integrated.token,
+  KSQL_SPIKE_APP_EXEC: CONFIG.twoApp.execution.app,
+  KSQL_SPIKE_TOKEN_EXEC: CONFIG.twoApp.execution.token,
+  KSQL_SPIKE_APP_AUDIT: CONFIG.twoApp.audit.app,
+  KSQL_SPIKE_TOKEN_AUDIT: CONFIG.twoApp.audit.token,
 };
 
 function clone(value) {
@@ -34,7 +54,9 @@ function createKintoneFetchMock() {
   }
 
   function queryValue(query, fieldCode) {
-    const match = query.match(new RegExp(`${fieldCode} = "((?:\\\\.|[^"])*)"`));
+    const match = query.match(
+      new RegExp(`${fieldCode}\\s+(?:=|in\\s*\\()\\s*"((?:\\\\.|[^"])*)"\\)?`),
+    );
     return match?.[1]?.replaceAll('\\"', '"').replaceAll("\\\\", "\\");
   }
 
@@ -92,6 +114,9 @@ function createKintoneFetchMock() {
 
     if (requestUrl.pathname.endsWith("/records.json")) {
       const query = requestUrl.searchParams.get("query") ?? "";
+      if (/\b(?:record_type|status)\s*=/.test(query)) {
+        return Response.json({ code: "GAIA_IQ03" }, { status: 400 });
+      }
       const filters = [
         "record_type",
         "run_id",
@@ -258,9 +283,79 @@ test("Node State旧revision更新は409となり再GETで勝者を照合でき�
   );
   const records = await adapter.query(
     "execution",
-    `record_type = "NODE_STATE" and run_id = "${dataset.runId}" and node_id = "${node.nodeId}"`,
+    nodeStateQuery(dataset.runId, node.nodeId),
   );
   assert.equal(records.length, 1);
   assert.equal(records[0].status.value, "RUNNING");
   assert.deepEqual((await adapter.cleanup()).residualIds, []);
+});
+
+test("lock解放はrecord_keyをinvocation tombstoneへ移しlock_keyを空にする", async () => {
+  const fetchMock = createKintoneFetchMock();
+  const adapter = createLayoutAdapter({
+    layoutName: "1app",
+    config: CONFIG,
+    fetchImplementation: fetchMock,
+  });
+  const dataset = createDataset("unit-lock-release", "fixed");
+  const longInvocationId = `invocation_${"x".repeat(100)}`;
+  const lock = await adapter.acquireNetworkLock(dataset, longInvocationId);
+  const release = await adapter.releaseNetworkLock(lock);
+  assert.equal(release.released, true);
+  const releaseCall = fetchMock.calls.find(
+    (call) => call.method === "PUT" && call.body?.id === lock.id,
+  );
+  const tombstone = releaseCall.body.record.record_key.value;
+  assert.equal(tombstone, lockReleaseTombstone(longInvocationId));
+  assert.match(tombstone, /^LOCKDONE:sha256:/);
+  assert.ok(tombstone.length <= 64);
+  assert.equal(releaseCall.body.record.lock_key.value, "");
+  assert.equal(lockReleaseTombstone("invoke-short"), "LOCKDONE:invoke-short");
+  assert.deepEqual((await adapter.cleanup()).residualIds, []);
+});
+
+test("全シナリオが生成するqueryはdropdownへ=を使用しない", async (t) => {
+  const scenarios = [
+    ["new-success", runNewSuccess],
+    ["mid-failure", runMidFailure],
+    ["resume", runResume],
+    ["reconciliation", runReconciliation],
+    ["state-revision-conflict", runStateRevisionConflict],
+    ["audit-unreachable", runAuditUnreachable],
+  ];
+  const enumeratedQueries = [];
+  for (const [name, runScenario] of scenarios) {
+    await t.test(name, async () => {
+      const fetchMock = createKintoneFetchMock();
+      const result = await runScenario({
+        environment: ENVIRONMENT,
+        fetchImplementation: fetchMock,
+      });
+      assert.equal(result.passed, true);
+      const queries = fetchMock.calls
+        .map((call) => new URL(call.url).searchParams.get("query"))
+        .filter((query) => query !== null);
+      enumeratedQueries.push(...queries.map((query) => ({ name, query })));
+    });
+  }
+  assert.equal(enumeratedQueries.length, 6);
+  for (const { name, query } of enumeratedQueries) {
+    assert.doesNotMatch(
+      query,
+      /\b(?:record_type|status)\s*=/,
+      `${name}: ${query}`,
+    );
+  }
+  assert.equal(
+    enumeratedQueries.filter(({ query }) =>
+      query.startsWith('record_type in ("NODE_STATE")'),
+    ).length,
+    4,
+  );
+  assert.equal(
+    enumeratedQueries.filter(({ query }) =>
+      query.startsWith('record_type in ("NODE_ATTEMPT")'),
+    ).length,
+    2,
+  );
 });
