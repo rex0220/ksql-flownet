@@ -71,6 +71,29 @@ function inQuery(fieldCode: string, value: string): string {
   return `${fieldCode} in (${quote(value)})`;
 }
 
+async function pagedRecords(
+  client: KintoneClient,
+  filter: string,
+): Promise<KintoneRecord[]> {
+  const result: KintoneRecord[] = [];
+  let lastId = 0;
+  while (true) {
+    const page = await client.getRecords(
+      `${filter} and $id > ${lastId} order by $id asc limit 100`,
+    );
+    result.push(...page);
+    if (page.length < 100) return result;
+    const nextId = Number(page.at(-1)?.$id?.value);
+    if (!Number.isSafeInteger(nextId) || nextId <= lastId) {
+      throw new RepositoryError(
+        "REMOTE_ERROR",
+        "kintone pagination returned an invalid $id",
+      );
+    }
+    lastId = nextId;
+  }
+}
+
 function resolutionDetails(
   record: KintoneRecord,
 ): Pick<
@@ -438,7 +461,8 @@ export class KintonePersistenceRepository implements PersistenceRepository {
   ): Promise<Versioned<NetworkRun>[]> {
     let records: KintoneRecord[];
     try {
-      records = await this.state.getRecords(
+      records = await pagedRecords(
+        this.state,
         `${inQuery("record_type", "NETWORK_RUN")} and ${inQuery("network_id", networkId)}`,
       );
     } catch (error) {
@@ -502,6 +526,20 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       decodeInvocation,
       (found) => found.invocation_id === value.invocation_id,
     );
+  }
+
+  async getInvocations(runId: string): Promise<Versioned<RunInvocation>[]> {
+    let records: KintoneRecord[];
+    try {
+      records = await pagedRecords(
+        this.audit,
+        `${inQuery("record_type", "RUN_INVOCATION")} and ${inQuery("run_id", runId)}`,
+      );
+    } catch (error) {
+      mapError(error);
+    }
+    // kintone DATETIMEは分精度のため、順序は$id(pagedRecordsの取得順)で保持する
+    return records.map((record) => versioned(record, decodeInvocation));
   }
 
   async finalizeInvocation(

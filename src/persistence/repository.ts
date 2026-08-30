@@ -128,6 +128,7 @@ export interface PersistenceRepository {
   createInvocation(
     invocation: RunInvocation,
   ): Promise<Versioned<RunInvocation>>;
+  getInvocations(runId: string): Promise<Versioned<RunInvocation>[]>;
   finalizeInvocation(
     invocationId: string,
     expectedRevision: number,
@@ -156,3 +157,15 @@ export interface PersistenceRepository {
   ): Promise<Versioned<OperationAudit>>;
   listInconsistencies(runId: string): Promise<Inconsistency[]>;
 }
+
+/** The complete persistence surface available to read-only status inspection. */
+export type StatusReadRepository = Pick<
+  PersistenceRepository,
+  | "getRun"
+  | "getRunByBusinessKey"
+  | "listRuns"
+  | "getInvocations"
+  | "getNodeStates"
+  | "getAttempts"
+  | "getResolutions"
+>;

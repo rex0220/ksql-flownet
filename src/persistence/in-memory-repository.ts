@@ -130,6 +130,13 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     return copy(stored);
   }
 
+  async getInvocations(runId: string): Promise<Versioned<RunInvocation>[]> {
+    // 実機の$id順に合わせ、挿入順を保持する(started_atは分精度のため順序に使わない)
+    return [...this.invocations.values()]
+      .filter(({ value }) => value.run_id === runId)
+      .map(copy);
+  }
+
   async finalizeInvocation(
     invocationId: string,
     expectedRevision: number,
