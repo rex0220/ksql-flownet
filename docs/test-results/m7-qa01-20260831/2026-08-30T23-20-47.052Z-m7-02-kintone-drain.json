@@ -1,0 +1,1180 @@
+{
+  "test": "02-kintone-drain",
+  "passed": true,
+  "scope": "M7260830232047_3233_02-kintone-drain",
+  "observedAt": "2026-08-30T23:23:19.339Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T23:20:47.049Z",
+      "scenarioStartedAt": "2026-08-30T23:20:47.052Z",
+      "scenarioFinishedAt": "2026-08-30T23:23:18.820Z",
+      "cleanupStartedAt": "2026-08-30T23:23:18.820Z",
+      "cleanupFinishedAt": "2026-08-30T23:23:19.339Z",
+      "resultAssembledAt": "2026-08-30T23:23:19.339Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 151768,
+      "cleanupMs": 519,
+      "totalMs": 152290
+    }
+  },
+  "detail": {
+    "recovery": {
+      "process": {
+        "exitCode": 1,
+        "signal": null,
+        "stdout": "NEW: Run netrun_b8eb5270-bc01-47a6-a34a-e60286ac14ad finished with aggregate RUNNING (NETWORK_LEASE_INTERRUPTED).\n",
+        "stderr": ""
+      },
+      "networkId": "M7260830232047_3233_02-kintone-drain_recover_drill",
+      "blockedRequest": {
+        "at": "2026-08-30T23:20:58.468Z",
+        "method": "GET",
+        "path": "/k/v1/records.json",
+        "targeted": true,
+        "blocked": true,
+        "heartbeat": false
+      },
+      "terminalJob": {
+        "recordId": "629",
+        "correlationId": "netrun_b8eb5270-bc01-47a6-a34a-e60286ac14ad",
+        "attemptId": "attempt_cafab0cc-c229-4695-a4da-de952c8f58fb",
+        "executionId": "c151c6b9-8ff2-4d2f-8e33-c2d71c0052bd",
+        "jobId": "m6_longread",
+        "status": "SUCCESS",
+        "runnerExecutionStartedAt": "2026-08-30T23:20:00Z",
+        "finishedAt": "2026-08-30T23:20:00Z"
+      },
+      "graph": {
+        "run": {
+          "recordKey": "R1:kgiFkhlT2LXd7fgUMU7ChFN-UHn7oR2kkLiyByQaUME",
+          "runId": "netrun_b8eb5270-bc01-47a6-a34a-e60286ac14ad",
+          "networkId": "M7260830232047_3233_02-kintone-drain_recover_drill",
+          "businessKey": "M7260830232047_3233_02-kintone-drain_recover",
+          "status": "RUNNING",
+          "asOf": "",
+          "startedAt": "2026-08-30T23:20:00Z",
+          "finishedAt": "",
+          "resolvedProfile": "prod"
+        },
+        "states": [
+          {
+            "nodeId": "n1_longread",
+            "jobId": "m6_longread",
+            "status": "SUCCESS",
+            "latestAttemptNo": 1,
+            "statusReason": "OK",
+            "blockedBy": [],
+            "startedAt": "2026-08-30T23:20:00Z",
+            "finishedAt": "2026-08-30T23:20:00Z"
+          },
+          {
+            "nodeId": "n2_independent",
+            "jobId": "m6_read_deals",
+            "status": "WAITING",
+            "latestAttemptNo": 0,
+            "statusReason": "",
+            "blockedBy": [],
+            "startedAt": "",
+            "finishedAt": ""
+          },
+          {
+            "nodeId": "n3_join",
+            "jobId": "m6_join",
+            "status": "WAITING",
+            "latestAttemptNo": 0,
+            "statusReason": "",
+            "blockedBy": [],
+            "startedAt": "",
+            "finishedAt": ""
+          }
+        ],
+        "attempts": [
+          {
+            "recordId": 419,
+            "attemptId": "attempt_cafab0cc-c229-4695-a4da-de952c8f58fb",
+            "nodeId": "n1_longread",
+            "jobId": "m6_longread",
+            "invocationId": "invoke_9d37ebef-5105-408b-b0c5-ebbf6800bb20",
+            "attemptNo": 1,
+            "status": "SUCCESS",
+            "resultCode": "OK",
+            "executionStartedAt": "2026-08-30T23:20:00Z",
+            "runnerExecutionStartedAt": "2026-08-30T23:20:00Z",
+            "executionId": "c151c6b9-8ff2-4d2f-8e33-c2d71c0052bd",
+            "finishedAt": "2026-08-30T23:20:00Z",
+            "readCount": 3456,
+            "writtenCount": 0
+          }
+        ],
+        "invocations": [
+          {
+            "recordId": 418,
+            "invocationId": "invoke_9d37ebef-5105-408b-b0c5-ebbf6800bb20",
+            "mode": "NEW",
+            "status": "CANCELLED",
+            "resultCode": "NETWORK_LEASE_INTERRUPTED",
+            "selectedNodeIds": [
+              "n1_longread"
+            ],
+            "preservedNodeIds": [],
+            "blockedNodeIds": [],
+            "startedAt": "2026-08-30T23:20:00Z",
+            "finishedAt": "2026-08-30T23:21:00Z"
+          }
+        ]
+      },
+      "faultEvents": [
+        {
+          "at": "2026-08-30T23:20:47.721Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:48.045Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:48.194Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:49.140Z",
+          "method": "POST",
+          "path": "/k/v1/file.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:49.326Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:49.651Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:49.710Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:49.793Z",
+          "method": "GET",
+          "path": "/k/v1/file.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:50.025Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:50.191Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:50.472Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:50.784Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.017Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.076Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.141Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.283Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.419Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.589Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.771Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:51.838Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": true
+        },
+        {
+          "at": "2026-08-30T23:20:52.074Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:52.241Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:52.320Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:52.485Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:52.636Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": true
+        },
+        {
+          "at": "2026-08-30T23:20:52.878Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:53.114Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:53.170Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:53.446Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:53.607Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:20:58.468Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:00.479Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:02.487Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:04.496Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:06.501Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:08.511Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:10.518Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:12.528Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:14.530Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:16.532Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:18.549Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:20.563Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:22.574Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:22.777Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": true
+        },
+        {
+          "at": "2026-08-30T23:21:22.872Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:23.084Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:23.143Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:23.424Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:23.480Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:23.731Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:23.789Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:24.062Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:24.216Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:24.486Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:24.543Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        }
+      ]
+    },
+    "unrecovered": {
+      "process": {
+        "exitCode": 1,
+        "signal": null,
+        "stdout": "",
+        "stderr": "Error [RUN_NETWORK_FAILED]: scheduler and close failed\n"
+      },
+      "networkId": "M7260830232047_3233_02-kintone-drain_outage_drill",
+      "blockedRequest": {
+        "at": "2026-08-30T23:21:36.072Z",
+        "method": "GET",
+        "path": "/k/v1/records.json",
+        "targeted": true,
+        "blocked": true,
+        "heartbeat": false
+      },
+      "terminalJob": {
+        "recordId": "630",
+        "correlationId": "netrun_224c3041-8876-4b3d-bb52-0d57d3836552",
+        "attemptId": "attempt_1592d5c3-fa14-4e15-ab51-859f9416df54",
+        "executionId": "af1cd815-a050-4d22-93c9-ca182c77306b",
+        "jobId": "m6_longread",
+        "status": "SUCCESS",
+        "runnerExecutionStartedAt": "2026-08-30T23:21:00Z",
+        "finishedAt": "2026-08-30T23:21:00Z"
+      },
+      "beforeBlockedWindow": {
+        "state": {
+          "680": "3",
+          "681": "2",
+          "682": "2",
+          "683": "1",
+          "684": "1"
+        },
+        "audit": {
+          "420": "1",
+          "421": "2"
+        }
+      },
+      "afterBlockedWindow": {
+        "state": {
+          "680": "3",
+          "681": "2",
+          "682": "2",
+          "683": "1",
+          "684": "1"
+        },
+        "audit": {
+          "420": "1",
+          "421": "2"
+        }
+      },
+      "graphBeforeCleanup": {
+        "run": {
+          "recordKey": "R1:3K20W-GtKPNVz_DRUSjITA1tqsK4yrwdTCBwK7LL4xA",
+          "runId": "netrun_224c3041-8876-4b3d-bb52-0d57d3836552",
+          "networkId": "M7260830232047_3233_02-kintone-drain_outage_drill",
+          "businessKey": "M7260830232047_3233_02-kintone-drain_outage",
+          "status": "RUNNING",
+          "asOf": "",
+          "startedAt": "2026-08-30T23:21:00Z",
+          "finishedAt": "",
+          "resolvedProfile": "prod"
+        },
+        "states": [
+          {
+            "nodeId": "n1_longread",
+            "jobId": "m6_longread",
+            "status": "RUNNING",
+            "latestAttemptNo": 1,
+            "statusReason": "",
+            "blockedBy": [],
+            "startedAt": "2026-08-30T23:21:00Z",
+            "finishedAt": ""
+          },
+          {
+            "nodeId": "n2_independent",
+            "jobId": "m6_read_deals",
+            "status": "WAITING",
+            "latestAttemptNo": 0,
+            "statusReason": "",
+            "blockedBy": [],
+            "startedAt": "",
+            "finishedAt": ""
+          },
+          {
+            "nodeId": "n3_join",
+            "jobId": "m6_join",
+            "status": "WAITING",
+            "latestAttemptNo": 0,
+            "statusReason": "",
+            "blockedBy": [],
+            "startedAt": "",
+            "finishedAt": ""
+          }
+        ],
+        "attempts": [
+          {
+            "recordId": 421,
+            "attemptId": "attempt_1592d5c3-fa14-4e15-ab51-859f9416df54",
+            "nodeId": "n1_longread",
+            "jobId": "m6_longread",
+            "invocationId": "invoke_27d3b447-df1a-42f1-8e82-143c0cf8c98b",
+            "attemptNo": 1,
+            "status": "RUNNING",
+            "resultCode": "PENDING",
+            "executionStartedAt": "2026-08-30T23:21:00Z",
+            "runnerExecutionStartedAt": "",
+            "executionId": "",
+            "finishedAt": "",
+            "readCount": 0,
+            "writtenCount": 0
+          }
+        ],
+        "invocations": [
+          {
+            "recordId": 420,
+            "invocationId": "invoke_27d3b447-df1a-42f1-8e82-143c0cf8c98b",
+            "mode": "NEW",
+            "status": "RUNNING",
+            "resultCode": "PENDING",
+            "selectedNodeIds": [
+              "n1_longread",
+              "n2_independent",
+              "n3_join"
+            ],
+            "preservedNodeIds": [],
+            "blockedNodeIds": [],
+            "startedAt": "2026-08-30T23:21:00Z",
+            "finishedAt": ""
+          }
+        ]
+      },
+      "cleanup": {
+        "staleStatus": {
+          "network_id": "M7260830232047_3233_02-kintone-drain_outage_drill",
+          "profile": "prod",
+          "lock": {
+            "record_id": "680",
+            "owner_invocation_id": "invoke_27d3b447-df1a-42f1-8e82-143c0cf8c98b",
+            "owner_instance_id": "local-pid://Laptop5/4372",
+            "heartbeat_at": "2026-08-30T23:21:00Z",
+            "lease_expires_at": "2026-08-30T23:22:00Z",
+            "stale_candidate": true,
+            "revision": 3
+          },
+          "runs": [
+            {
+              "run_id": "netrun_224c3041-8876-4b3d-bb52-0d57d3836552",
+              "business_key": "M7260830232047_3233_02-kintone-drain_outage",
+              "status": "RUNNING",
+              "resume_allowed": true,
+              "lifecycle_status": "ACTIVE",
+              "created_at": "2026-08-30T23:21:00Z",
+              "started_at": "2026-08-30T23:21:00Z",
+              "finished_at": null,
+              "updated_at": "2026-08-30T23:21:00Z",
+              "invocations": [
+                {
+                  "invocation_id": "invoke_27d3b447-df1a-42f1-8e82-143c0cf8c98b",
+                  "mode": "NEW",
+                  "status": "RUNNING",
+                  "result_code": "PENDING"
+                }
+              ],
+              "node_states": [
+                {
+                  "node_id": "n3_join",
+                  "status": "WAITING",
+                  "status_reason": null,
+                  "idempotent": true,
+                  "latest_attempt_no": 0,
+                  "active_attempt_id": null,
+                  "active_attempt": null
+                },
+                {
+                  "node_id": "n2_independent",
+                  "status": "WAITING",
+                  "status_reason": null,
+                  "idempotent": true,
+                  "latest_attempt_no": 0,
+                  "active_attempt_id": null,
+                  "active_attempt": null
+                },
+                {
+                  "node_id": "n1_longread",
+                  "status": "RUNNING",
+                  "status_reason": null,
+                  "idempotent": true,
+                  "latest_attempt_no": 1,
+                  "active_attempt_id": "attempt_1592d5c3-fa14-4e15-ab51-859f9416df54",
+                  "active_attempt": {
+                    "node_attempt_id": "attempt_1592d5c3-fa14-4e15-ab51-859f9416df54",
+                    "attempt_no": 1,
+                    "status": "RUNNING"
+                  }
+                }
+              ],
+              "reconciliation": {
+                "inconsistencies": []
+              },
+              "recovery_identifiers": {
+                "resolve_node": [],
+                "force_unlock_network": {
+                  "network_id": "M7260830232047_3233_02-kintone-drain_outage_drill",
+                  "profile": "prod",
+                  "expected_owner_invocation_id": "invoke_27d3b447-df1a-42f1-8e82-143c0cf8c98b"
+                },
+                "run_network": {
+                  "resume_run": "netrun_224c3041-8876-4b3d-bb52-0d57d3836552"
+                }
+              }
+            }
+          ]
+        },
+        "released": {
+          "exitCode": 0,
+          "signal": null,
+          "stdout": "RELEASED: N1:-7Yp95jduYcrlA3cm-5eqfw-V1OH-cRpi-SKTw_KHUM (previous owner invoke_27d3b447-df1a-42f1-8e82-143c0cf8c98b, post revision 4).\nIf a Node was running, use resolve-node to resolve it as UNKNOWN before resume.\n",
+          "stderr": ""
+        },
+        "resumeRun": "netrun_224c3041-8876-4b3d-bb52-0d57d3836552",
+        "adjudication": {
+          "exitCode": 0,
+          "signal": null,
+          "stdout": "RESUME: Run netrun_224c3041-8876-4b3d-bb52-0d57d3836552 finished with aggregate SUCCESS (OK).\n",
+          "stderr": ""
+        }
+      },
+      "faultEvents": [
+        {
+          "at": "2026-08-30T23:21:25.850Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:26.049Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:26.211Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:26.943Z",
+          "method": "POST",
+          "path": "/k/v1/file.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:27.048Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:27.171Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:27.362Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:27.624Z",
+          "method": "GET",
+          "path": "/k/v1/file.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:27.834Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:28.019Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:28.309Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:28.405Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:28.491Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:28.643Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:28.805Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:28.954Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:29.011Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:29.169Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:29.388Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:29.470Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": true
+        },
+        {
+          "at": "2026-08-30T23:21:29.560Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:29.737Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:30.048Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:30.128Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:30.316Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": true
+        },
+        {
+          "at": "2026-08-30T23:21:30.422Z",
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:30.560Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:30.731Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:30.997Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:31.156Z",
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "targeted": true,
+          "blocked": false,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:36.072Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:38.073Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:40.080Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:42.097Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:44.113Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:46.118Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:48.125Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:50.135Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:52.138Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:54.152Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:56.168Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:21:58.176Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:22:00.181Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:22:02.184Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:22:04.201Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        },
+        {
+          "at": "2026-08-30T23:22:06.079Z",
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "targeted": true,
+          "blocked": true,
+          "heartbeat": false
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "prefix": "M7260830232047_3233_02-kintone-drain",
+    "runIds": [],
+    "networkIds": [],
+    "state": 0,
+    "audit": 1,
+    "total": 1
+  }
+}

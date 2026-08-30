@@ -6,6 +6,10 @@ import {
   decideMissingResult,
   KintoneJobLogReader,
 } from "../../dist/executor/job-log-reader.js";
+import {
+  KintoneApiError,
+  KintoneTransportError,
+} from "../../dist/persistence/kintone/client.js";
 
 test("開始マーカー判定表3行を安全側に裁定する", () => {
   const rows = [
@@ -89,4 +93,36 @@ test("JobLogReaderはattempt_idだけで終端statusを読取専用照合する"
     executionId: "exec_1",
     finishedAt: "2026-08-30T00:02:00Z",
   });
+});
+
+test("JobLogReaderはfetch到達不能とAPI裁定エラーを区別する", async () => {
+  const unreachable = new KintoneJobLogReader({
+    baseUrl: "https://example.cybozu.com",
+    appId: 4249,
+    apiToken: "secret",
+    fetch: async () => {
+      throw new TypeError("fetch failed");
+    },
+  });
+  await assert.rejects(
+    unreachable.findExecutionStarted({ attemptId: "attempt_1" }),
+    KintoneTransportError,
+  );
+
+  const conflict = new KintoneJobLogReader({
+    baseUrl: "https://example.cybozu.com",
+    appId: 4249,
+    apiToken: "secret",
+    fetch: async () =>
+      new Response(JSON.stringify({ code: "GAIA_CO02" }), { status: 409 }),
+  });
+  await assert.rejects(
+    conflict.findExecutionStarted({ attemptId: "attempt_1" }),
+    (error) => {
+      assert.ok(error instanceof KintoneApiError);
+      assert.equal(error.status, 409);
+      assert.equal(error.apiCode, "GAIA_CO02");
+      return true;
+    },
+  );
 });

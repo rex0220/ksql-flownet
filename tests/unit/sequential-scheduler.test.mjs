@@ -5,6 +5,10 @@ import { buildBundle } from "../../dist/bundle/index.js";
 import { nodeStateKey } from "../../dist/domain/canonical-record-key.js";
 import { runSequentialScheduler } from "../../dist/orchestration/sequential-scheduler.js";
 import { InMemoryPersistenceRepository } from "../../dist/persistence/in-memory-repository.js";
+import {
+  KintoneApiError,
+  KintoneTransportError,
+} from "../../dist/persistence/kintone/client.js";
 
 const T0 = "2026-08-30T00:00:00.000Z";
 
@@ -118,10 +122,25 @@ function invocation(mode, selectedNodeIds = []) {
 
 async function seed(nodes, options = {}) {
   const repository = new InMemoryPersistenceRepository();
+  const operationAudits = [];
+  const appendOperationAudit = repository.appendOperationAudit.bind(repository);
+  repository.appendOperationAudit = async (audit) => {
+    operationAudits.push(globalThis.structuredClone(audit));
+    return appendOperationAudit(audit);
+  };
   const seededRun = await repository.createRun(run(options.runStatus));
   const seededInvocation = await repository.createInvocation(
     invocation(options.mode ?? "NEW", options.selectedNodeIds ?? []),
   );
+  for (const [index, status] of (
+    options.abandonedInvocationStatuses ?? []
+  ).entries()) {
+    await repository.createInvocation({
+      ...invocation("RESUME"),
+      invocation_id: `invoke_old_${index + 1}`,
+      status,
+    });
+  }
   for (const node of nodes) {
     let state = await repository.upsertNodeState({
       expected_revision: null,
@@ -249,7 +268,7 @@ async function seed(nodes, options = {}) {
       );
     }
   }
-  return { repository, seededRun, seededInvocation };
+  return { repository, seededRun, seededInvocation, operationAudits };
 }
 
 function heldMonitor(overrides = {}) {
@@ -588,6 +607,53 @@ test("現Invocation自身のRUNNING Attemptは孤児裁定の対象外（受入2
   assert.deepEqual(result.calls, ["independent"]);
 });
 
+test("resumeは孤児Attempt裁定後に旧Invocationだけを終端して監査する", async () => {
+  const result = await execute([{ id: "a", dependsOn: [] }], {
+    mode: "RESUME",
+    runStatus: "RUNNING",
+    abandonedInvocationStatuses: ["RUNNING", "CREATED"],
+  });
+  const invocations = await result.repository.getInvocations("run_1");
+  for (const invocationId of ["invoke_old_1", "invoke_old_2"]) {
+    const old = invocations.find(
+      ({ value }) => value.invocation_id === invocationId,
+    ).value;
+    assert.equal(old.status, "CANCELLED");
+    assert.equal(old.result_code, "NETWORK_LEASE_INTERRUPTED");
+  }
+  assert.equal(
+    result.operationAudits.some(
+      ({ target_id }) =>
+        target_id === result.seededInvocation.value.invocation_id,
+    ),
+    false,
+  );
+  assert.deepEqual(
+    result.operationAudits.map(
+      ({ repair_type, target_type, before, after }) => ({
+        repair_type,
+        target_type,
+        before: before.status,
+        after: after.status,
+      }),
+    ),
+    [
+      {
+        repair_type: "INVOCATION_FINALIZED",
+        target_type: "RUN_INVOCATION",
+        before: "RUNNING",
+        after: "CANCELLED",
+      },
+      {
+        repair_type: "INVOCATION_FINALIZED",
+        target_type: "RUN_INVOCATION",
+        before: "CREATED",
+        after: "CANCELLED",
+      },
+    ],
+  );
+});
+
 test("CANCELLEDはall_successを満たさず下流BLOCKED、独立系統は継続する（受入7）", async () => {
   const nodes = [
     { id: "cancelled", dependsOn: [], idempotent: false },
@@ -697,6 +763,151 @@ test("drain回復時だけ結果保存しInvocationをNETWORK_LEASE_INTERRUPTED�
     (await result.repository.getAttempts("run_1"))[0].value.status,
     "SUCCESS",
   );
+});
+
+test("node実行中のcontrol-plane到達不能は期限内回復後に保存して新Nodeを開始しない", async () => {
+  const nodes = [
+    { id: "a", dependsOn: [] },
+    { id: "b", dependsOn: ["a"] },
+  ];
+  const seeded = await seed(nodes);
+  let state = "HELD";
+  let confirmations = 0;
+  let operationCalls = 0;
+  let clock = 0;
+  const monitor = heldMonitor({
+    canStartNewNode: () => state === "HELD",
+    canPersistResults: () => state === "HELD" || state === "FINAL",
+    markControlPlaneUnreachable: () => {
+      state = "UNCERTAIN";
+    },
+    confirmLeaseForFinalWrite: async () => {
+      confirmations += 1;
+      if (confirmations < 2) return false;
+      state = "FINAL";
+      return true;
+    },
+    requiresNetworkLeaseInterruptedFinalization: () => state === "FINAL",
+    tick: async () => state === "HELD",
+  });
+  const calls = [];
+  const base = fakeExecutor(seeded.repository, {}, calls, {
+    active: 0,
+    max: 0,
+  });
+  const closeCalls = [];
+  const summary = await runSequentialScheduler({
+    run: seeded.seededRun,
+    invocation: seeded.seededInvocation,
+    bundleBytes: bundle(nodes),
+    repository: seeded.repository,
+    attemptExecutor: {
+      async execute(input) {
+        await input.runControlPlaneOperation(async () => {
+          operationCalls += 1;
+          if (operationCalls === 1)
+            throw new KintoneTransportError(new TypeError("fetch failed"));
+          return null;
+        });
+        return base.execute(input);
+      },
+    },
+    leaseMonitor: monitor,
+    profile: "prod",
+    configPath: "C:\\secure\\config.json",
+    controlPlaneDrain: {
+      retryDelayMs: 1,
+      nowMs: () => clock,
+      sleep: async (delayMs) => {
+        clock += delayMs;
+      },
+    },
+    close: async (value) => closeCalls.push(value),
+  });
+  assert.deepEqual(calls, ["a"]);
+  assert.equal(operationCalls, 2);
+  assert.equal(summary.invocationStatus, "CANCELLED");
+  assert.equal(summary.invocationResultCode, "NETWORK_LEASE_INTERRUPTED");
+  assert.equal(closeCalls[0].persistInvocation, undefined);
+});
+
+test("control-plane到達不能が期限内に回復しなければ結果を書かず非成功終了する", async () => {
+  const nodes = [{ id: "a", dependsOn: [] }];
+  const seeded = await seed(nodes);
+  let clock = 0;
+  const closeCalls = [];
+  await assert.rejects(
+    runSequentialScheduler({
+      run: seeded.seededRun,
+      invocation: seeded.seededInvocation,
+      bundleBytes: bundle(nodes),
+      repository: seeded.repository,
+      attemptExecutor: {
+        async execute(input) {
+          await input.runControlPlaneOperation(async () => {
+            throw new KintoneTransportError(new TypeError("fetch failed"));
+          });
+          assert.fail("unreachable operation must not recover");
+        },
+      },
+      leaseMonitor: heldMonitor({
+        markControlPlaneUnreachable: () => undefined,
+        confirmLeaseForFinalWrite: async () => false,
+      }),
+      profile: "prod",
+      configPath: "C:\\secure\\config.json",
+      controlPlaneDrain: {
+        retryDelayMs: 1_000,
+        nowMs: () => clock,
+        sleep: async (delayMs) => {
+          clock += delayMs;
+        },
+      },
+      close: async (value) => closeCalls.push(value),
+    }),
+    /network lease could not be confirmed/i,
+  );
+  const attempt = (await seeded.repository.getAttempts("run_1"))[0].value;
+  const stateValue = (await seeded.repository.getNodeStates("run_1"))[0].value;
+  assert.equal(attempt.status, "RUNNING");
+  assert.equal(stateValue.status, "RUNNING");
+  assert.equal(seeded.operationAudits.length, 0);
+  assert.equal(closeCalls[0].persistInvocation, false);
+});
+
+test("control-plane API裁定エラーはdrain再試行せず即時失敗する", async () => {
+  const nodes = [{ id: "a", dependsOn: [] }];
+  const seeded = await seed(nodes);
+  let marked = 0;
+  let calls = 0;
+  await assert.rejects(
+    runSequentialScheduler({
+      run: seeded.seededRun,
+      invocation: seeded.seededInvocation,
+      bundleBytes: bundle(nodes),
+      repository: seeded.repository,
+      attemptExecutor: {
+        async execute(input) {
+          await input.runControlPlaneOperation(async () => {
+            calls += 1;
+            throw new KintoneApiError(409, "GAIA_CO02", {});
+          });
+          assert.fail("API error must escape");
+        },
+      },
+      leaseMonitor: heldMonitor({
+        markControlPlaneUnreachable: () => {
+          marked += 1;
+        },
+      }),
+      profile: "prod",
+      configPath: "C:\\secure\\config.json",
+      close: async () => undefined,
+    }),
+    /kintone API returned 409/,
+  );
+  assert.equal(calls, 1);
+  assert.equal(marked, 0);
 });
 
 test("drain未回復時はsubprocess結果を状態へ保存せずreconciliationへ送る", async () => {

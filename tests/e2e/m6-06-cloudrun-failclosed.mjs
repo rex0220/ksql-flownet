@@ -74,7 +74,8 @@ async function createStaleLock(settings, fixture, businessKey, environment) {
         return status.output.lock?.stale_candidate ? status : null;
       },
       `stale lock for ${fixture.networkId}`,
-      { timeoutMs: 40_000, intervalMs: 500 },
+      // lease 30秒 + DATETIME切り捨て上限60秒の保守判定に合わせて待つ
+      { timeoutMs: 150_000, intervalMs: 1_000 },
     );
     return {
       killedParent,

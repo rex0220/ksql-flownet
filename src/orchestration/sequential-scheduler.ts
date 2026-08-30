@@ -25,8 +25,11 @@ import type {
   PersistenceRepository,
   Versioned,
 } from "../persistence/repository.js";
+import { RepositoryError } from "../persistence/repository.js";
+import { KintoneTransportError } from "../persistence/kintone/client.js";
 import {
   adjudicateOrphanRunningAttempts,
+  finalizeAbandonedInvocations,
   orphanAdjudicationReason,
 } from "./orphan-attempt-adjudication.js";
 
@@ -35,6 +38,7 @@ export interface SchedulerLeaseMonitor {
   canPersistResults(): boolean;
   confirmLeaseForFinalWrite(): Promise<boolean>;
   requiresNetworkLeaseInterruptedFinalization(): boolean;
+  markControlPlaneUnreachable?(): void;
   /** A heartbeat is also the fencing read before an ordinary state write. */
   tick?(): Promise<boolean>;
   start?(): void;
@@ -69,6 +73,11 @@ export interface SequentialSchedulerInput {
   readonly close: (input: SchedulerCloseInput) => Promise<void>;
   readonly now?: () => Date;
   readonly uuid?: () => string;
+  readonly controlPlaneDrain?: {
+    readonly retryDelayMs?: number;
+    readonly nowMs?: () => number;
+    readonly sleep?: (delayMs: number) => Promise<void>;
+  };
 }
 
 export type SchedulerNodeDisposition =
@@ -96,11 +105,15 @@ export interface SequentialSchedulerSummary {
 export class SchedulerLeaseInterruptedError extends Error {
   readonly code = "NETWORK_LEASE_INTERRUPTED";
 
-  constructor(readonly reconciliationRequired: boolean) {
+  constructor(
+    readonly reconciliationRequired: boolean,
+    options?: ErrorOptions,
+  ) {
     super(
       reconciliationRequired
         ? "network lease could not be confirmed; execution evidence requires reconciliation"
         : "network lease was interrupted",
+      options,
     );
     this.name = "SchedulerLeaseInterruptedError";
   }
@@ -129,6 +142,11 @@ export async function runSequentialScheduler(
   input.leaseMonitor.start?.();
   try {
     extracted = await extractBundle(input.bundleBytes, input.executionRoot);
+    const runControlPlaneOperation = controlPlaneDrainRunner(
+      input.leaseMonitor,
+      extracted.definition.network_lock.lease_duration_sec * 1000,
+      input.controlPlaneDrain,
+    );
     let run = await ensureRunStarted(input, now);
     if (input.invocation.value.mode !== "NEW") {
       const adjudications = await adjudicateOrphanRunningAttempts({
@@ -140,6 +158,13 @@ export async function runSequentialScheduler(
         now: () => now().toISOString(),
       });
       adjudicationReason = orphanAdjudicationReason(adjudications);
+      await finalizeAbandonedInvocations({
+        runId: input.run.value.run_id,
+        invocationId: input.invocation.value.invocation_id,
+        repository: input.repository,
+        confirmWrite: () => confirmOrdinaryWrite(input.leaseMonitor),
+        now: () => now().toISOString(),
+      });
     }
     const states = stateMap(
       await input.repository.getNodeStates(input.run.value.run_id),
@@ -206,7 +231,13 @@ export async function runSequentialScheduler(
         states.set(nodeId, state);
         blocked.add(nodeId);
         results.set(nodeId, nodeResult(nodeId, "BLOCKED", state));
-        run = await updateAggregate(input, run, states, now);
+        run = await updateAggregate(
+          input,
+          run,
+          states,
+          now,
+          runControlPlaneOperation,
+        );
         aggregateStatus = run.value.status;
         continue;
       }
@@ -269,6 +300,7 @@ export async function runSequentialScheduler(
           if (input.leaseMonitor.canPersistResults()) return true;
           return input.leaseMonitor.confirmLeaseForFinalWrite();
         },
+        runControlPlaneOperation,
       });
       state = outcome.nodeState;
       states.set(nodeId, state);
@@ -284,7 +316,13 @@ export async function runSequentialScheduler(
           outcome.attempt.value.result_code,
         ),
       );
-      run = await updateAggregate(input, run, states, now);
+      run = await updateAggregate(
+        input,
+        run,
+        states,
+        now,
+        runControlPlaneOperation,
+      );
       aggregateStatus = run.value.status;
       if (input.leaseMonitor.requiresNetworkLeaseInterruptedFinalization()) {
         closeInput = finalization(
@@ -300,7 +338,13 @@ export async function runSequentialScheduler(
     }
 
     if (closeInput === null) {
-      run = await updateAggregate(input, run, states, now);
+      run = await updateAggregate(
+        input,
+        run,
+        states,
+        now,
+        runControlPlaneOperation,
+      );
       aggregateStatus = run.value.status;
       const terminal = invocationOutcome(aggregateStatus);
       closeInput = finalization(
@@ -474,6 +518,9 @@ async function updateAggregate(
   run: Versioned<NetworkRun>,
   states: Map<string, Versioned<NodeState>>,
   now: () => Date,
+  runControlPlaneOperation: <T>(operation: () => Promise<T>) => Promise<T> = (
+    operation,
+  ) => operation(),
 ): Promise<Versioned<NetworkRun>> {
   if (!(await confirmAggregateWrite(input.leaseMonitor)))
     throw new SchedulerLeaseInterruptedError(true);
@@ -482,12 +529,67 @@ async function updateAggregate(
     run.value.started_at,
   );
   const at = now().toISOString();
-  return input.repository.updateRunAggregate(run.value.run_id, run.revision, {
-    status,
-    started_at: run.value.started_at,
-    finished_at: isTerminalAggregate(status) ? at : null,
-    updated_at: at,
-  });
+  return runControlPlaneOperation(() =>
+    input.repository.updateRunAggregate(run.value.run_id, run.revision, {
+      status,
+      started_at: run.value.started_at,
+      finished_at: isTerminalAggregate(status) ? at : null,
+      updated_at: at,
+    }),
+  );
+}
+
+function controlPlaneDrainRunner(
+  monitor: SchedulerLeaseMonitor,
+  maxDurationMs: number,
+  options: SequentialSchedulerInput["controlPlaneDrain"],
+): <T>(operation: () => Promise<T>) => Promise<T> {
+  const nowMs = options?.nowMs ?? Date.now;
+  const retryDelayMs = options?.retryDelayMs ?? 2_000;
+  const sleep =
+    options?.sleep ??
+    ((delayMs: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, delayMs)));
+  let deadline: number | null = null;
+  return async <T>(operation: () => Promise<T>): Promise<T> => {
+    let lastError: unknown;
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isKintoneTransportFailure(error)) throw error;
+      lastError = error;
+      deadline ??= nowMs() + maxDurationMs;
+      monitor.markControlPlaneUnreachable?.();
+    }
+    while (nowMs() < deadline) {
+      const remaining = deadline - nowMs();
+      await sleep(Math.min(retryDelayMs, Math.max(0, remaining)));
+      if (nowMs() >= deadline) break;
+      if (!(await monitor.confirmLeaseForFinalWrite())) continue;
+      try {
+        return await operation();
+      } catch (error) {
+        if (!isKintoneTransportFailure(error)) throw error;
+        lastError = error;
+        monitor.markControlPlaneUnreachable?.();
+      }
+    }
+    throw new SchedulerLeaseInterruptedError(true, { cause: lastError });
+  };
+}
+
+function isKintoneTransportFailure(error: unknown): boolean {
+  if (error instanceof KintoneTransportError) return true;
+  if (error instanceof RepositoryError) {
+    if (error.code !== "AMBIGUOUS_WRITE" && error.code !== "REMOTE_ERROR")
+      return false;
+    return isKintoneTransportFailure(error.causeDetail);
+  }
+  if (error instanceof AggregateError)
+    return error.errors.some(isKintoneTransportFailure);
+  if (typeof error === "object" && error !== null && "cause" in error)
+    return isKintoneTransportFailure(error.cause);
+  return false;
 }
 
 async function confirmOrdinaryWrite(

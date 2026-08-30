@@ -511,6 +511,11 @@ export class LeaseMonitor {
     return this.state === "FINAL_WRITE_CONFIRMED";
   }
 
+  markControlPlaneUnreachable(): void {
+    if (this.state !== "LEASE_UNCERTAIN")
+      this.transition("LEASE_UNCERTAIN", "FAILURE_THRESHOLD");
+  }
+
   subscribe(listener: (event: LeaseMonitorEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

@@ -144,10 +144,11 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
   ): Promise<Versioned<RunInvocation>> {
     const stored = this.required(this.invocations, invocationId, "invocation");
     assertRevision(stored, expectedRevision);
-    if (stored.value.status !== "RUNNING") {
+    const currentStatus: string = stored.value.status;
+    if (currentStatus !== "RUNNING" && currentStatus !== "CREATED") {
       throw new RepositoryError(
         "INVALID_STATE_TRANSITION",
-        "only a running invocation can be finalized",
+        "only an unterminated invocation can be finalized",
       );
     }
     const value: RunInvocation = {

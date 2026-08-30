@@ -5,6 +5,10 @@ import type {
   Versioned,
 } from "../persistence/repository.js";
 import {
+  KintoneApiError,
+  KintoneTransportError,
+} from "../persistence/kintone/client.js";
+import {
   decideMissingResult,
   type JobLogMarker,
   type JobLogReader,
@@ -27,6 +31,10 @@ export interface AttemptExecutorInput extends RunRequest {
   readonly executionStartedAt: string;
   /** D-29 gate evaluated after subprocess completion and before result writes. */
   readonly authorizeResultPersistence?: () => Promise<boolean>;
+  /** Scheduler-scoped retry for transport failures after subprocess completion. */
+  readonly runControlPlaneOperation?: <T>(
+    operation: () => Promise<T>,
+  ) => Promise<T>;
 }
 
 export interface AttemptExecutorOptions {
@@ -98,9 +106,11 @@ export class AttemptExecutor {
         invocationResultCode: "FORCED_TERMINATION",
       };
     }
-    const marker = await this.readMarker(
-      input.attemptId,
-      classification.result?.executionId,
+    const controlPlane =
+      input.runControlPlaneOperation ??
+      (<T>(operation: () => Promise<T>): Promise<T> => operation());
+    const marker = await controlPlane(() =>
+      this.readMarker(input.attemptId, classification.result?.executionId),
     );
     const runnerStartedAt = marker?.runnerExecutionStartedAt ?? null;
     let terminalStatus: AttemptFinalization["status"];
@@ -150,38 +160,43 @@ export class AttemptExecutor {
     ) {
       throw new AttemptResultPersistenceDeferredError(classification, process);
     }
-    const attempt = await this.options.repository.finalizeAttempt(
-      startedAttempt.value.node_attempt_id,
-      startedAttempt.revision,
-      {
-        status: terminalStatus,
-        result_code: resultCode,
-        runner_execution_started_at: runnerStartedAt,
-        execution_id: result?.executionId ?? marker?.executionId ?? null,
-        finished_at: finishedAt,
-        duration_sec: result ? result.durationMs / 1000 : null,
-        error_message:
-          result?.error?.message ?? (classification.details.join("; ") || null),
-        read_count: result?.readCount ?? 0,
-        written_count: result?.writtenCount ?? 0,
-        last_successful_chunk_no: result?.lastSuccessfulChunkNo ?? null,
-        last_written_key: result?.lastWrittenKey ?? null,
-      },
+    const attempt = await controlPlane(() =>
+      this.options.repository.finalizeAttempt(
+        startedAttempt.value.node_attempt_id,
+        startedAttempt.revision,
+        {
+          status: terminalStatus,
+          result_code: resultCode,
+          runner_execution_started_at: runnerStartedAt,
+          execution_id: result?.executionId ?? marker?.executionId ?? null,
+          finished_at: finishedAt,
+          duration_sec: result ? result.durationMs / 1000 : null,
+          error_message:
+            result?.error?.message ??
+            (classification.details.join("; ") || null),
+          read_count: result?.readCount ?? 0,
+          written_count: result?.writtenCount ?? 0,
+          last_successful_chunk_no: result?.lastSuccessfulChunkNo ?? null,
+          last_written_key: result?.lastWrittenKey ?? null,
+        },
+      ),
     );
 
     const waiting = stateStatus === "WAITING";
-    const nodeState = await this.options.repository.upsertNodeState({
-      expected_revision: input.nodeState.revision,
-      value: {
-        ...input.nodeState.value,
-        status: stateStatus,
-        active_attempt_id: null,
-        status_reason: waiting ? "PREPARE_FAILED" : resultCode,
-        started_at: waiting ? null : input.nodeState.value.started_at,
-        finished_at: waiting ? null : finishedAt,
-        updated_at: finishedAt,
-      },
-    });
+    const nodeState = await controlPlane(() =>
+      this.options.repository.upsertNodeState({
+        expected_revision: input.nodeState.revision,
+        value: {
+          ...input.nodeState.value,
+          status: stateStatus,
+          active_attempt_id: null,
+          status_reason: waiting ? "PREPARE_FAILED" : resultCode,
+          started_at: waiting ? null : input.nodeState.value.started_at,
+          finished_at: waiting ? null : finishedAt,
+          updated_at: finishedAt,
+        },
+      }),
+    );
 
     return {
       classification,
@@ -201,7 +216,12 @@ export class AttemptExecutor {
         attemptId,
         ...(executionId === undefined ? {} : { executionId }),
       });
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof KintoneTransportError ||
+        error instanceof KintoneApiError
+      )
+        throw error;
       return undefined;
     }
   }

@@ -139,9 +139,10 @@ export interface ReconciliationOperationAudit {
   repair_type:
     | "TERMINAL_ATTEMPT_APPLIED"
     | "ATTEMPT_RESOLUTION_APPLIED"
-    | "RUN_AGGREGATE_RECOMPUTED";
+    | "RUN_AGGREGATE_RECOMPUTED"
+    | "INVOCATION_FINALIZED";
   run_id: string;
-  target_type: "NODE_STATE" | "NETWORK_RUN";
+  target_type: "NODE_STATE" | "NETWORK_RUN" | "RUN_INVOCATION";
   target_id: string;
   before: Record<string, unknown>;
   after: Record<string, unknown>;

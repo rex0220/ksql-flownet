@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
+
 import type {
   NodeAttemptStatus,
   NodeState,
+  ReconciliationOperationAudit,
 } from "../domain/persistence-model.js";
 import type {
   JobLogAttemptResult,
@@ -23,6 +26,12 @@ export interface OrphanAttemptAdjudication {
   readonly nodeId: string;
   readonly status: Exclude<NodeAttemptStatus, "RUNNING">;
   readonly resultCode: string;
+}
+
+export interface AbandonedInvocationFinalization {
+  readonly invocationId: string;
+  readonly previousStatus: string;
+  readonly auditEventId: string;
 }
 
 interface TerminalDecision {
@@ -128,6 +137,68 @@ export async function adjudicateOrphanRunningAttempts(
     });
   }
   return adjudications;
+}
+
+/** Finalizes invocations made unable to continue by the current lock owner. */
+export async function finalizeAbandonedInvocations(
+  input: Pick<
+    OrphanAttemptAdjudicationInput,
+    "runId" | "invocationId" | "repository" | "confirmWrite" | "now"
+  >,
+): Promise<readonly AbandonedInvocationFinalization[]> {
+  const invocations = await input.repository.getInvocations(input.runId);
+  const now = input.now ?? (() => new Date().toISOString());
+  const results: AbandonedInvocationFinalization[] = [];
+  for (const invocation of invocations) {
+    const previousStatus: string = invocation.value.status;
+    if (
+      invocation.value.invocation_id === input.invocationId ||
+      (previousStatus !== "RUNNING" && previousStatus !== "CREATED")
+    )
+      continue;
+    if (!(await input.confirmWrite())) throw leaseInterrupted();
+    const finishedAt = now();
+    const finalized = await input.repository.finalizeInvocation(
+      invocation.value.invocation_id,
+      invocation.revision,
+      {
+        status: "CANCELLED",
+        result_code: "NETWORK_LEASE_INTERRUPTED",
+        finished_at: finishedAt,
+        reason: `${invocation.value.reason}; finalized as an abandoned invocation during reconciliation`,
+      },
+    );
+    if (!(await input.confirmWrite())) throw leaseInterrupted();
+    const auditEventId = randomUUID();
+    const audit: ReconciliationOperationAudit = {
+      event_id: auditEventId,
+      event_type: "RECONCILIATION_REPAIR",
+      repair_type: "INVOCATION_FINALIZED",
+      run_id: input.runId,
+      target_type: "RUN_INVOCATION",
+      target_id: invocation.value.invocation_id,
+      before: {
+        status: previousStatus,
+        result_code: invocation.value.result_code,
+        revision: invocation.revision,
+      },
+      after: {
+        status: finalized.value.status,
+        result_code: finalized.value.result_code,
+        revision: finalized.revision,
+      },
+      basis:
+        "the current Network lock owner makes an older unterminated invocation unable to continue",
+      occurred_at: finishedAt,
+    };
+    await input.repository.appendOperationAudit(audit);
+    results.push({
+      invocationId: invocation.value.invocation_id,
+      previousStatus,
+      auditEventId,
+    });
+  }
+  return results;
 }
 
 export function decideOrphanResult(
