@@ -10,7 +10,14 @@ import {
 
 await runM5(import.meta.url, "resume", async ({ settings, scope }) => {
   const fixture = await prepareNetwork(scope, "network-midfail.yaml");
+  const timingDiagnostics = {
+    standaloneStartedAt: null,
+    runningConfirmedAt: null,
+    networkStartedAt: { initial: null, resume: null },
+    targetAttemptStartedAt: { initial: null, resume: null },
+  };
   try {
+    timingDiagnostics.networkStartedAt.initial = new Date().toISOString();
     const first = await runFlowNetNetwork(settings, fixture.networkPath, scope);
     assert.equal(first.exitCode, 1);
     const before = await loadRunGraph(settings, scope);
@@ -19,7 +26,11 @@ await runM5(import.meta.url, "resume", async ({ settings, scope }) => {
     );
     assert.equal(n1Before.length, 1);
     assert.equal(n1Before[0].status, "SUCCESS");
+    const n2Before = before.attempts.find(({ nodeId }) => nodeId === "n2_fail");
+    timingDiagnostics.targetAttemptStartedAt.initial =
+      n2Before?.executionStartedAt ?? null;
 
+    timingDiagnostics.networkStartedAt.resume = new Date().toISOString();
     const resumed = await runFlowNetNetwork(
       settings,
       fixture.networkPath,
@@ -30,12 +41,25 @@ await runM5(import.meta.url, "resume", async ({ settings, scope }) => {
     const after = await loadRunGraph(settings, scope);
     assert.equal(after.run.runId, before.run.runId);
     const attemptsByNode = Map.groupBy(after.attempts, ({ nodeId }) => nodeId);
-    assert.equal(attemptsByNode.get("n1_extract").length, 1);
-    assert.equal(attemptsByNode.get("n2_fail").length, 2);
-    assert.deepEqual(
-      attemptsByNode.get("n2_fail").map(({ attemptNo }) => attemptNo),
-      [1, 2],
+    const n1Attempts = attemptsByNode.get("n1_extract") ?? [];
+    const n2Attempts = attemptsByNode.get("n2_fail") ?? [];
+    assert.equal(
+      n1Attempts.length,
+      1,
+      "n1はpreservedされAttemptが増えないこと",
     );
+    assert.equal(n2Attempts.length, 2, "n2はresumeでAttemptが1件増えること");
+    const n2AttemptNos = n2Attempts
+      .map(({ attemptNo }) => attemptNo)
+      .toSorted((left, right) => left - right);
+    assert.deepEqual(
+      n2AttemptNos,
+      [1, 2],
+      "n2のattempt_no集合が{1,2}であること",
+    );
+    timingDiagnostics.targetAttemptStartedAt.resume =
+      n2Attempts.find(({ attemptNo }) => attemptNo === 2)?.executionStartedAt ??
+      null;
     assert.ok(
       attemptsByNode
         .get("n2_fail")
@@ -58,7 +82,11 @@ await runM5(import.meta.url, "resume", async ({ settings, scope }) => {
       before,
       after,
       networkId: fixture.networkId,
+      timingDiagnostics,
     };
+  } catch (error) {
+    error.timingDiagnostics = timingDiagnostics;
+    throw error;
   } finally {
     await fixture.dispose();
   }

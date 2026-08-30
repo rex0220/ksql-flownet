@@ -4,23 +4,59 @@ import {
   byNode,
   loadRunGraph,
   prepareNetwork,
-  runFlowNetNetwork,
+  requireRunningJobLog,
   runM5,
+  startFlowNetNetwork,
   startStandaloneLongRead,
   summarizeJobLog,
+  waitForRunGraph,
   waitForRunningJobLog,
 } from "./support.mjs";
 
 await runM5(import.meta.url, "lock-conflict", async ({ settings, scope }) => {
   const fixture = await prepareNetwork(scope, "network-diamond.yaml");
+  const timingDiagnostics = {
+    standaloneStartedAt: new Date().toISOString(),
+    runningConfirmedAt: {
+      initial: null,
+      beforeNetwork: null,
+      atTargetAttempt: null,
+    },
+    networkStartedAt: null,
+    targetAttemptStartedAt: null,
+    targetAttemptObservedAt: null,
+  };
   const holder = await startStandaloneLongRead(settings, scope);
+  let network;
   try {
     const runningLog = await waitForRunningJobLog(settings, holder.attemptId);
-    const networkProcess = await runFlowNetNetwork(
+    timingDiagnostics.runningConfirmedAt.initial = new Date().toISOString();
+    const preNetworkRunningLog = await requireRunningJobLog(
       settings,
-      fixture.networkPath,
-      scope,
+      holder.attemptId,
+      "network起動直前",
     );
+    timingDiagnostics.runningConfirmedAt.beforeNetwork =
+      new Date().toISOString();
+    timingDiagnostics.networkStartedAt = new Date().toISOString();
+    network = await startFlowNetNetwork(settings, fixture.networkPath, scope);
+    const observedGraph = await waitForRunGraph(settings, scope, (candidate) =>
+      candidate.attempts.some(({ nodeId }) => nodeId === "n1_customers"),
+    );
+    const observedAttempt = observedGraph.attempts.find(
+      ({ nodeId }) => nodeId === "n1_customers",
+    );
+    timingDiagnostics.targetAttemptObservedAt = new Date().toISOString();
+    timingDiagnostics.targetAttemptStartedAt =
+      observedAttempt?.executionStartedAt ?? null;
+    const targetObservationRunningLog = await requireRunningJobLog(
+      settings,
+      holder.attemptId,
+      "対象Attempt観測時",
+    );
+    timingDiagnostics.runningConfirmedAt.atTargetAttempt =
+      new Date().toISOString();
+    const networkProcess = await network.completion;
     assert.equal(networkProcess.exitCode, 1);
     const graph = await loadRunGraph(settings, scope);
     const holderResult = await holder.completion;
@@ -46,13 +82,22 @@ await runM5(import.meta.url, "lock-conflict", async ({ settings, scope }) => {
         cwd: holder.cwd,
         flowNetCwd: holder.flowNetCwd,
         runningLog: summarizeJobLog(runningLog),
+        preNetworkRunningLog: summarizeJobLog(preNetworkRunningLog),
+        targetObservationRunningLog: summarizeJobLog(
+          targetObservationRunningLog,
+        ),
         process: holderResult,
       },
       networkProcess,
       graph,
       networkId: fixture.networkId,
+      timingDiagnostics,
     };
+  } catch (error) {
+    error.timingDiagnostics = timingDiagnostics;
+    throw error;
   } finally {
+    if (network?.child.exitCode === null) network.child.kill("SIGKILL");
     if (holder.child.exitCode === null) holder.child.kill("SIGKILL");
     await fixture.dispose();
   }
