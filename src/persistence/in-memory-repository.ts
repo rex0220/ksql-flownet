@@ -1,4 +1,4 @@
-import { attemptKey } from "../domain/canonical-record-key.js";
+import { attemptKey, runKey } from "../domain/canonical-record-key.js";
 import type {
   AttemptResolution,
   NetworkRun,
@@ -48,6 +48,7 @@ function assertRevision<T>(stored: Stored<T>, expected: number): void {
 /** A deterministic component-test fake. It intentionally models unique keys and revisions. */
 export class InMemoryPersistenceRepository implements PersistenceRepository {
   private readonly runs = new Map<string, Stored<NetworkRun>>();
+  private readonly runKeys = new Map<string, string>();
   private readonly invocations = new Map<string, Stored<RunInvocation>>();
   private readonly states = new Map<string, Stored<NodeState>>();
   private readonly attempts = new Map<string, Stored<NodeAttempt>>();
@@ -56,17 +57,15 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
   private readonly operationAudits: Stored<OperationAudit>[] = [];
 
   async createRun(run: NetworkRun): Promise<Versioned<NetworkRun>> {
+    const key = runKey(
+      run.resolved_profile_snapshot.profile,
+      run.network_id,
+      run.business_key,
+    );
     if (this.runs.has(run.run_id)) {
       throw new RepositoryError("DUPLICATE_RECORD", `run ${run.run_id} exists`);
     }
-    const duplicate = [...this.runs.values()].find(
-      ({ value }) =>
-        value.network_id === run.network_id &&
-        value.business_key === run.business_key &&
-        value.resolved_profile_snapshot.profile ===
-          run.resolved_profile_snapshot.profile,
-    );
-    if (duplicate) {
+    if (this.runKeys.has(key)) {
       throw new RepositoryError(
         "DUPLICATE_RECORD",
         "profile/network/business key already exists",
@@ -74,6 +73,7 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     }
     const stored = { value: structuredClone(run), revision: 1 };
     this.runs.set(run.run_id, stored);
+    this.runKeys.set(key, run.run_id);
     return copy(stored);
   }
 
@@ -82,17 +82,8 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     networkId: string,
     businessKey: string,
   ): Promise<Versioned<NetworkRun> | null> {
-    const matches = [...this.runs.values()].filter(
-      ({ value }) =>
-        value.network_id === networkId &&
-        value.business_key === businessKey &&
-        value.resolved_profile_snapshot.profile === profile,
-    );
-    if (matches.length > 1) {
-      throw new RepositoryError("MULTIPLE_RECORDS", "multiple runs matched");
-    }
-    const match = matches[0];
-    return match ? copy(match) : null;
+    const runId = this.runKeys.get(runKey(profile, networkId, businessKey));
+    return runId ? copy(this.required(this.runs, runId, "run")) : null;
   }
 
   async getRun(runId: string): Promise<Versioned<NetworkRun>> {

@@ -8,7 +8,7 @@ import {
 export const CANONICAL_RECORD_KEY_LENGTH = 46;
 
 declare const canonicalRecordKeyBrand: unique symbol;
-export type CanonicalRecordKey<Prefix extends "S1" | "A1"> =
+export type CanonicalRecordKey<Prefix extends "R1" | "S1" | "A1"> =
   `${Prefix}:${string}` & {
     readonly [canonicalRecordKeyBrand]: Prefix;
   };
@@ -23,7 +23,10 @@ export type CanonicalRecordKeyErrorCode =
   | "RECORD_KEY_ATTEMPT_NO_INVALID"
   | "RECORD_KEY_LENGTH_INVARIANT";
 
-type RecordKeyComponent = "runId" | "nodeId" | "attemptNo" | "generatedKey";
+type RecordKeyIdentifierComponent =
+  "profile" | "networkId" | "businessKey" | "runId" | "nodeId";
+type RecordKeyComponent =
+  RecordKeyIdentifierComponent | "attemptNo" | "generatedKey";
 
 export class CanonicalRecordKeyError extends Error {
   readonly code: CanonicalRecordKeyErrorCode;
@@ -43,7 +46,7 @@ export class CanonicalRecordKeyError extends Error {
 
 function canonicalIdentifier(
   value: string,
-  component: "runId" | "nodeId",
+  component: RecordKeyIdentifierComponent,
 ): string {
   if (typeof value !== "string") {
     throw new CanonicalRecordKeyError(
@@ -91,7 +94,7 @@ function canonicalIdentifier(
   return normalized;
 }
 
-function canonicalKey<Prefix extends "S1" | "A1">(
+function canonicalKey<Prefix extends "R1" | "S1" | "A1">(
   prefix: Prefix,
   components: readonly string[],
 ): CanonicalRecordKey<Prefix> {
@@ -110,6 +113,18 @@ function canonicalKey<Prefix extends "S1" | "A1">(
     );
   }
   return key as CanonicalRecordKey<Prefix>;
+}
+
+export function runKey(
+  profile: string,
+  networkId: string,
+  businessKey: string,
+): CanonicalRecordKey<"R1"> {
+  return canonicalKey("R1", [
+    canonicalIdentifier(profile, "profile"),
+    canonicalIdentifier(networkId, "networkId"),
+    canonicalIdentifier(businessKey, "businessKey"),
+  ]);
 }
 
 export function nodeStateKey(

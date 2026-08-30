@@ -142,6 +142,27 @@ test("fake: run business key検索とaggregate revision競合", async () => {
   );
 });
 
+test("fake: RunのR1 canonical keyで並行createを一件に裁定する", async () => {
+  const repository = new InMemoryPersistenceRepository();
+  const outcomes = await Promise.allSettled([
+    repository.createRun(makeRun()),
+    repository.createRun(makeRun({ run_id: "run_2" })),
+  ]);
+  assert.equal(
+    outcomes.filter(({ status }) => status === "fulfilled").length,
+    1,
+  );
+  const rejected = outcomes.find(({ status }) => status === "rejected");
+  assert.ok(
+    rejected?.reason instanceof RepositoryError &&
+      rejected.reason.code === "DUPLICATE_RECORD",
+  );
+  assert.equal(
+    (await repository.getRunByBusinessKey("prod", "net", "net@1")).value.run_id,
+    "run_1",
+  );
+});
+
 test("fake: 同一Node State snapshotからの同時採番は片方だけ成功し他方fail-closed", async () => {
   const repository = new InMemoryPersistenceRepository();
   const state = await repository.upsertNodeState({

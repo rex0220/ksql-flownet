@@ -28,3 +28,12 @@ export const STATE_REVISION_BEFORE_DEPLOYMENT_REQUIRED = true as const;
  * failed reads remain fail-closed remote errors.
  */
 export const UPDATE_KEY_DA02_REQUIRES_REREAD = true as const;
+
+/**
+ * Network Run uniqueness (M3): the R1 canonical record_key derived from
+ * profile, network_id, and business_key is permanent across terminal and
+ * non-terminal Runs. A duplicate-prohibited INSERT on that key is the final
+ * adjudication. Network-lock serialization only narrows the race window as the
+ * first defense; the unique constraint remains the final defense.
+ */
+export const RUN_R1_INSERT_IS_FINAL_UNIQUENESS_ADJUDICATION = true as const;

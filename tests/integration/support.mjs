@@ -8,6 +8,7 @@ import { sanitize } from "../../spikes/lib/runtime.mjs";
 import {
   attemptKey,
   nodeStateKey,
+  runKey,
 } from "../../dist/domain/canonical-record-key.js";
 import { networkLockKey } from "../../dist/domain/canonical-lock-key.js";
 import { KintonePersistenceRepository } from "../../dist/persistence/kintone/repository.js";
@@ -99,7 +100,10 @@ export function integrationKeySamples(scope) {
     [`owner_instance_id`, `${scope}_failure_instance`],
     ...canonicalStateKeys.map((value) => ["node_state_key", value]),
     ...canonicalAttemptKeys.map((value) => ["attempt_key", value]),
-    ...runIds.map((runId) => ["record_key.RUN", `RUN:${runId}`]),
+    ...runIds.map((runId) => [
+      "record_key.R1",
+      runKey(`${runId}_profile`, `${runId}_network`, `${runId}_business`),
+    ]),
     ...canonicalStateKeys.map((key) => ["record_key.STATE", `STATE:${key}`]),
     ...attemptIds.map((attemptId) => ["record_key.ATT", `ATT:${attemptId}`]),
     ...invocationIds.map((invocationId) => [
@@ -296,7 +300,6 @@ export async function cleanupTaggedRecords(config, prefix) {
     `run_id like "${escaped}"`,
     `owner_invocation_id like "${escaped}"`,
     `status_reason like "${escaped}"`,
-    `record_key like "RUN:${escaped}"`,
   ].join(" or ");
   const auditQuery = [
     `run_id like "${escaped}"`,
