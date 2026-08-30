@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { hostname } from "node:os";
 
 import { networkLockKey } from "../domain/canonical-lock-key.js";
 import type { NetworkLockForceReleaseOperationAudit } from "../domain/persistence-model.js";
@@ -11,11 +12,13 @@ import {
   type KintoneRecord,
 } from "./kintone/client.js";
 import { releaseTombstoneRecordKey } from "./network-lock.js";
+import { ownerInstanceIdFromStatusReason } from "./network-lock-reader.js";
 
 export interface StopConfirmationInput {
   readonly profile: string;
   readonly networkId: string;
   readonly expectedOwnerInvocationId: string;
+  readonly ownerInstanceId: string;
   readonly stopConfirmedBy: string;
   readonly stopMethod: string;
   readonly stopEvidenceRef: string;
@@ -47,11 +50,236 @@ export const manualStopConfirmation: StopConfirmation = {
   },
 };
 
-export function defaultStopConfirmations(): ReadonlyMap<
-  string,
-  StopConfirmation
-> {
-  return new Map([["manual", manualStopConfirmation]]);
+export interface StopConfirmationDependencies {
+  readonly host?: string;
+  readonly processKill?: (pid: number, signal: 0) => boolean;
+  readonly fetch?: typeof fetch;
+  readonly gcpAccessToken?: string;
+  readonly now?: () => Date;
+}
+
+const localPidPattern = /^local-pid:\/\/([^/]+)\/([^/]+)$/u;
+const cloudRunExecutionPattern =
+  /^projects\/[^/]+\/locations\/[^/]+\/jobs\/[^/]+\/executions\/[^/]+$/u;
+const terminalCloudRunStates = new Set(["SUCCEEDED", "FAILED", "CANCELLED"]);
+const nonTerminalCloudRunStates = new Set(["RUNNING", "PENDING"]);
+
+function detailTime(now: () => Date): string {
+  return now().toISOString();
+}
+
+export function createLocalPidStopConfirmation(
+  dependencies: StopConfirmationDependencies = {},
+): StopConfirmation {
+  const host = dependencies.host ?? process.env.KSQL_FLOWNET_HOST ?? hostname();
+  const processKill =
+    dependencies.processKill ?? ((pid, signal) => process.kill(pid, signal));
+  const now = dependencies.now ?? (() => new Date());
+  return {
+    async confirm(input) {
+      const match = localPidPattern.exec(input.ownerInstanceId);
+      if (match === null) {
+        return {
+          confirmed: false,
+          method: "local_pid",
+          detail: "owner_instance_id is not a valid local-pid resource",
+        };
+      }
+      const ownerHost = match[1]!;
+      const pidText = match[2]!;
+      if (ownerHost !== host) {
+        return {
+          confirmed: false,
+          method: "local_pid",
+          detail: `owner host '${ownerHost}' differs from current host '${host}'; use manual recovery because lease expiry is not stop confirmation`,
+        };
+      }
+      const pid = Number(pidText);
+      if (!/^[1-9]\d*$/u.test(pidText) || !Number.isSafeInteger(pid)) {
+        return {
+          confirmed: false,
+          method: "local_pid",
+          detail: "owner_instance_id PID is not a positive safe integer",
+        };
+      }
+      try {
+        processKill(pid, 0);
+        return {
+          confirmed: false,
+          method: "local_pid",
+          detail: `PID ${pid} exists on host '${host}'`,
+        };
+      } catch (error) {
+        const code = errorCodeOf(error);
+        if (code === "ESRCH") {
+          return {
+            confirmed: true,
+            method: "local_pid",
+            detail: `PID ${pid} was absent at ${detailTime(now)}; PID reuse remains a residual risk`,
+          };
+        }
+        return {
+          confirmed: false,
+          method: "local_pid",
+          detail:
+            code === "EPERM"
+              ? `PID ${pid} may exist but permission was denied`
+              : `PID ${pid} existence check failed${code === undefined ? "" : ` (${code})`}`,
+        };
+      }
+    },
+  };
+}
+
+export function createCloudRunJobExecutionStopConfirmation(
+  dependencies: StopConfirmationDependencies = {},
+): StopConfirmation {
+  const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
+  const accessToken =
+    dependencies.gcpAccessToken ?? process.env.KSQL_FLOWNET_GCP_ACCESS_TOKEN;
+  return {
+    async confirm(input) {
+      const resourceName = input.ownerInstanceId;
+      if (!cloudRunExecutionPattern.test(resourceName)) {
+        return cloudRunResult(
+          false,
+          "owner_instance_id is not a valid Cloud Run Job Execution resource",
+        );
+      }
+      if (accessToken === undefined || accessToken.trim() === "") {
+        return cloudRunResult(
+          false,
+          "KSQL_FLOWNET_GCP_ACCESS_TOKEN is not configured",
+        );
+      }
+      let response: Response;
+      try {
+        response = await fetchImplementation(
+          `https://run.googleapis.com/v2/${resourceName}`,
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          },
+        );
+      } catch {
+        return cloudRunResult(false, "Cloud Run API request failed");
+      }
+      if (!response.ok) {
+        return cloudRunResult(
+          false,
+          `Cloud Run API returned HTTP ${response.status}`,
+        );
+      }
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        return cloudRunResult(
+          false,
+          `Cloud Run API returned an unknown response shape (HTTP ${response.status})`,
+        );
+      }
+      if (!isRecord(body) || body.name !== resourceName) {
+        return cloudRunResult(
+          false,
+          `Cloud Run API returned an unknown response shape (HTTP ${response.status})`,
+        );
+      }
+      const state = executionState(body);
+      const stateDetail = state ?? "UNSPECIFIED";
+      const completionTime = body.completionTime;
+      if (
+        completionTime === undefined ||
+        completionTime === null ||
+        completionTime === ""
+      ) {
+        return cloudRunResult(
+          false,
+          `Cloud Run Execution is not terminal (state=${stateDetail}, completionTime=unset, HTTP ${response.status})`,
+        );
+      }
+      if (
+        typeof completionTime !== "string" ||
+        !Number.isFinite(Date.parse(completionTime))
+      ) {
+        return cloudRunResult(
+          false,
+          `Cloud Run API returned an unknown completionTime shape (state=${stateDetail}, HTTP ${response.status})`,
+        );
+      }
+      if (state !== null && !terminalCloudRunStates.has(state)) {
+        const verdict = nonTerminalCloudRunStates.has(state)
+          ? "not terminal"
+          : "an unknown state";
+        return cloudRunResult(
+          false,
+          `Cloud Run Execution has ${verdict} (state=${state}, completionTime=${completionTime}, HTTP ${response.status})`,
+        );
+      }
+      const countDetail = executionCountDetail(body);
+      return cloudRunResult(
+        true,
+        `Cloud Run Execution is terminal (state=${stateDetail}, completionTime=${completionTime}, HTTP ${response.status}${countDetail})`,
+      );
+    },
+  };
+}
+
+function cloudRunResult(
+  confirmed: boolean,
+  detail: string,
+): StopConfirmationResult {
+  return { confirmed, method: "cloud_run_job_execution", detail };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function errorCodeOf(error: unknown): string | undefined {
+  return isRecord(error) && typeof error.code === "string"
+    ? error.code
+    : undefined;
+}
+
+function executionState(body: Record<string, unknown>): string | null {
+  if (typeof body.state === "string") return body.state;
+  if (typeof body.status === "string") return body.status;
+  return isRecord(body.terminalCondition) &&
+    typeof body.terminalCondition.state === "string"
+    ? body.terminalCondition.state
+    : null;
+}
+
+function executionCountDetail(body: Record<string, unknown>): string {
+  const names = [
+    "taskCount",
+    "succeededCount",
+    "failedCount",
+    "cancelledCount",
+  ] as const;
+  const counts = names.map((name) => body[name]);
+  if (
+    !counts.every((value) => Number.isSafeInteger(value) && Number(value) >= 0)
+  )
+    return "";
+  const [taskCount, succeededCount, failedCount, cancelledCount] =
+    counts.map(Number);
+  const completed = succeededCount! + failedCount! + cancelledCount!;
+  return `, taskCounts=${completed === taskCount ? "consistent" : "inconsistent"} (${completed}/${taskCount})`;
+}
+
+export function defaultStopConfirmations(
+  dependencies: StopConfirmationDependencies = {},
+): ReadonlyMap<string, StopConfirmation> {
+  return new Map([
+    ["manual", manualStopConfirmation],
+    ["local_pid", createLocalPidStopConfirmation(dependencies)],
+    [
+      "cloud_run_job_execution",
+      createCloudRunJobExecutionStopConfirmation(dependencies),
+    ],
+  ]);
 }
 
 export type NetworkLockRecoveryErrorCode =
@@ -119,6 +347,7 @@ interface LockSnapshot {
   readonly revision: number;
   readonly businessRevision: number;
   readonly ownerInvocationId: string;
+  readonly ownerInstanceId: string;
   readonly leaseToken: string;
   readonly heartbeatAt: string;
   readonly leaseExpiresAt: string;
@@ -141,6 +370,9 @@ function snapshot(record: KintoneRecord): LockSnapshot {
     revision: revisionOf(record),
     businessRevision: Number(record.revision?.value),
     ownerInvocationId: text(record, "owner_invocation_id"),
+    ownerInstanceId: ownerInstanceIdFromStatusReason(
+      text(record, "status_reason"),
+    ),
     leaseToken: text(record, "lease_token"),
     heartbeatAt: text(record, "heartbeat_at"),
     leaseExpiresAt: text(record, "lease_expires_at"),
@@ -271,6 +503,7 @@ export async function forceUnlockNetwork(
       profile: input.profile,
       networkId: input.networkId,
       expectedOwnerInvocationId: input.expectedOwnerInvocationId,
+      ownerInstanceId: initial.ownerInstanceId,
       stopConfirmedBy: input.stopConfirmedBy,
       stopMethod: input.stopMethod,
       stopEvidenceRef: input.stopEvidenceRef,
