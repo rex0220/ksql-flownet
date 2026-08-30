@@ -5,3 +5,4 @@ docs/
 .env.example
 spikes/*/results/
 tests/integration/results/
+tests/e2e/results/
