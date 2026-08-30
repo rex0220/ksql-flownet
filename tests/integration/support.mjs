@@ -1,6 +1,7 @@
 import assert, { AssertionError } from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
@@ -11,8 +12,16 @@ import {
   runKey,
 } from "../../dist/domain/canonical-record-key.js";
 import { networkLockKey } from "../../dist/domain/canonical-lock-key.js";
+import { KsqlFlowCli } from "../../dist/executor/ksql-flow-cli.js";
+import {
+  downloadBundle as downloadProductBundle,
+  uploadBundle as uploadProductBundle,
+} from "../../dist/bundle/index.js";
 import { KintonePersistenceRepository } from "../../dist/persistence/kintone/repository.js";
-import { releaseTombstoneRecordKey } from "../../dist/persistence/network-lock.js";
+import {
+  NetworkLockManager,
+  releaseTombstoneRecordKey,
+} from "../../dist/persistence/network-lock.js";
 
 const FORBIDDEN_APP_IDS = new Set(["4246", "4247", "4249"]);
 const MAX_UNIQUE_KEY_LENGTH = 64;
@@ -190,7 +199,13 @@ export function createRepository(config, fetchImplementation) {
   });
 }
 
-async function rawRequest(config, appIdValue, token, path, options = {}) {
+export async function rawRequest(
+  config,
+  appIdValue,
+  token,
+  path,
+  options = {},
+) {
   const url = new URL(`/k/v1/${path}.json`, `${config.baseUrl}/`);
   for (const [key, value] of Object.entries(options.query ?? {}))
     url.searchParams.set(key, String(value));
@@ -263,6 +278,42 @@ export async function uploadBundle(config, scope) {
   return result.fileKey;
 }
 
+export async function uploadBundleBytes(config, bytes, filename) {
+  return uploadProductBundle({
+    endpoint: `${config.baseUrl}/k/v1/file.json`,
+    zipBytes: bytes,
+    filename,
+    headers: { "X-Cybozu-API-Token": config.stateApiToken },
+    fetch: globalThis.fetch,
+  });
+}
+
+export async function downloadBundleBytes(config, fileKey) {
+  return downloadProductBundle({
+    endpoint: `${config.baseUrl}/k/v1/file.json`,
+    fileKey,
+    headers: { "X-Cybozu-API-Token": config.stateApiToken },
+    fetch: globalThis.fetch,
+  });
+}
+
+export async function updateRecordFields(config, target, record, fields) {
+  const isState = target === "state";
+  const app = isState ? config.stateAppId : config.auditAppId;
+  const token = isState ? config.stateApiToken : config.auditApiToken;
+  return rawRequest(config, app, token, "record", {
+    method: "PUT",
+    body: {
+      app,
+      id: String(record.$id.value),
+      revision: String(record.$revision.value),
+      record: Object.fromEntries(
+        Object.entries(fields).map(([key, value]) => [key, { value }]),
+      ),
+    },
+  });
+}
+
 function quote(value) {
   return `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
@@ -298,6 +349,9 @@ export async function cleanupTaggedRecords(config, prefix) {
     .replaceAll('"', '\\"');
   const stateQuery = [
     `run_id like "${escaped}"`,
+    `network_id like "${escaped}"`,
+    `profile like "${escaped}"`,
+    `record_key like "${escaped}"`,
     `owner_invocation_id like "${escaped}"`,
     `status_reason like "${escaped}"`,
   ].join(" or ");
@@ -310,6 +364,234 @@ export async function cleanupTaggedRecords(config, prefix) {
   const audit = await deleteMatching(config, "audit", auditQuery);
   const state = await deleteMatching(config, "state", stateQuery);
   return { state, audit, total: state + audit };
+}
+
+const M4_FIXTURE_FILES = {
+  capabilities: "capabilities.json",
+  describeProfile: "describe-profile.json",
+  inspectJob: "inspect-job-deterministic.json",
+};
+
+export function m4CliSettings(environment = process.env) {
+  const command = environment.KSQL_FLOW_BIN?.trim();
+  const real = Boolean(command);
+  const profile = environment.KSQL_FLOW_PROFILE?.trim() || "prod";
+  const configPath = environment.KSQL_FLOW_CONFIG_PATH?.trim();
+  if (real && !configPath) {
+    throw new Error(
+      "KSQL_FLOW_BIN 実CLIモードでは KSQL_FLOW_CONFIG_PATH が必要です。",
+    );
+  }
+  return {
+    real,
+    profile,
+    command: command || "fixture:ksql-flow",
+    configPath: configPath || "fixture:config",
+  };
+}
+
+export function createM4Executor(options = {}) {
+  const settings = m4CliSettings(options.environment);
+  const events = options.events ?? [];
+  const names = { ...M4_FIXTURE_FILES, ...options.fixtures };
+  const spawn = settings.real
+    ? undefined
+    : async ({ args }) => {
+        const command = args[0];
+        const fixtureKey =
+          command === "capabilities"
+            ? "capabilities"
+            : command === "describe-profile"
+              ? "describeProfile"
+              : command === "inspect-job"
+                ? "inspectJob"
+                : null;
+        if (fixtureKey === null) {
+          return { exitCode: 2, stdout: "", stderr: "unknown fixture command" };
+        }
+        events.push({ command, mode: "fixture", fixture: names[fixtureKey] });
+        const fixturePath = fileURLToPath(
+          new URL(`../fixtures/executor/${names[fixtureKey]}`, import.meta.url),
+        );
+        return {
+          exitCode: 0,
+          stdout: await readFile(fixturePath, "utf8"),
+          stderr: "",
+        };
+      };
+  if (settings.real) events.push({ mode: "real", binary: settings.command });
+  const cli = new KsqlFlowCli({
+    command: settings.command,
+    profile: settings.profile,
+    configPath: settings.configPath,
+    ...(spawn ? { spawn } : {}),
+  });
+  const transform = options.transform ?? {};
+  return {
+    executor: {
+      async capabilities() {
+        if (settings.real)
+          events.push({ command: "capabilities", mode: "real" });
+        const value = await cli.capabilities();
+        return transform.capabilities?.(value) ?? value;
+      },
+      async describeProfile() {
+        if (settings.real)
+          events.push({ command: "describe-profile", mode: "real" });
+        const value = await cli.describeProfile();
+        return transform.describeProfile?.(value) ?? value;
+      },
+      async inspectJob(sqlPath) {
+        if (settings.real)
+          events.push({ command: "inspect-job", mode: "real" });
+        const value = await cli.inspectJob(sqlPath);
+        return transform.inspectJob?.(value) ?? value;
+      },
+    },
+    settings: { real: settings.real, profile: settings.profile },
+    events,
+  };
+}
+
+export function createM4Harness(config, scope, fixture, options = {}) {
+  const cliEvents = [];
+  const bundleEvents = [];
+  const lockEvents = [];
+  const cli = createM4Executor({
+    fixtures: options.fixtures,
+    transform: options.transform,
+    events: cliEvents,
+  });
+  return {
+    profile: cli.settings.profile,
+    repository: createRepository(config),
+    executor: cli.executor,
+    bundleStore: createM4BundleStore(config, bundleEvents),
+    lockManager: createM4LockManager(
+      config,
+      scope,
+      fixture.networkId,
+      lockEvents,
+    ),
+    uuid: m4Uuid(scope),
+    mode: cli.settings.real ? "real" : "fixture",
+    observations: { cli: cliEvents, bundle: bundleEvents, lock: lockEvents },
+  };
+}
+
+export function createM4BundleStore(config, observations = []) {
+  return {
+    async upload(bytes) {
+      observations.push({ operation: "upload", byteLength: bytes.byteLength });
+      return uploadBundleBytes(config, bytes, "execution-bundle.zip");
+    },
+    async download(fileKey) {
+      const bytes = await downloadBundleBytes(config, fileKey);
+      observations.push({
+        operation: "download",
+        fileKey,
+        byteLength: bytes.byteLength,
+      });
+      return bytes;
+    },
+  };
+}
+
+export function createM4LockManager(
+  config,
+  scope,
+  networkId,
+  observations = [],
+) {
+  const manager = new NetworkLockManager({
+    baseUrl: config.baseUrl,
+    appId: config.stateAppId,
+    apiToken: config.stateApiToken,
+    profile: m4CliSettings().profile,
+    networkId,
+    ownerInvocationId: `${scope}_owner`,
+    ownerInstanceId: `${scope}_instance`,
+    leaseDurationSec: 30,
+  });
+  return {
+    recordKey: manager.recordKey,
+    async acquire() {
+      observations.push({ operation: "acquire", recordKey: manager.recordKey });
+      return manager.acquire();
+    },
+    async release(reference, status, resultCode) {
+      observations.push({ operation: "release", status, resultCode });
+      return manager.release(reference, status, resultCode);
+    },
+  };
+}
+
+export async function withM4Fixture(scope, options, test) {
+  const directory = await mkdtemp(join(tmpdir(), "ksql-flownet-m4-"));
+  const nodeId = options.nodeId ?? "aggregate";
+  const jobId = options.jobId ?? "aggregate_customer";
+  const networkId = options.networkId ?? `${scope}_network`;
+  const sql =
+    options.sql ?? "-- @ksql name: aggregate_customer\nSELECT $id FROM APP1;\n";
+  const jobsDirectory = join(directory, "jobs");
+  const sqlPath = join(jobsDirectory, `${nodeId}.sql`);
+  const networkPath = join(directory, "network.yaml");
+  await mkdir(jobsDirectory);
+  await writeFile(sqlPath, sql, "utf8");
+  await writeFile(
+    networkPath,
+    `schema_version: 1
+network_id: ${networkId}
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 30
+  heartbeat_interval_sec: 10
+nodes:
+  - id: ${nodeId}
+    job_id: ${jobId}
+    sql: jobs/${nodeId}.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+`,
+    "utf8",
+  );
+  try {
+    return await test({
+      directory,
+      networkId,
+      networkPath,
+      nodeId,
+      jobId,
+      sql,
+      sqlPath,
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+export function m4Uuid(scope) {
+  let sequence = 0;
+  return () => `${scope}_${++sequence}`;
+}
+
+export function m4EnsureInput(fixture, harness, scope, overrides = {}) {
+  return {
+    networkPath: fixture.networkPath,
+    profile: harness.profile,
+    businessKey: `${scope}_business`,
+    requestedBy: `${scope}_requester`,
+    host: `${scope}_host`,
+    repository: harness.repository,
+    lockManager: harness.lockManager,
+    executor: harness.executor,
+    bundleStore: harness.bundleStore,
+    uuid: harness.uuid,
+    ...overrides,
+  };
 }
 
 export function makeRun(scope, bundleFileKey, overrides = {}) {

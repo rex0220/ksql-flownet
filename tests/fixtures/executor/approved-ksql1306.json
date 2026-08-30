@@ -1,0 +1,9 @@
+[
+  {
+    "node_id": "aggregate",
+    "code": "KSQL1306",
+    "approved_by": "itest-release-owner@example.test",
+    "reason": "M4 integration approved fixture",
+    "approved_at": "2026-08-30T01:02:03.000Z"
+  }
+]
