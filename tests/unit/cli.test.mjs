@@ -94,12 +94,14 @@ Commands:
                       display the business key and stable execution plan (read-only)
   run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
                         [--resume] [--resume-run <run_id>]
-                      ensure a Network Run (node execution starts in M5)
+                        [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
+                        [--ksql-flow-workdir <path>]
+                      ensure and execute a Network Run sequentially
 `,
   );
 });
 
-test("run-network passes the §9 options to ensure-run and honestly stops before M5", async (context) => {
+test("run-network passes §9 options through ensure-run and executes the scheduler", async (context) => {
   const calls = [];
   const output = [];
   context.mock.method(process.stdout, "write", (value) => {
@@ -121,9 +123,14 @@ test("run-network passes the §9 options to ensure-run and honestly stops before
           blockedBy: [],
           businessKey: "net@2026-08",
           bundleBytes: Buffer.from("bundle"),
-          async close(finalization) {
-            calls.push(finalization);
-          },
+          async close() {},
+        };
+      },
+      async schedule(result) {
+        calls.push({ scheduled: result.run.value.run_id });
+        return {
+          aggregateStatus: "SUCCESS",
+          invocationResultCode: "OK",
         };
       },
     },
@@ -131,12 +138,8 @@ test("run-network passes the §9 options to ensure-run and honestly stops before
   assert.equal(exitCode, 0);
   assert.equal(calls[0].resume, true);
   assert.equal(calls[0].scheduledFor, "2026-08-01T00:00:00Z");
-  assert.deepEqual(calls[1], {
-    status: "CANCELLED",
-    resultCode: "NODE_EXECUTION_NOT_IMPLEMENTED",
-  });
-  assert.match(output.join(""), /Node execution is not implemented until M5/);
-  assert.match(output.join(""), /Releasing the Network lock/);
+  assert.deepEqual(calls[1], { scheduled: "run-1" });
+  assert.match(output.join(""), /aggregate SUCCESS \(OK\)/);
 });
 
 test("run-network --resume-run is exclusive and NO-OP exits 0", async (context) => {

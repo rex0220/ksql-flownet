@@ -422,6 +422,7 @@ export class LeaseMonitor {
   private state: LeaseMonitorState = "HELD";
   private failures = 0;
   private timer: unknown = null;
+  private tickInFlight: Promise<boolean> | null = null;
   private readonly listeners = new Set<(event: LeaseMonitorEvent) => void>();
   private readonly now: () => Date;
   private readonly failureThreshold: number;
@@ -472,6 +473,17 @@ export class LeaseMonitor {
   }
 
   async tick(): Promise<boolean> {
+    if (this.tickInFlight !== null) return this.tickInFlight;
+    const operation = this.performTick();
+    this.tickInFlight = operation;
+    try {
+      return await operation;
+    } finally {
+      if (this.tickInFlight === operation) this.tickInFlight = null;
+    }
+  }
+
+  private async performTick(): Promise<boolean> {
     if (this.state !== "HELD") return false;
     try {
       await this.manager.heartbeat(this.reference);
@@ -494,6 +506,7 @@ export class LeaseMonitor {
   }
 
   async confirmLeaseForFinalWrite(): Promise<boolean> {
+    if (this.tickInFlight !== null) await this.tickInFlight;
     if (this.state !== "LEASE_UNCERTAIN") return false;
     try {
       await this.manager.heartbeat(this.reference);
