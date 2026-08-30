@@ -1,0 +1,17 @@
+{
+  "test": "m4-cleanup",
+  "passed": true,
+  "scope": "IT260830054036_4ce4",
+  "observedAt": "2026-08-30T05:40:36.711Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "prefix": "IT",
+    "removed": {
+      "state": 0,
+      "audit": 0,
+      "total": 0
+    },
+    "attachmentCleanup": "NETWORK_RUN削除によりbundle添付も清掃対象"
+  },
+  "cleanup": null
+}

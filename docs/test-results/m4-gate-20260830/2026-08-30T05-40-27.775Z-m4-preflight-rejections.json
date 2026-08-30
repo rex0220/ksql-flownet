@@ -1,0 +1,67 @@
+{
+  "test": "m4-preflight-rejections",
+  "passed": true,
+  "scope": "IT260830054015_814f",
+  "observedAt": "2026-08-30T05:40:27.774Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "mode": "fixture",
+    "evidence": {
+      "hashMismatch": {
+        "executionTargetReturned": false,
+        "error": {
+          "name": "BundleError",
+          "code": "BUNDLE_HASH_MISMATCH",
+          "status": null,
+          "apiCode": null,
+          "message": "execution bundle ZIP SHA-256 does not match"
+        }
+      },
+      "profileMismatch": {
+        "executionTargetReturned": false,
+        "error": {
+          "name": "PreflightError",
+          "code": "PROFILE_SNAPSHOT_MISMATCH",
+          "status": null,
+          "apiCode": null,
+          "message": "resolved profile differs from snapshot: canonicalJsonSha256, baseUrl, apps"
+        }
+      },
+      "jobIdMismatch": {
+        "executionTargetReturned": false,
+        "error": {
+          "name": "PreflightError",
+          "code": "JOB_ID_MISMATCH",
+          "status": null,
+          "apiCode": null,
+          "message": "node 'aggregate' expects job_id 'aggregate_customer', inspected 'different_job'"
+        },
+        "runCountAfter": 0
+      },
+      "unapprovedKsql1306": {
+        "executionTargetReturned": false,
+        "error": {
+          "name": "PreflightError",
+          "code": "NONDETERMINISTIC_IDEMPOTENT_JOB",
+          "status": null,
+          "apiCode": null,
+          "message": "idempotent node 'aggregate' has unapproved nondeterministic diagnostics: KSQL1306"
+        }
+      },
+      "approvedKsql1306": {
+        "preflightPassed": true,
+        "executionTargetReturned": false,
+        "approvedCodes": [
+          "KSQL1306"
+        ],
+        "approvedBy": "itest-release-owner@example.test",
+        "boundary": "dist preflight approval API; ensure-run has no approval input in M4"
+      }
+    }
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

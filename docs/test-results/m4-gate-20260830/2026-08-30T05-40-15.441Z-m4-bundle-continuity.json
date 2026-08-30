@@ -1,0 +1,97 @@
+{
+  "test": "m4-bundle-continuity",
+  "passed": true,
+  "scope": "IT260830054009_57a1",
+  "observedAt": "2026-08-30T05:40:15.440Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "mode": "fixture",
+    "runId": "netrun_IT260830054009_57a1_1",
+    "savedBundleSha256": "6e333c3a1e8102c1c4dff259fe34c4d6382709df3b708b7a1dbda30e4e6b7134",
+    "returnedBundleSha256": "6e333c3a1e8102c1c4dff259fe34c4d6382709df3b708b7a1dbda30e4e6b7134",
+    "savedSqlSha256": "08a8d8971ad2b8e2beafa384ab2cc3c22b7c32db1e9350a1625e7d01bc8c457b",
+    "changedWorktreeSqlSha256": "34c209b422e3122312b0a5ffc90bf1d84073f0d11e7eff10c8bb85cbd1da077f",
+    "resumeCliEvents": [
+      {
+        "command": "capabilities",
+        "mode": "fixture",
+        "fixture": "capabilities.json"
+      },
+      {
+        "command": "describe-profile",
+        "mode": "fixture",
+        "fixture": "describe-profile.json"
+      }
+    ],
+    "observations": {
+      "cli": [
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        },
+        {
+          "command": "describe-profile",
+          "mode": "fixture",
+          "fixture": "describe-profile.json"
+        },
+        {
+          "command": "inspect-job",
+          "mode": "fixture",
+          "fixture": "inspect-job-deterministic.json"
+        },
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        },
+        {
+          "command": "describe-profile",
+          "mode": "fixture",
+          "fixture": "describe-profile.json"
+        }
+      ],
+      "bundle": [
+        {
+          "operation": "upload",
+          "byteLength": 1133
+        },
+        {
+          "operation": "download",
+          "fileKey": "20260830054010EE7FB5069FB346BCADDF5DF91EF21212204",
+          "byteLength": 1133
+        },
+        {
+          "operation": "download",
+          "fileKey": "20260830054010EE7FB5069FB346BCADDF5DF91EF21212204",
+          "byteLength": 1133
+        }
+      ],
+      "lock": [
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:OlN5eXZtqI6ZzolNhGl-He58uru_ETivuPZdRXXGpg0"
+        },
+        {
+          "operation": "release",
+          "status": "CANCELLED",
+          "resultCode": "ITEST_SEED"
+        },
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:OlN5eXZtqI6ZzolNhGl-He58uru_ETivuPZdRXXGpg0"
+        },
+        {
+          "operation": "release",
+          "status": "CANCELLED",
+          "resultCode": "ITEST_CONTINUITY"
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

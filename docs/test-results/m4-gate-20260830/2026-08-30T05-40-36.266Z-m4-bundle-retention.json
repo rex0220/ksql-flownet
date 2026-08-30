@@ -1,0 +1,115 @@
+{
+  "test": "m4-bundle-retention",
+  "passed": true,
+  "scope": "IT260830054029_e47a",
+  "observedAt": "2026-08-30T05:40:36.265Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "mode": "fixture",
+    "runId": "netrun_IT260830054029_e47a_1",
+    "retained": {
+      "byteLength": 1133,
+      "zipSha256": "e6855923bbf9a659ebd0bc5dd5f9b19ad006e69c18a1e46e4443c0602a2beab2"
+    },
+    "archiveEquivalent": {
+      "resumeAllowed": false,
+      "executionTargetReturned": false,
+      "rejection": {
+        "name": "EnsureRunError",
+        "code": "RUN_NOT_RESUMABLE",
+        "status": null,
+        "apiCode": null,
+        "message": "run 'netrun_IT260830054029_e47a_1' is not resumable (lifecycle_status=ACTIVE, resume_allowed=false)"
+      }
+    },
+    "restored": {
+      "resumeAllowed": true,
+      "outcome": "RESUME",
+      "bundleSha256": "e6855923bbf9a659ebd0bc5dd5f9b19ad006e69c18a1e46e4443c0602a2beab2"
+    },
+    "observations": {
+      "cli": [
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        },
+        {
+          "command": "describe-profile",
+          "mode": "fixture",
+          "fixture": "describe-profile.json"
+        },
+        {
+          "command": "inspect-job",
+          "mode": "fixture",
+          "fixture": "inspect-job-deterministic.json"
+        },
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        },
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        },
+        {
+          "command": "describe-profile",
+          "mode": "fixture",
+          "fixture": "describe-profile.json"
+        }
+      ],
+      "bundle": [
+        {
+          "operation": "upload",
+          "byteLength": 1133
+        },
+        {
+          "operation": "download",
+          "fileKey": "20260830054029FC4815E6E6DF424F9E0748649C7D88AF229",
+          "byteLength": 1133
+        },
+        {
+          "operation": "download",
+          "fileKey": "20260830054029FC4815E6E6DF424F9E0748649C7D88AF229",
+          "byteLength": 1133
+        }
+      ],
+      "lock": [
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:EDuz7Pw_4qapSJR2KXUFs0mMTdBWuk0ak9Jp-iAU8hk"
+        },
+        {
+          "operation": "release",
+          "status": "CANCELLED",
+          "resultCode": "ITEST_SEED"
+        },
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:EDuz7Pw_4qapSJR2KXUFs0mMTdBWuk0ak9Jp-iAU8hk"
+        },
+        {
+          "operation": "release",
+          "status": "FAILED",
+          "resultCode": "ENSURE_RUN_FAILED"
+        },
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:EDuz7Pw_4qapSJR2KXUFs0mMTdBWuk0ak9Jp-iAU8hk"
+        },
+        {
+          "operation": "release",
+          "status": "CANCELLED",
+          "resultCode": "ITEST_RESTORED"
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

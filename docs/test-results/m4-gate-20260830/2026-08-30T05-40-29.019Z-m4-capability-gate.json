@@ -1,0 +1,37 @@
+{
+  "test": "m4-capability-gate",
+  "passed": true,
+  "scope": "IT260830054028_bff7",
+  "observedAt": "2026-08-30T05:40:29.018Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "mode": "fixture",
+    "executionTargetReturned": false,
+    "rejection": {
+      "name": "PreflightError",
+      "code": "CAPABILITY_FEATURE_MISSING",
+      "status": null,
+      "apiCode": null,
+      "message": "required capability features are not true: inspectJob"
+    },
+    "lockRecordBefore": null,
+    "lockRecordAfter": null,
+    "runCountAfter": 0,
+    "observations": {
+      "cli": [
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities-missing-feature.json"
+        }
+      ],
+      "bundle": [],
+      "lock": []
+    }
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

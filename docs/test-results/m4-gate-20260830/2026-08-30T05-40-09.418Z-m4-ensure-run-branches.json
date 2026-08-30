@@ -1,0 +1,111 @@
+{
+  "test": "m4-ensure-run-branches",
+  "passed": true,
+  "scope": "IT260830054000_9e56",
+  "observedAt": "2026-08-30T05:40:09.417Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "mode": "fixture",
+    "outcomes": [
+      "NEW",
+      "RESUME",
+      "NOOP"
+    ],
+    "runId": "netrun_IT260830054000_9e56_1",
+    "persistedRunCount": 1,
+    "invocationCountAfterNoop": 2,
+    "attachment": {
+      "count": 1,
+      "byteLength": 1133,
+      "zipSha256": "4df6eb242577ab4b9ca46c662a64996b73fb834cdaf9b2eac5767c8176874187"
+    },
+    "observations": {
+      "cli": [
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        },
+        {
+          "command": "describe-profile",
+          "mode": "fixture",
+          "fixture": "describe-profile.json"
+        },
+        {
+          "command": "inspect-job",
+          "mode": "fixture",
+          "fixture": "inspect-job-deterministic.json"
+        },
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        },
+        {
+          "command": "describe-profile",
+          "mode": "fixture",
+          "fixture": "describe-profile.json"
+        },
+        {
+          "command": "capabilities",
+          "mode": "fixture",
+          "fixture": "capabilities.json"
+        }
+      ],
+      "bundle": [
+        {
+          "operation": "upload",
+          "byteLength": 1133
+        },
+        {
+          "operation": "download",
+          "fileKey": "2026083005400011E6F675C71E41DF966DF6BE579091FD091",
+          "byteLength": 1133
+        },
+        {
+          "operation": "download",
+          "fileKey": "2026083005400011E6F675C71E41DF966DF6BE579091FD091",
+          "byteLength": 1133
+        }
+      ],
+      "lock": [
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:eTwYZe5HCLZHGho4pfRwX5xpe5yBX2bUQt4Z8pjmlsg"
+        },
+        {
+          "operation": "release",
+          "status": "CANCELLED",
+          "resultCode": "ITEST_SEED"
+        },
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:eTwYZe5HCLZHGho4pfRwX5xpe5yBX2bUQt4Z8pjmlsg"
+        },
+        {
+          "operation": "release",
+          "status": "CANCELLED",
+          "resultCode": "ITEST_RESUME"
+        },
+        {
+          "operation": "acquire",
+          "recordKey": "LOCK:N1:eTwYZe5HCLZHGho4pfRwX5xpe5yBX2bUQt4Z8pjmlsg"
+        },
+        {
+          "operation": "release",
+          "status": "SUCCESS",
+          "resultCode": "ALREADY_SUCCESS"
+        }
+      ]
+    },
+    "multipleRows": {
+      "exercisedHere": false,
+      "evidence": "M3 m3-run-uniqueness and ensure-run unit MULTIPLE_RUNS"
+    }
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}
