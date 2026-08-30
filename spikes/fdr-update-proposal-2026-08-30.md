@@ -2,7 +2,7 @@
 
 > **正本ではない。承認後に`docs/phase1-freeze-decision-record.md`へ反映する。** 本提案では`docs/`を変更しない。
 
-反映状態: PROPOSAL（未反映）
+反映状態: REFLECTED(2026-08-30、選択肢(a)承認)
 
 ## 1. 提案の要約
 

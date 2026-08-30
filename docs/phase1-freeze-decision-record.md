@@ -51,7 +51,7 @@
 | D-21 | `DECIDED` | 停止スコープ | UNKNOWN／非冪等失敗の子孫だけを停止し、独立系統は継続 |
 | D-22 | `DECIDED` | SQL開始証跡 | kSQL-Flowの耐久`EXECUTION_STARTED`と最終`executionStarted`を分離 |
 | D-23 | `DECIDED` | idempotent検査 | `inspect-job --json`でjob IDと検出可能な非決定要素をbundle作成時に検査 |
-| D-24 | `PROPOSED` | 採番と集約更新 | Node State revision採番、canonical key、単一Invocation集約更新 |
+| D-24 | `DECIDED` | 採番と集約更新 | Node State revision採番、canonical key、単一Invocation集約更新 |
 | D-25 | `DECIDED` | 製品命名と概念名 | 製品表示名をkSQL-FlowNet、repo／CLIを`ksql-flownet`、npmを`@rex0220/ksql-flownet`とし、Network／Node等の概念名は維持 |
 | D-26 | `DECIDED` | force-unlock所有境界 | Job lockはkSQL-Flowが回復し、FlowNetは直接変更せず停止確認と結果を監査する |
 | D-27 | `DECIDED` | 旧run-all移行 | `batch_id`を`run_id`へ変換せず、必要時だけ`legacy_batch_id`付き監査参照として取り込む |
@@ -592,6 +592,12 @@ Node.js標準`crypto`だけを使い、実装関数を経由せずmetadataどお
 
 以上によりD-10を`DECIDED`とし、対応する凍結ゲートを閉じる。ただし、J1への実データ移行と新旧lock protocol切替はD-14の範囲であり未実施である。D-14は別項目として未完了のまま残す。
 
+#### 2026-08-30キーファミリ追加記録
+
+D-10のversion付きcanonical keyファミリを、lock identityのN1/J1から、永続record identityのS1/A1/R1まで明示的に拡張する。R1はNetwork Run identityであり、canonical inputは`R1\0NFC(profile)\0NFC(network_id)\0NFC(business_key)`、出力は46文字である。S1はNode State、A1はNode Attemptを識別する。
+
+これはN1/J1を置き換える判断ではない。N1/J1はlock identity、S1/A1/R1はrecord identityとして併存する。R1追加にSupersededはない。参照: `docs/test-results/m3-gate-20260830/`、`src/persistence/kintone/design-notes.ts`、`tests/fixtures/canonical-record-key/vectors.json`、`tests/fixtures/canonical-lock-key/vectors.json`。
+
 ### D-14: 新旧versionの切替
 
 新旧キーは互いに競合しないため、旧ランナーと新ランナーを無計画に混在させてはならない。Phase 0で次のいずれかを決定する。
@@ -671,6 +677,18 @@ node --env-file=.env spikes/d-lock-contract/scripts/stale-reclaim.mjs
 
 残余リスクは、複数ホスト、高並列、ネットワーク分断、GET遅延、再GET確認不能分岐が未実測であること。D-14の新旧lock移行は未実施であり、本判断では閉じない。
 
+#### 2026-08-30並行updateKey PUT観測記録
+
+同一revisionを使った2本の並行`updateKey` PUTでは、敗者応答は決定的ではなかった。反復中に409 `GAIA_CO02`と400 `GAIA_DA02`の両方を実測した。途中経過`docs/test-results/m3-gate-20260830/2026-08-30T03-46-02.704Z-m3-canonical-key-conflict.json`は409 `GAIA_CO02`、最終公式`docs/test-results/m3-gate-20260830/2026-08-30T03-47-15.876Z-m3-canonical-key-conflict.json`は400 `GAIA_DA02`を記録する。
+
+`GAIA_DA02`の実メッセージは次のとおりである。
+
+> Failed to save the changes because the database could not be locked. Please wait a while and try again.
+
+GAIA_DA02はDBロック競合の一時エラーでありretryableな性格を持つ。ただし、製品は400だけでrevision競合と断定したり、無条件に再PUTしたりしない。同じrecordを再GETし、revision前進を確認できた場合だけ`REVISION_CONFLICT`と裁定する。対象消失、再GET失敗、または確認不能時はremote errorとしてfail-closedにする。逐次実行で意図的に古いrevisionをPUTした経路は、実測上常に409 `GAIA_CO02`だった。
+
+これはD-11の既存原則「400応答だけで競合と断定しない」の新しい実例であり、Supersededはない。`src/persistence/kintone/design-notes.ts`の`UPDATE_KEY_DA02_REQUIRES_REREAD`とも一致する。参照: `docs/test-results/m3-gate-20260830/`、`src/persistence/kintone/design-notes.ts`、`tests/fixtures/canonical-record-key/vectors.json`、`tests/fixtures/canonical-lock-key/vectors.json`。
+
 ---
 
 ## 7. bundle保持の運用決定
@@ -711,6 +729,12 @@ node --env-file=.env spikes/b-bundle/scripts/bundle-corruption.mjs
 - `spikes/b-bundle/results/2026-08-29T11-04-03.307Z-bundle-corruption.json`
 
 未実施のため残す項目は、添付差替え・削除権限の確認、archive先からの復元、resume可能期間と保持期間の運用、外部immutable storage、監査保持、定期復元試験、通常bundleを含む複数サイズ分布の統計、取得不能時のfail-closedである。
+
+#### 2026-08-30 bundle添付プロトコル前提
+
+`POST /k/v1/file.json`でuploadした`fileKey`は1回限りであり、同じ`fileKey`を2回目のレコード添付に使用すると404 `GAIA_BL01`となった。したがってFN-07のbundle添付プロトコルは、添付操作ごとに新しいuploadを行い、新しい`fileKey`を消費することを前提とする。同一bundle bytesを再添付するときも、過去のupload `fileKey`を再利用しない。
+
+これはbundle容量、保持期間、archive、復元の運用判断を閉じるものではない。D-12は`OPERATIONS_REQUIRED`を維持し、bundle添付プロトコルの前提だけを追記する。Supersededはない。参照: `docs/test-results/m3-gate-20260830/`、`src/persistence/kintone/design-notes.ts`、`tests/fixtures/canonical-record-key/vectors.json`、`tests/fixtures/canonical-lock-key/vectors.json`。
 
 ---
 
@@ -785,6 +809,68 @@ ksql-flownet resolve-node \
 参照: kSQL-Flow `docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §4 D-23。エンジンv3.74.0の公開診断code集合は`KSQL1001`〜`KSQL1006`、`KSQL1101`、`KSQL1201`〜`KSQL1203`、`KSQL1301`〜`KSQL1306`とする。非決定要素は`KSQL1306`のみで、`KSQL1305`は冪等性警告としてdiagnosticsへ含めるが非決定要素には分類しない。app schema依存の`KSQL1302`／`KSQL1303`は通信なしの静的検査では検出不能であり、実clientを使う`validate`の責務とする。乱数・外部状態参照に対応する公開診断codeはなく、未検出を検出済みとして扱わず、静的検査だけで冪等性を証明しない。以上を`inspect-job --json`の検査境界として確定し、D-23を`DECIDED`とする。Supersededはない。
 
 承認済み`KSQL1306`例外manifestのFlowNet運用はFN-07／M4に残るため、§12のD-23ゲートは未チェックを維持する。
+
+#### D-24: 2026-08-30決定記録
+
+2026-08-30のM3統合試験で、採番・canonical record key・集約更新プロトコルを実kintone環境で検証した。
+
+当初の`record_key = RUN:<run_id>`はRun IDだけに一意性を与えるため、同一`profile + network_id + business_key`で異なる`run_id`を持つRunが並行作成されると、重複禁止裁定が働かず2件とも永続化された。この設計ギャップを受け、Run identityを次のR1 canonical keyへ修正した。
+
+```text
+R1:<base64url-no-padding(SHA-256(
+  "R1" + NUL + NFC(profile) + NUL + NFC(network_id) + NUL + NFC(business_key)
+))>
+```
+
+R1はprefix 3文字とpaddingなしSHA-256 base64url 43文字の計46文字である。`tests/fixtures/canonical-record-key/vectors.json`にR1/S1/A1の固定vectorを置き、`tests/fixtures/canonical-lock-key/vectors.json`のN1/J1と合わせ、最終公式`m3-canonical-key-conflict`で有効vector全23件（record 14件、lock 9件）がexpected keyと一致した。R1修正後の並行`createRun`は、一方が成功し、他方が`DUPLICATE_RECORD`、同一business identityの永続Runは1件となった。
+
+attempt番号はNode Stateの`latest_attempt_no + 1`から候補を作り、A1 `attempt_key`の重複禁止INSERTを最終裁定とする。並行`createAttempt`で一方だけが成功し、敗者は`ATTEMPT_NUMBER_CONFLICT`となった。続く採番は1、2、3で、重複・再利用は0件だった。
+
+二重書込みについては、(1) terminal Attempt成功後にNode State更新が欠けた状態を修復し、その後にRun集約を再計算する経路、(2) terminal Node StateにRUNNING Attemptが残る一意に確定不能な状態を`RECONCILIATION_REQUIRED`で停止する経路、(3) Node State集合と不一致のRun集約を再計算する経路が合格した。修復できる状態だけをrevision付きで修復し、確定不能時はfail-closedを維持する。
+
+以上によりD-24を`PROPOSED`から`DECIDED`へ変更する。既存の「revision採番、canonical key、単一Invocation集約更新」を撤回せず、実測結果で確定するため、Supersededはない。
+
+##### コマンド、環境、回数
+
+- 実施日: 2026-08-30（JST）
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 実行コマンド:
+
+```powershell
+node --env-file=.env tests/integration/m3-run-uniqueness.mjs
+node --env-file=.env tests/integration/m3-attempt-numbering.mjs
+node --env-file=.env tests/integration/m3-write-failure-recovery.mjs
+node --env-file=.env tests/integration/m3-canonical-key-conflict.mjs
+node --env-file=.env tests/integration/m3-lease-heartbeat.mjs
+node --env-file=.env tests/integration/m3-heartbeat-drain.mjs
+node --env-file=.env tests/integration/m3-cleanup.mjs
+```
+
+- 最終公式フルラン: 上記6ゲートとcleanupを各1回、計7実行。すべてexit 0かつ`passed: true`
+- 公式証跡: `docs/test-results/m3-gate-20260830/2026-08-30T03-46-57.641Z-m3-run-uniqueness.json`から`docs/test-results/m3-gate-20260830/2026-08-30T03-47-26.691Z-m3-cleanup.json`までの時系列7件
+- ディレクトリ全体: JSON 25件。最終公式7件以外の18件は途中経過であり、設計ギャップ検出、試験修正、競合応答の反復観測にだけ使用する。25件全体では`passed: true`が23件、`passed: false`が2件である
+
+結果は上記検証環境での実測であり、kintoneの公式保証を意味しない。
+
+##### 証跡対応表
+
+| ゲート | 公式証跡 | 主な結果 |
+| --- | --- | --- |
+| Run一意性 | `docs/test-results/m3-gate-20260830/2026-08-30T03-46-57.641Z-m3-run-uniqueness.json` | 並行2件の一方が成功、他方が`DUPLICATE_RECORD`（原因400 `CB_VA01`）、永続Run 1件 |
+| attempt採番 | `docs/test-results/m3-gate-20260830/2026-08-30T03-47-04.988Z-m3-attempt-numbering.json` | 並行2件の一方が成功、他方が`ATTEMPT_NUMBER_CONFLICT`。確定番号は1、2、3、最終`latest_attempt_no = 3` |
+| 二重書込み修復／停止 | `docs/test-results/m3-gate-20260830/2026-08-30T03-47-14.045Z-m3-write-failure-recovery.json` | terminal AttemptからNode Stateを修復し集約更新。terminal State + RUNNING Attemptは`RECONCILIATION_REQUIRED`で停止。誤ったRun集約を再計算 |
+| canonical key・競合 | `docs/test-results/m3-gate-20260830/2026-08-30T03-47-15.876Z-m3-canonical-key-conflict.json` | record vector 14件、lock vector 9件が一致。並行PUTの敗者を400 `GAIA_DA02`から再GET裁定し`REVISION_CONFLICT`、Node State永続1件 |
+| lease・heartbeat | `docs/test-results/m3-gate-20260830/2026-08-30T03-47-22.195Z-m3-lease-heartbeat.json` | heartbeat 3回でrevision 2→3→4。旧token更新を`LEASE_TOKEN_MISMATCH`で拒否 |
+| heartbeat drain | `docs/test-results/m3-gate-20260830/2026-08-30T03-47-26.126Z-m3-heartbeat-drain.json` | 一時断回復時のみfinal write 1件。再更新不能時は新規Node 0・final write 0・状態を書かず`LEASE_UNCERTAIN` |
+| cleanup | `docs/test-results/m3-gate-20260830/2026-08-30T03-47-26.691Z-m3-cleanup.json` | 残存対象0件、exit 0、`passed: true` |
+
+参照: `docs/test-results/m3-gate-20260830/`、`src/persistence/kintone/design-notes.ts`、`tests/fixtures/canonical-record-key/vectors.json`、`tests/fixtures/canonical-lock-key/vectors.json`。
+
+##### 単一更新主体の限定条件
+
+「集約状態の単一更新主体はNetworkロックを保持するInvocationのみ」という防御の基礎は、lock再取得後に旧`lease_token`を持つownerの更新が製品コードで`LEASE_TOKEN_MISMATCH`となることを実機確認した。heartbeatは3回成功し、lock revisionは2、3、4へ前進した。
+
+ただし、今回確認したのはrepository／lease fencingとreconciliationの境界である。schedulerから全Node State読取り、集約計算、Run更新までを一つのInvocation所有権の下で結ぶInvocation全体の配線検証はM5（FN-10）で完了する。この限定はD-24を`DECIDED`とする判断と分離せず、FDR本文および凍結ゲート注記に残す。仕様受入基準19は独立にカバーする。
 
 ---
 
@@ -916,7 +1002,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [ ] D-21: UNKNOWN経路停止、独立系統継続、集約UNKNOWNの試験に合格
 - [x] D-22: 耐久`EXECUTION_STARTED`の障害注入試験に合格 (2026-08-30、順序・失敗・応答消失の全分岐、実kintone E2E、Windows／Linux実signalを確認。詳細はD-22決定記録)
 - [ ] D-23: `inspect-job`のjob ID・非決定要素検査と例外manifestを確定
-- [ ] D-24: revision採番、canonical key、集約状態の単一更新主体を障害注入試験で確認
+- [x] D-24: revision採番、canonical key、集約状態の単一更新主体を障害注入試験で確認 (2026-08-30 M3実機ゲート合格。集約単一主体のInvocation配線はM5で検証、詳細はD-24節)
 - [ ] D-26: kSQL-Flowのforce-unlock回復契約、旧保持者停止確認、FlowNet監査、応答消失時のfail-closed試験に合格
 - [ ] D-27: 旧`batch_id`が`run_id`へ変換されず、監査参照からresumeできないことを確認
 - [ ] D-28: `validate`／`plan`／`status`が外部状態を変更せず、`status`が復旧に必要な識別子を返すことを確認
