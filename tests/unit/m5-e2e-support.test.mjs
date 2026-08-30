@@ -7,6 +7,7 @@ import {
   describeRunIdentity,
   m5ConfirmedBy,
   resolveKsqlFlowCliPath,
+  resolveProcessTreeRootId,
 } from "../e2e/support.mjs";
 
 test("M5 run identity fixes all R1 inputs and exposes the generated key", () => {
@@ -81,5 +82,27 @@ test("kill target resolves only the kSQL-Flow dist cli script", () => {
     () =>
       resolveKsqlFlowCliPath(["C:\\work\\ksql-flownet\\dist\\cli\\index.js"]),
     /matches=\[\]/u,
+  );
+});
+
+test("kill target treats Nodist parent and real node as one process tree", () => {
+  assert.equal(
+    resolveProcessTreeRootId([
+      { processId: 100, parentProcessId: 50 },
+      { processId: 101, parentProcessId: 100 },
+    ]),
+    100,
+  );
+  assert.equal(
+    resolveProcessTreeRootId([{ processId: 101, parentProcessId: 100 }]),
+    101,
+  );
+  assert.throws(
+    () =>
+      resolveProcessTreeRootId([
+        { processId: 100, parentProcessId: 50 },
+        { processId: 101, parentProcessId: 51 },
+      ]),
+    /found 2 roots/u,
   );
 });

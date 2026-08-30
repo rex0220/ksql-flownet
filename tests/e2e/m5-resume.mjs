@@ -122,8 +122,11 @@ await runM5(import.meta.url, "resume", async ({ settings, scope, timing }) => {
     assert.equal(states.get("n2_fail").status, "FAILED");
     assert.equal(states.get("n3_finalize").status, "BLOCKED");
     assert.equal(after.invocations.length, 2);
-    const resumeInvocation = after.invocations.at(-1);
-    assert.equal(resumeInvocation.mode, "RESUME");
+    const resumeInvocations = after.invocations.filter(
+      ({ mode }) => mode === "RESUME",
+    );
+    assert.equal(resumeInvocations.length, 1);
+    const [resumeInvocation] = resumeInvocations;
     assert.deepEqual(resumeInvocation.preservedNodeIds, ["n1_extract"]);
     return {
       firstProcess: first,
