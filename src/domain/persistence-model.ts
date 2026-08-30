@@ -182,5 +182,29 @@ export interface JobLockRecoveryOperationAudit {
   lock_recovery_result: LockRecoveryResult;
 }
 
+export interface NetworkLockForceReleaseOperationAudit {
+  event_id: string;
+  event_type: "NETWORK_LOCK_FORCE_RELEASED";
+  network_id: string;
+  profile: string;
+  lock_key: string;
+  record_id: string;
+  previous_owner_invocation_id: string;
+  previous_lease_token: string;
+  previous_heartbeat_at: string;
+  previous_lease_expires_at: string;
+  service_principal: string;
+  requested_by: string;
+  stop_confirmed_by: string;
+  stop_method: string;
+  stop_evidence_ref: string;
+  reason: string;
+  evidence_ref: string;
+  released_at: string;
+  post_release_revision: number;
+}
+
 export type OperationAudit =
-  ReconciliationOperationAudit | JobLockRecoveryOperationAudit;
+  | ReconciliationOperationAudit
+  | JobLockRecoveryOperationAudit
+  | NetworkLockForceReleaseOperationAudit;
