@@ -1,0 +1,287 @@
+{
+  "test": "03-control-plane-api-calls",
+  "passed": true,
+  "scope": "M7260830232319_f833_03-control-plane-api-calls",
+  "observedAt": "2026-08-30T23:23:47.079Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T23:23:19.849Z",
+      "scenarioStartedAt": "2026-08-30T23:23:19.855Z",
+      "scenarioFinishedAt": "2026-08-30T23:23:45.993Z",
+      "cleanupStartedAt": "2026-08-30T23:23:45.993Z",
+      "cleanupFinishedAt": "2026-08-30T23:23:47.079Z",
+      "resultAssembledAt": "2026-08-30T23:23:47.079Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 26138,
+      "cleanupMs": 1086,
+      "totalMs": 27230
+    }
+  },
+  "detail": {
+    "networkId": "M7260830232319_f833_03-control-plane-api-calls_m7-control-plane",
+    "runProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "NEW: Run netrun_94f836ab-d955-4ba8-8521-0d7f50b03fb6 finished with aggregate SUCCESS (OK).\n",
+      "stderr": ""
+    },
+    "graph": {
+      "run": {
+        "recordKey": "R1:GL4esh7ux251zbW8C7PEIw5x6uPbUHqYDIF7lKWv2UQ",
+        "runId": "netrun_94f836ab-d955-4ba8-8521-0d7f50b03fb6",
+        "networkId": "M7260830232319_f833_03-control-plane-api-calls_m7-control-plane",
+        "businessKey": "M7260830232319_f833_03-control-plane-api-calls",
+        "status": "SUCCESS",
+        "asOf": "",
+        "startedAt": "2026-08-30T23:23:00Z",
+        "finishedAt": "2026-08-30T23:23:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": "2026-08-30T23:23:00Z"
+        },
+        {
+          "nodeId": "n2_deals",
+          "jobId": "m6_read_deals",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": "2026-08-30T23:23:00Z"
+        },
+        {
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": "2026-08-30T23:23:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 428,
+          "attemptId": "attempt_870f73ba-6423-49d3-b2ae-1f5da48f4df5",
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "invocationId": "invoke_61d1390c-e618-4b22-9b9d-e5d040aa171f",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:23:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:23:00Z",
+          "executionId": "e61bc74c-b9db-47d0-8db3-15d1929abebd",
+          "finishedAt": "2026-08-30T23:23:00Z",
+          "readCount": 3456,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 429,
+          "attemptId": "attempt_c636813b-cec4-456a-9881-a4e028017608",
+          "nodeId": "n2_deals",
+          "jobId": "m6_read_deals",
+          "invocationId": "invoke_61d1390c-e618-4b22-9b9d-e5d040aa171f",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:23:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:23:00Z",
+          "executionId": "c487a77a-60b8-4833-aede-f0c5aa866366",
+          "finishedAt": "2026-08-30T23:23:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 430,
+          "attemptId": "attempt_f501272c-5a9f-4d7a-bd61-eea4869e4327",
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "invocationId": "invoke_61d1390c-e618-4b22-9b9d-e5d040aa171f",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:23:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:23:00Z",
+          "executionId": "da962319-0ae9-4584-a172-efb318b700ad",
+          "finishedAt": "2026-08-30T23:23:00Z",
+          "readCount": 29,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 427,
+          "invocationId": "invoke_61d1390c-e618-4b22-9b9d-e5d040aa171f",
+          "mode": "NEW",
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "selectedNodeIds": [
+            "n1_longread",
+            "n2_deals",
+            "n3_join"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": "2026-08-30T23:23:00Z"
+        }
+      ]
+    },
+    "statusProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "{\n  \"network_id\": \"M7260830232319_f833_03-control-plane-api-calls_m7-control-plane\",\n  \"profile\": \"prod\",\n  \"lock\": null,\n  \"runs\": [\n    {\n      \"run_id\": \"netrun_94f836ab-d955-4ba8-8521-0d7f50b03fb6\",\n      \"business_key\": \"M7260830232319_f833_03-control-plane-api-calls\",\n      \"status\": \"SUCCESS\",\n      \"resume_allowed\": true,\n      \"lifecycle_status\": \"ACTIVE\",\n      \"created_at\": \"2026-08-30T23:23:00Z\",\n      \"started_at\": \"2026-08-30T23:23:00Z\",\n      \"finished_at\": \"2026-08-30T23:23:00Z\",\n      \"updated_at\": \"2026-08-30T23:23:00Z\",\n      \"invocations\": [\n        {\n          \"invocation_id\": \"invoke_61d1390c-e618-4b22-9b9d-e5d040aa171f\",\n          \"mode\": \"NEW\",\n          \"status\": \"SUCCESS\",\n          \"result_code\": \"OK\"\n        }\n      ],\n      \"node_states\": [\n        {\n          \"node_id\": \"n3_join\",\n          \"status\": \"SUCCESS\",\n          \"status_reason\": \"OK\",\n          \"idempotent\": true,\n          \"latest_attempt_no\": 1,\n          \"active_attempt_id\": null,\n          \"active_attempt\": null\n        },\n        {\n          \"node_id\": \"n2_deals\",\n          \"status\": \"SUCCESS\",\n          \"status_reason\": \"OK\",\n          \"idempotent\": true,\n          \"latest_attempt_no\": 1,\n          \"active_attempt_id\": null,\n          \"active_attempt\": null\n        },\n        {\n          \"node_id\": \"n1_longread\",\n          \"status\": \"SUCCESS\",\n          \"status_reason\": \"OK\",\n          \"idempotent\": true,\n          \"latest_attempt_no\": 1,\n          \"active_attempt_id\": null,\n          \"active_attempt\": null\n        }\n      ],\n      \"reconciliation\": {\n        \"inconsistencies\": []\n      },\n      \"recovery_identifiers\": {\n        \"resolve_node\": [],\n        \"force_unlock_network\": null,\n        \"run_network\": {\n          \"resume_run\": \"netrun_94f836ab-d955-4ba8-8521-0d7f50b03fb6\"\n        }\n      }\n    }\n  ]\n}\n",
+      "stderr": ""
+    },
+    "statusOutput": {
+      "network_id": "M7260830232319_f833_03-control-plane-api-calls_m7-control-plane",
+      "profile": "prod",
+      "lock": null,
+      "runs": [
+        {
+          "run_id": "netrun_94f836ab-d955-4ba8-8521-0d7f50b03fb6",
+          "business_key": "M7260830232319_f833_03-control-plane-api-calls",
+          "status": "SUCCESS",
+          "resume_allowed": true,
+          "lifecycle_status": "ACTIVE",
+          "created_at": "2026-08-30T23:23:00Z",
+          "started_at": "2026-08-30T23:23:00Z",
+          "finished_at": "2026-08-30T23:23:00Z",
+          "updated_at": "2026-08-30T23:23:00Z",
+          "invocations": [
+            {
+              "invocation_id": "invoke_61d1390c-e618-4b22-9b9d-e5d040aa171f",
+              "mode": "NEW",
+              "status": "SUCCESS",
+              "result_code": "OK"
+            }
+          ],
+          "node_states": [
+            {
+              "node_id": "n3_join",
+              "status": "SUCCESS",
+              "status_reason": "OK",
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n2_deals",
+              "status": "SUCCESS",
+              "status_reason": "OK",
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n1_longread",
+              "status": "SUCCESS",
+              "status_reason": "OK",
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": null,
+              "active_attempt": null
+            }
+          ],
+          "reconciliation": {
+            "inconsistencies": []
+          },
+          "recovery_identifiers": {
+            "resolve_node": [],
+            "force_unlock_network": null,
+            "run_network": {
+              "resume_run": "netrun_94f836ab-d955-4ba8-8521-0d7f50b03fb6"
+            }
+          }
+        }
+      ]
+    },
+    "forceUnlockProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "Error [LOCK_NOT_FOUND]: network lock was not found\n"
+    },
+    "controlPlaneApiCalls": {
+      "normalRun": {
+        "total": 81,
+        "heartbeat": 9,
+        "blocked": 0,
+        "byPathAndMethod": {
+          "POST /k/v1/record.json": 9,
+          "GET /k/v1/records.json": 42,
+          "POST /k/v1/file.json": 1,
+          "GET /k/v1/file.json": 1,
+          "PUT /k/v1/record.json": 28
+        },
+        "records": {
+          "GET": 42,
+          "POST": 9,
+          "PUT": 28,
+          "DELETE": 0
+        },
+        "file": 2,
+        "other": 0
+      },
+      "status": {
+        "total": 10,
+        "heartbeat": 0,
+        "blocked": 0,
+        "byPathAndMethod": {
+          "GET /k/v1/records.json": 10
+        },
+        "records": {
+          "GET": 10,
+          "POST": 0,
+          "PUT": 0,
+          "DELETE": 0
+        },
+        "file": 0,
+        "other": 0
+      },
+      "forceUnlockFailClosed": {
+        "total": 1,
+        "heartbeat": 0,
+        "blocked": 0,
+        "byPathAndMethod": {
+          "GET /k/v1/records.json": 1
+        },
+        "records": {
+          "GET": 1,
+          "POST": 0,
+          "PUT": 0,
+          "DELETE": 0
+        },
+        "file": 0,
+        "other": 0
+      }
+    }
+  },
+  "cleanup": {
+    "prefix": "M7260830232319_f833_03-control-plane-api-calls",
+    "runIds": [
+      "netrun_94f836ab-d955-4ba8-8521-0d7f50b03fb6"
+    ],
+    "networkIds": [
+      "M7260830232319_f833_03-control-plane-api-calls_m7-control-plane"
+    ],
+    "state": 4,
+    "audit": 4,
+    "total": 8
+  }
+}

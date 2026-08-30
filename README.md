@@ -50,6 +50,23 @@ $env:KSQL_FLOW_BIN_ARGS = '["C:\\Users\\rex02\\Projects\\ksql-flow\\dist\\cli.js
 standalone executable is rebuilt, `KSQL_FLOW_BIN` can point to the executable
 and `KSQL_FLOW_BIN_ARGS` can be unset.
 
+## M7 acceptance-gap E2E
+
+After configuring the real-device environment described in
+[`tests/e2e/README.md`](./tests/e2e/README.md), run the M7 scenarios serially
+from PowerShell. These commands access the configured kintone and kSQL-Flow
+environment and must not be run as part of CI.
+
+```powershell
+node tests\e2e\m7-01-acceptance-gaps.mjs
+node tests\e2e\m7-02-kintone-drain.mjs
+node tests\e2e\m7-03-control-plane-api-calls.mjs
+node tests\e2e\m7-04-windows-sigbreak.mjs
+```
+
+Each scenario writes a sanitized result JSON under `tests/e2e/results/` and
+cleans its M7-scoped state. The SIGBREAK scenario is Windows-only.
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).

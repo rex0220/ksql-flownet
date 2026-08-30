@@ -1,0 +1,363 @@
+{
+  "test": "04-windows-sigbreak",
+  "passed": true,
+  "scope": "M7260830232347_e275_04-windows-sigbreak",
+  "observedAt": "2026-08-30T23:25:21.546Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T23:23:47.481Z",
+      "scenarioStartedAt": "2026-08-30T23:23:47.486Z",
+      "scenarioFinishedAt": "2026-08-30T23:25:20.598Z",
+      "cleanupStartedAt": "2026-08-30T23:25:20.598Z",
+      "cleanupFinishedAt": "2026-08-30T23:25:21.546Z",
+      "resultAssembledAt": "2026-08-30T23:25:21.546Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 93112,
+      "cleanupMs": 948,
+      "totalMs": 94065
+    }
+  },
+  "detail": {
+    "networkId": "M7260830232347_e275_04-windows-sigbreak_drill",
+    "signalSent": "SIGBREAK",
+    "stopObservation": "simple-termination",
+    "interruptedProcess": {
+      "exitCode": null,
+      "signal": "SIGKILL",
+      "stdout": "",
+      "stderr": ""
+    },
+    "interruptedAttemptId": "attempt_56d6b830-d6e9-4e9e-8243-439562bc1316",
+    "terminalJob": {
+      "recordId": "640",
+      "correlationId": "netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc",
+      "attemptId": "attempt_56d6b830-d6e9-4e9e-8243-439562bc1316",
+      "executionId": "f87ba594-8ea1-4167-b284-cb821ec267e9",
+      "jobId": "m6_longread",
+      "status": "SUCCESS",
+      "runnerExecutionStartedAt": "2026-08-30T23:23:00Z",
+      "finishedAt": "2026-08-30T23:23:00Z"
+    },
+    "observedGraph": {
+      "run": {
+        "recordKey": "R1:XMz0I9_QJscNelutNE0nUCXhGJ4a9bo8wOKFcTSEIco",
+        "runId": "netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc",
+        "networkId": "M7260830232347_e275_04-windows-sigbreak_drill",
+        "businessKey": "M7260830232347_e275_04-windows-sigbreak",
+        "status": "RUNNING",
+        "asOf": "",
+        "startedAt": "2026-08-30T23:23:00Z",
+        "finishedAt": "",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "status": "RUNNING",
+          "latestAttemptNo": 1,
+          "statusReason": "",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": ""
+        },
+        {
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "status": "WAITING",
+          "latestAttemptNo": 0,
+          "statusReason": "",
+          "blockedBy": [],
+          "startedAt": "",
+          "finishedAt": ""
+        },
+        {
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "status": "WAITING",
+          "latestAttemptNo": 0,
+          "statusReason": "",
+          "blockedBy": [],
+          "startedAt": "",
+          "finishedAt": ""
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 432,
+          "attemptId": "attempt_56d6b830-d6e9-4e9e-8243-439562bc1316",
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "invocationId": "invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c",
+          "attemptNo": 1,
+          "status": "RUNNING",
+          "resultCode": "PENDING",
+          "executionStartedAt": "2026-08-30T23:23:00Z",
+          "runnerExecutionStartedAt": "",
+          "executionId": "",
+          "finishedAt": "",
+          "readCount": 0,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 431,
+          "invocationId": "invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c",
+          "mode": "NEW",
+          "status": "RUNNING",
+          "resultCode": "PENDING",
+          "selectedNodeIds": [
+            "n1_longread",
+            "n2_independent",
+            "n3_join"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": ""
+        }
+      ]
+    },
+    "orphanRecovery": {
+      "staleStatus": {
+        "network_id": "M7260830232347_e275_04-windows-sigbreak_drill",
+        "profile": "prod",
+        "lock": {
+          "record_id": "691",
+          "owner_invocation_id": "invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c",
+          "owner_instance_id": "local-pid://Laptop5/9616",
+          "heartbeat_at": "2026-08-30T23:23:00Z",
+          "lease_expires_at": "2026-08-30T23:24:00Z",
+          "stale_candidate": true,
+          "revision": 3
+        },
+        "runs": [
+          {
+            "run_id": "netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc",
+            "business_key": "M7260830232347_e275_04-windows-sigbreak",
+            "status": "RUNNING",
+            "resume_allowed": true,
+            "lifecycle_status": "ACTIVE",
+            "created_at": "2026-08-30T23:23:00Z",
+            "started_at": "2026-08-30T23:23:00Z",
+            "finished_at": null,
+            "updated_at": "2026-08-30T23:23:00Z",
+            "invocations": [
+              {
+                "invocation_id": "invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c",
+                "mode": "NEW",
+                "status": "RUNNING",
+                "result_code": "PENDING"
+              }
+            ],
+            "node_states": [
+              {
+                "node_id": "n3_join",
+                "status": "WAITING",
+                "status_reason": null,
+                "idempotent": true,
+                "latest_attempt_no": 0,
+                "active_attempt_id": null,
+                "active_attempt": null
+              },
+              {
+                "node_id": "n2_independent",
+                "status": "WAITING",
+                "status_reason": null,
+                "idempotent": true,
+                "latest_attempt_no": 0,
+                "active_attempt_id": null,
+                "active_attempt": null
+              },
+              {
+                "node_id": "n1_longread",
+                "status": "RUNNING",
+                "status_reason": null,
+                "idempotent": true,
+                "latest_attempt_no": 1,
+                "active_attempt_id": "attempt_56d6b830-d6e9-4e9e-8243-439562bc1316",
+                "active_attempt": {
+                  "node_attempt_id": "attempt_56d6b830-d6e9-4e9e-8243-439562bc1316",
+                  "attempt_no": 1,
+                  "status": "RUNNING"
+                }
+              }
+            ],
+            "reconciliation": {
+              "inconsistencies": []
+            },
+            "recovery_identifiers": {
+              "resolve_node": [],
+              "force_unlock_network": {
+                "network_id": "M7260830232347_e275_04-windows-sigbreak_drill",
+                "profile": "prod",
+                "expected_owner_invocation_id": "invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c"
+              },
+              "run_network": {
+                "resume_run": "netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc"
+              }
+            }
+          }
+        ]
+      },
+      "released": {
+        "exitCode": 0,
+        "signal": null,
+        "stdout": "RELEASED: N1:chKpqrc5Y0cZoZK94X_y6Brgv976uufpvn-5z8wVciI (previous owner invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c, post revision 4).\nIf a Node was running, use resolve-node to resolve it as UNKNOWN before resume.\n",
+        "stderr": ""
+      },
+      "resumeRun": "netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc",
+      "adjudication": {
+        "exitCode": 0,
+        "signal": null,
+        "stdout": "RESUME: Run netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc finished with aggregate SUCCESS (OK).\n",
+        "stderr": ""
+      }
+    },
+    "finalGraph": {
+      "run": {
+        "recordKey": "R1:XMz0I9_QJscNelutNE0nUCXhGJ4a9bo8wOKFcTSEIco",
+        "runId": "netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc",
+        "networkId": "M7260830232347_e275_04-windows-sigbreak_drill",
+        "businessKey": "M7260830232347_e275_04-windows-sigbreak",
+        "status": "SUCCESS",
+        "asOf": "",
+        "startedAt": "2026-08-30T23:23:00Z",
+        "finishedAt": "2026-08-30T23:25:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": "2026-08-30T23:23:00Z"
+        },
+        {
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:25:00Z",
+          "finishedAt": "2026-08-30T23:25:00Z"
+        },
+        {
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:25:00Z",
+          "finishedAt": "2026-08-30T23:25:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 432,
+          "attemptId": "attempt_56d6b830-d6e9-4e9e-8243-439562bc1316",
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "invocationId": "invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:23:00Z",
+          "runnerExecutionStartedAt": "",
+          "executionId": "f87ba594-8ea1-4167-b284-cb821ec267e9",
+          "finishedAt": "2026-08-30T23:23:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 436,
+          "attemptId": "attempt_e756cae6-f720-4732-8437-5231030f1652",
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "invocationId": "invoke_7a12d6b2-bf78-4362-8c40-c8c32c617911",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:25:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:25:00Z",
+          "executionId": "60540e57-6206-43ce-b5fb-302bc281d7dc",
+          "finishedAt": "2026-08-30T23:25:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 437,
+          "attemptId": "attempt_2fa49297-ce27-44a5-9eea-61ac209ee9de",
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "invocationId": "invoke_7a12d6b2-bf78-4362-8c40-c8c32c617911",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:25:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:25:00Z",
+          "executionId": "63bbf004-dd84-4e57-a93e-769029662633",
+          "finishedAt": "2026-08-30T23:25:00Z",
+          "readCount": 29,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 431,
+          "invocationId": "invoke_a780abf0-c031-4a4f-b70a-cc2d0af3a61c",
+          "mode": "NEW",
+          "status": "CANCELLED",
+          "resultCode": "NETWORK_LEASE_INTERRUPTED",
+          "selectedNodeIds": [
+            "n1_longread",
+            "n2_independent",
+            "n3_join"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T23:23:00Z",
+          "finishedAt": "2026-08-30T23:25:00Z"
+        },
+        {
+          "recordId": 434,
+          "invocationId": "invoke_7a12d6b2-bf78-4362-8c40-c8c32c617911",
+          "mode": "RESUME",
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "selectedNodeIds": [
+            "n2_independent",
+            "n3_join"
+          ],
+          "preservedNodeIds": [
+            "n1_longread"
+          ],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T23:25:00Z",
+          "finishedAt": "2026-08-30T23:25:00Z"
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "prefix": "M7260830232347_e275_04-windows-sigbreak",
+    "runIds": [
+      "netrun_67d3d54e-70cc-4cc1-9e4e-34efe379adfc"
+    ],
+    "networkIds": [
+      "M7260830232347_e275_04-windows-sigbreak_drill"
+    ],
+    "state": 4,
+    "audit": 7,
+    "total": 11
+  }
+}

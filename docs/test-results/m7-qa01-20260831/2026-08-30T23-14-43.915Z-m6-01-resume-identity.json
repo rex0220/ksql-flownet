@@ -1,0 +1,283 @@
+{
+  "test": "resume-identity",
+  "passed": true,
+  "scope": "M6260830231443_cb08_resume-identity",
+  "observedAt": "2026-08-30T23:15:10.877Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T23:14:43.913Z",
+      "scenarioStartedAt": "2026-08-30T23:14:43.916Z",
+      "scenarioFinishedAt": "2026-08-30T23:15:10.239Z",
+      "cleanupStartedAt": "2026-08-30T23:15:10.239Z",
+      "cleanupFinishedAt": "2026-08-30T23:15:10.877Z",
+      "resultAssembledAt": "2026-08-30T23:15:10.877Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 26323,
+      "cleanupMs": 638,
+      "totalMs": 26964
+    }
+  },
+  "detail": {
+    "initialProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "NEW: Run netrun_8f79f4a3-c8c4-412e-9d76-4cca625f53f7 finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+      "stderr": ""
+    },
+    "resumeProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "RESUME: Run netrun_8f79f4a3-c8c4-412e-9d76-4cca625f53f7 finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+      "stderr": ""
+    },
+    "networkId": "M6260830231443_cb08_resume-identity_m6-midfail",
+    "before": {
+      "run": {
+        "recordKey": "R1:hDP1rn2-V-T1vK0xvy6VU2MB6VpWh5By3KZGvYSG0uk",
+        "runId": "netrun_8f79f4a3-c8c4-412e-9d76-4cca625f53f7",
+        "networkId": "M6260830231443_cb08_resume-identity_m6-midfail",
+        "businessKey": "M6260830231443_cb08_resume-identity",
+        "status": "FAILED",
+        "asOf": "",
+        "startedAt": "2026-08-30T23:14:00Z",
+        "finishedAt": "2026-08-30T23:14:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_extract",
+          "jobId": "m6_read_customers",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:14:00Z",
+          "finishedAt": "2026-08-30T23:14:00Z"
+        },
+        {
+          "nodeId": "n2_fail",
+          "jobId": "m6_assert_fail",
+          "status": "FAILED",
+          "latestAttemptNo": 1,
+          "statusReason": "ASSERT_FAILED",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:14:00Z",
+          "finishedAt": "2026-08-30T23:14:00Z"
+        },
+        {
+          "nodeId": "n3_finalize",
+          "jobId": "m6_read_deals",
+          "status": "BLOCKED",
+          "latestAttemptNo": 0,
+          "statusReason": "ALL_SUCCESS_NOT_SATISFIED",
+          "blockedBy": [
+            "n2_fail"
+          ],
+          "startedAt": "",
+          "finishedAt": "2026-08-30T23:14:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 378,
+          "attemptId": "attempt_d7a439bd-d751-4993-93ff-ea85c9421490",
+          "nodeId": "n1_extract",
+          "jobId": "m6_read_customers",
+          "invocationId": "invoke_9e5677c8-4135-486e-a4f1-f95d8938560e",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:14:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:14:00Z",
+          "executionId": "40aa190e-9b75-4691-ad54-5f32d4b9835d",
+          "finishedAt": "2026-08-30T23:14:00Z",
+          "readCount": 11,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 379,
+          "attemptId": "attempt_c6feedb4-ed1f-408e-9040-6e783cadcf77",
+          "nodeId": "n2_fail",
+          "jobId": "m6_assert_fail",
+          "invocationId": "invoke_9e5677c8-4135-486e-a4f1-f95d8938560e",
+          "attemptNo": 1,
+          "status": "FAILED",
+          "resultCode": "ASSERT_FAILED",
+          "executionStartedAt": "2026-08-30T23:14:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:14:00Z",
+          "executionId": "8517351d-dc15-4f5b-b3cd-b71798c6cbf6",
+          "finishedAt": "2026-08-30T23:14:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 377,
+          "invocationId": "invoke_9e5677c8-4135-486e-a4f1-f95d8938560e",
+          "mode": "NEW",
+          "status": "FAILED",
+          "resultCode": "NODE_FAILED_OR_BLOCKED",
+          "selectedNodeIds": [
+            "n1_extract",
+            "n2_fail"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [
+            "n3_finalize"
+          ],
+          "startedAt": "2026-08-30T23:14:00Z",
+          "finishedAt": "2026-08-30T23:14:00Z"
+        }
+      ]
+    },
+    "after": {
+      "run": {
+        "recordKey": "R1:hDP1rn2-V-T1vK0xvy6VU2MB6VpWh5By3KZGvYSG0uk",
+        "runId": "netrun_8f79f4a3-c8c4-412e-9d76-4cca625f53f7",
+        "networkId": "M6260830231443_cb08_resume-identity_m6-midfail",
+        "businessKey": "M6260830231443_cb08_resume-identity",
+        "status": "FAILED",
+        "asOf": "",
+        "startedAt": "2026-08-30T23:14:00Z",
+        "finishedAt": "2026-08-30T23:15:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_extract",
+          "jobId": "m6_read_customers",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:14:00Z",
+          "finishedAt": "2026-08-30T23:14:00Z"
+        },
+        {
+          "nodeId": "n2_fail",
+          "jobId": "m6_assert_fail",
+          "status": "FAILED",
+          "latestAttemptNo": 2,
+          "statusReason": "ASSERT_FAILED",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:15:00Z",
+          "finishedAt": "2026-08-30T23:15:00Z"
+        },
+        {
+          "nodeId": "n3_finalize",
+          "jobId": "m6_read_deals",
+          "status": "BLOCKED",
+          "latestAttemptNo": 0,
+          "statusReason": "ALL_SUCCESS_NOT_SATISFIED",
+          "blockedBy": [
+            "n2_fail"
+          ],
+          "startedAt": "",
+          "finishedAt": "2026-08-30T23:15:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 378,
+          "attemptId": "attempt_d7a439bd-d751-4993-93ff-ea85c9421490",
+          "nodeId": "n1_extract",
+          "jobId": "m6_read_customers",
+          "invocationId": "invoke_9e5677c8-4135-486e-a4f1-f95d8938560e",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:14:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:14:00Z",
+          "executionId": "40aa190e-9b75-4691-ad54-5f32d4b9835d",
+          "finishedAt": "2026-08-30T23:14:00Z",
+          "readCount": 11,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 379,
+          "attemptId": "attempt_c6feedb4-ed1f-408e-9040-6e783cadcf77",
+          "nodeId": "n2_fail",
+          "jobId": "m6_assert_fail",
+          "invocationId": "invoke_9e5677c8-4135-486e-a4f1-f95d8938560e",
+          "attemptNo": 1,
+          "status": "FAILED",
+          "resultCode": "ASSERT_FAILED",
+          "executionStartedAt": "2026-08-30T23:14:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:14:00Z",
+          "executionId": "8517351d-dc15-4f5b-b3cd-b71798c6cbf6",
+          "finishedAt": "2026-08-30T23:14:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 381,
+          "attemptId": "attempt_d6e97d74-73dd-4e91-be89-85bb38a244d4",
+          "nodeId": "n2_fail",
+          "jobId": "m6_assert_fail",
+          "invocationId": "invoke_d5be34a9-1f90-49fd-a9e6-1beb123f1d49",
+          "attemptNo": 2,
+          "status": "FAILED",
+          "resultCode": "ASSERT_FAILED",
+          "executionStartedAt": "2026-08-30T23:15:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:15:00Z",
+          "executionId": "57080c63-1cfa-44c7-87ef-cb988f8d5318",
+          "finishedAt": "2026-08-30T23:15:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 377,
+          "invocationId": "invoke_9e5677c8-4135-486e-a4f1-f95d8938560e",
+          "mode": "NEW",
+          "status": "FAILED",
+          "resultCode": "NODE_FAILED_OR_BLOCKED",
+          "selectedNodeIds": [
+            "n1_extract",
+            "n2_fail"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [
+            "n3_finalize"
+          ],
+          "startedAt": "2026-08-30T23:14:00Z",
+          "finishedAt": "2026-08-30T23:14:00Z"
+        },
+        {
+          "recordId": 380,
+          "invocationId": "invoke_d5be34a9-1f90-49fd-a9e6-1beb123f1d49",
+          "mode": "RESUME",
+          "status": "FAILED",
+          "resultCode": "NODE_FAILED_OR_BLOCKED",
+          "selectedNodeIds": [
+            "n2_fail"
+          ],
+          "preservedNodeIds": [
+            "n1_extract"
+          ],
+          "blockedNodeIds": [
+            "n3_finalize"
+          ],
+          "startedAt": "2026-08-30T23:15:00Z",
+          "finishedAt": "2026-08-30T23:15:00Z"
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "prefix": "M6260830231443_cb08_resume-identity",
+    "runIds": [
+      "netrun_8f79f4a3-c8c4-412e-9d76-4cca625f53f7"
+    ],
+    "networkIds": [
+      "M6260830231443_cb08_resume-identity_m6-midfail"
+    ],
+    "state": 4,
+    "audit": 5,
+    "total": 9
+  }
+}

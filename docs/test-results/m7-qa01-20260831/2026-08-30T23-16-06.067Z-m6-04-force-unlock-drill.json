@@ -1,0 +1,501 @@
+{
+  "test": "force-unlock-drill",
+  "passed": true,
+  "scope": "M6260830231606_9362_force-unlock-drill",
+  "observedAt": "2026-08-30T23:17:29.506Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T23:16:06.063Z",
+      "scenarioStartedAt": "2026-08-30T23:16:06.067Z",
+      "scenarioFinishedAt": "2026-08-30T23:17:28.316Z",
+      "cleanupStartedAt": "2026-08-30T23:17:28.316Z",
+      "cleanupFinishedAt": "2026-08-30T23:17:29.506Z",
+      "resultAssembledAt": "2026-08-30T23:17:29.506Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 82249,
+      "cleanupMs": 1190,
+      "totalMs": 83443
+    }
+  },
+  "detail": {
+    "networkId": "M6260830231606_9362_force-unlock-drill_drill",
+    "killedAttemptId": "attempt_69c6e9a6-8d7c-4f93-b71c-a1a8d9e5a24e",
+    "killedProcesses": [
+      {
+        "processId": 16952,
+        "parentProcessId": 30280,
+        "depth": 0
+      },
+      {
+        "processId": 33580,
+        "parentProcessId": 16952,
+        "depth": 1
+      },
+      {
+        "processId": 11848,
+        "parentProcessId": 33580,
+        "depth": 2
+      }
+    ],
+    "killedNetwork": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    "activeLeaseProbe": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "Error [LEASE_STILL_ACTIVE]: network lock lease has not expired\n"
+    },
+    "staleStatus": {
+      "network_id": "M6260830231606_9362_force-unlock-drill_drill",
+      "profile": "prod",
+      "lock": {
+        "record_id": "642",
+        "owner_invocation_id": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe",
+        "owner_instance_id": "local-pid://Laptop5/16952",
+        "heartbeat_at": "2026-08-30T23:16:00Z",
+        "lease_expires_at": "2026-08-30T23:16:00Z",
+        "stale_candidate": true,
+        "revision": 3
+      },
+      "runs": [
+        {
+          "run_id": "netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef",
+          "business_key": "M6260830231606_9362_force-unlock-drill",
+          "status": "RUNNING",
+          "resume_allowed": true,
+          "lifecycle_status": "ACTIVE",
+          "created_at": "2026-08-30T23:16:00Z",
+          "started_at": "2026-08-30T23:16:00Z",
+          "finished_at": null,
+          "updated_at": "2026-08-30T23:16:00Z",
+          "invocations": [
+            {
+              "invocation_id": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe",
+              "mode": "NEW",
+              "status": "RUNNING",
+              "result_code": "PENDING"
+            }
+          ],
+          "node_states": [
+            {
+              "node_id": "n3_join",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n2_independent",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n1_longread",
+              "status": "RUNNING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": "attempt_69c6e9a6-8d7c-4f93-b71c-a1a8d9e5a24e",
+              "active_attempt": {
+                "node_attempt_id": "attempt_69c6e9a6-8d7c-4f93-b71c-a1a8d9e5a24e",
+                "attempt_no": 1,
+                "status": "RUNNING"
+              }
+            }
+          ],
+          "reconciliation": {
+            "inconsistencies": []
+          },
+          "recovery_identifiers": {
+            "resolve_node": [],
+            "force_unlock_network": {
+              "network_id": "M6260830231606_9362_force-unlock-drill_drill",
+              "profile": "prod",
+              "expected_owner_invocation_id": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe"
+            },
+            "run_network": {
+              "resume_run": "netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef"
+            }
+          }
+        }
+      ]
+    },
+    "wrongOwnerProbe": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "Error [OWNER_MISMATCH]: network lock owner does not match the expected invocation\n"
+    },
+    "releaseProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "RELEASED: N1:6DOQRlfL3vG4dkQOq_ZBEHnlAoZO4yMT9K70HxY0EVo (previous owner invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe, post revision 4).\nIf a Node was running, use resolve-node to resolve it as UNKNOWN before resume.\n",
+      "stderr": ""
+    },
+    "forceReleaseAudit": {
+      "recordId": 394,
+      "eventType": "NETWORK_LOCK_FORCE_RELEASED",
+      "networkId": "M6260830231606_9362_force-unlock-drill_drill",
+      "profile": "prod",
+      "previousOwnerInvocationId": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe",
+      "servicePrincipal": "m6-e2e-service",
+      "requestedBy": "m6-e2e-requester",
+      "stopConfirmedBy": "m6-e2e-operator",
+      "stopMethod": "local_pid",
+      "stopEvidenceRef": "file:///C:/Users/rex02/Projects/ksql-flownet/tests/e2e/results/2026-08-30T23-16-06.067Z-m6-04-force-unlock-drill.json",
+      "reason": "M6 E2E stale Network lock drill.\n",
+      "evidenceRef": "file:///C:/Users/rex02/Projects/ksql-flownet/tests/e2e/results/2026-08-30T23-16-06.067Z-m6-04-force-unlock-drill.json",
+      "releasedAt": "2026-08-30T23:17:01.930Z",
+      "postReleaseRevision": 4
+    },
+    "adjudicationResume": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "RESUME: Run netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef finished with aggregate UNKNOWN (NODE_RESULT_UNKNOWN).\n",
+      "stderr": ""
+    },
+    "adjudicatedGraph": {
+      "run": {
+        "recordKey": "R1:4MWu9UP-QHbXnuol3dN02GWToKU2OK2wZ2ZJJh9J0qA",
+        "runId": "netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef",
+        "networkId": "M6260830231606_9362_force-unlock-drill_drill",
+        "businessKey": "M6260830231606_9362_force-unlock-drill",
+        "status": "UNKNOWN",
+        "asOf": "",
+        "startedAt": "2026-08-30T23:16:00Z",
+        "finishedAt": "2026-08-30T23:17:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "status": "UNKNOWN",
+          "latestAttemptNo": 1,
+          "statusReason": "NO_EXECUTION_RESULT",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:16:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        },
+        {
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:17:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        },
+        {
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "status": "BLOCKED",
+          "latestAttemptNo": 0,
+          "statusReason": "ALL_SUCCESS_NOT_SATISFIED",
+          "blockedBy": [
+            "n1_longread"
+          ],
+          "startedAt": "",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 393,
+          "attemptId": "attempt_69c6e9a6-8d7c-4f93-b71c-a1a8d9e5a24e",
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "invocationId": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe",
+          "attemptNo": 1,
+          "status": "UNKNOWN",
+          "resultCode": "NO_EXECUTION_RESULT",
+          "executionStartedAt": "2026-08-30T23:16:00Z",
+          "runnerExecutionStartedAt": "",
+          "executionId": "d993de54-4192-4e95-83d2-b6087c95cf70",
+          "finishedAt": "2026-08-30T23:17:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 397,
+          "attemptId": "attempt_5e8858b6-bd4e-4e0c-a5d4-b34e40ec59fe",
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "invocationId": "invoke_721a4f61-df1c-464d-ba21-2af7187b4cc0",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:17:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:17:00Z",
+          "executionId": "0c1778a2-9e93-40dc-9614-26b6777835f6",
+          "finishedAt": "2026-08-30T23:17:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 392,
+          "invocationId": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe",
+          "mode": "NEW",
+          "status": "CANCELLED",
+          "resultCode": "NETWORK_LEASE_INTERRUPTED",
+          "selectedNodeIds": [
+            "n1_longread",
+            "n2_independent",
+            "n3_join"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T23:16:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        },
+        {
+          "recordId": 395,
+          "invocationId": "invoke_721a4f61-df1c-464d-ba21-2af7187b4cc0",
+          "mode": "RESUME",
+          "status": "UNKNOWN",
+          "resultCode": "NODE_RESULT_UNKNOWN",
+          "selectedNodeIds": [
+            "n2_independent"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [
+            "n1_longread",
+            "n3_join"
+          ],
+          "startedAt": "2026-08-30T23:17:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        }
+      ]
+    },
+    "resolvedProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "RESOLVED: netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef/n1_longread -> SUCCESS (revision 4).\n",
+      "stderr": ""
+    },
+    "completedProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "RESUME: Run netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef finished with aggregate SUCCESS (OK).\n",
+      "stderr": ""
+    },
+    "finalGraph": {
+      "run": {
+        "recordKey": "R1:4MWu9UP-QHbXnuol3dN02GWToKU2OK2wZ2ZJJh9J0qA",
+        "runId": "netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef",
+        "networkId": "M6260830231606_9362_force-unlock-drill_drill",
+        "businessKey": "M6260830231606_9362_force-unlock-drill",
+        "status": "SUCCESS",
+        "asOf": "",
+        "startedAt": "2026-08-30T23:16:00Z",
+        "finishedAt": "2026-08-30T23:17:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "NODE_MANUAL_COMPLETION_CONFIRMED",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:16:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        },
+        {
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:17:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        },
+        {
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T23:17:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 393,
+          "attemptId": "attempt_69c6e9a6-8d7c-4f93-b71c-a1a8d9e5a24e",
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "invocationId": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe",
+          "attemptNo": 1,
+          "status": "UNKNOWN",
+          "resultCode": "NO_EXECUTION_RESULT",
+          "executionStartedAt": "2026-08-30T23:16:00Z",
+          "runnerExecutionStartedAt": "",
+          "executionId": "d993de54-4192-4e95-83d2-b6087c95cf70",
+          "finishedAt": "2026-08-30T23:17:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 397,
+          "attemptId": "attempt_5e8858b6-bd4e-4e0c-a5d4-b34e40ec59fe",
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "invocationId": "invoke_721a4f61-df1c-464d-ba21-2af7187b4cc0",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:17:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:17:00Z",
+          "executionId": "0c1778a2-9e93-40dc-9614-26b6777835f6",
+          "finishedAt": "2026-08-30T23:17:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 401,
+          "attemptId": "attempt_884e6f0a-d8d6-47b1-8f22-d3f38bc9ad89",
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "invocationId": "invoke_0f90e83d-122c-4a39-aa50-87f576b7cadb",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T23:17:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T23:17:00Z",
+          "executionId": "8318580f-980f-4658-84c3-4c5670a5dd08",
+          "finishedAt": "2026-08-30T23:17:00Z",
+          "readCount": 29,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 392,
+          "invocationId": "invoke_06dc5e1a-9412-46fd-a165-65c162dc4ebe",
+          "mode": "NEW",
+          "status": "CANCELLED",
+          "resultCode": "NETWORK_LEASE_INTERRUPTED",
+          "selectedNodeIds": [
+            "n1_longread",
+            "n2_independent",
+            "n3_join"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T23:16:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        },
+        {
+          "recordId": 395,
+          "invocationId": "invoke_721a4f61-df1c-464d-ba21-2af7187b4cc0",
+          "mode": "RESUME",
+          "status": "UNKNOWN",
+          "resultCode": "NODE_RESULT_UNKNOWN",
+          "selectedNodeIds": [
+            "n2_independent"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [
+            "n1_longread",
+            "n3_join"
+          ],
+          "startedAt": "2026-08-30T23:17:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        },
+        {
+          "recordId": 399,
+          "invocationId": "invoke_0f90e83d-122c-4a39-aa50-87f576b7cadb",
+          "mode": "RESUME",
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "selectedNodeIds": [
+            "n3_join"
+          ],
+          "preservedNodeIds": [
+            "n1_longread",
+            "n2_independent"
+          ],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T23:17:00Z",
+          "finishedAt": "2026-08-30T23:17:00Z"
+        }
+      ]
+    },
+    "jobLockRecovery": {
+      "jobKey": "prod:m6_longread",
+      "inspection": {
+        "process": {
+          "exitCode": 0,
+          "signal": null,
+          "stdout": "{\"kind\":\"LOCK_INSPECTION_RESULT\",\"formatVersion\":1,\"jobKey\":\"prod:m6_longread\",\"locked\":true,\"record\":{\"recordId\":\"616\",\"batchId\":\"d993de54-4192-4e95-83d2-b6087c95cf70\",\"startedAt\":\"2026-08-30T23:16:00Z\",\"host\":\"Laptop5\",\"scriptName\":\"n1_longread.sql\"},\"inspectedAt\":\"2026-08-30T23:17:27.386Z\"}\n",
+          "stderr": ""
+        },
+        "output": {
+          "kind": "LOCK_INSPECTION_RESULT",
+          "formatVersion": 1,
+          "jobKey": "prod:m6_longread",
+          "locked": true,
+          "record": {
+            "recordId": "616",
+            "batchId": "d993de54-4192-4e95-83d2-b6087c95cf70",
+            "startedAt": "2026-08-30T23:16:00Z",
+            "host": "Laptop5",
+            "scriptName": "n1_longread.sql"
+          },
+          "inspectedAt": "2026-08-30T23:17:27.386Z"
+        }
+      },
+      "lockRecoveryResult": {
+        "kind": "LOCK_RECOVERY_RESULT",
+        "formatVersion": 1,
+        "jobKey": "prod:m6_longread",
+        "recordId": "616",
+        "outcome": "RELEASED",
+        "before": {
+          "batchId": "d993de54-4192-4e95-83d2-b6087c95cf70",
+          "startedAt": "2026-08-30T23:16:00Z",
+          "host": "Laptop5"
+        },
+        "executedAt": "2026-08-30T23:17:27.792Z"
+      },
+      "recoveryProcess": {
+        "exitCode": 0,
+        "signal": null,
+        "stdout": "{\"kind\":\"LOCK_RECOVERY_RESULT\",\"formatVersion\":1,\"jobKey\":\"prod:m6_longread\",\"recordId\":\"616\",\"outcome\":\"RELEASED\",\"before\":{\"batchId\":\"d993de54-4192-4e95-83d2-b6087c95cf70\",\"startedAt\":\"2026-08-30T23:16:00Z\",\"host\":\"Laptop5\"},\"executedAt\":\"2026-08-30T23:17:27.792Z\"}\n",
+        "stderr": ""
+      }
+    }
+  },
+  "cleanup": {
+    "prefix": "M6260830231606_9362_force-unlock-drill",
+    "runIds": [
+      "netrun_6a7e7f69-edcb-41c9-93e9-42c15874a6ef"
+    ],
+    "networkIds": [
+      "M6260830231606_9362_force-unlock-drill_drill"
+    ],
+    "state": 4,
+    "audit": 9,
+    "total": 13
+  }
+}

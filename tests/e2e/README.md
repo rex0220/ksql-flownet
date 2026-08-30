@@ -157,6 +157,28 @@ node tests\e2e\m6-06-cloudrun-failclosed.mjs
 
 `m6-04`は実行中のFlowNetプロセスツリーを子から親の順で停止し、30秒leaseの生存中拒否、失効、owner不一致、`local_pid`のESRCH確認、監査付き回収、statusが返した復旧識別子による裁定・解決・resumeを確認します。`m6-05`はstatus前後のstate/audit全レコードrevisionを比較します。`m6-06`は実GCP照会を行わず、形式不一致、アクセストークン未設定、未知stop methodをすべて`STOP_NOT_CONFIRMED`として検証します。
 
+## M7受入ギャップE2E
+
+M7は受入5・26・28とWindows停止時の残存状態を実機で確認します。M5/M6と同じ環境変数・安全境界を継承し、レビュー担当者がPowerShellから直列に実行してください。各シナリオはM7 scopeを作成し、結果を`tests/e2e/results/`へ保存してから自己清掃します。
+
+```powershell
+node tests\e2e\m7-01-acceptance-gaps.mjs
+node tests\e2e\m7-02-kintone-drain.mjs
+node tests\e2e\m7-03-control-plane-api-calls.mjs
+node tests\e2e\m7-04-windows-sigbreak.mjs
+```
+
+| スクリプト                          | 実測する内容                                                                                                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `m7-01-acceptance-gaps.mjs`         | `network-drill`の全SUCCESSと`$id`順の直列実行、および作業fixtureの失敗SQLを成功版へ変えてもresumeが保存済み失敗SQLを再実行すること                      |
+| `m7-02-kintone-drain.mjs`           | FlowNetだけのkintone通信遮断。回復時の結果保存と`NETWORK_LEASE_INTERRUPTED`、非回復時のstate/audit無変更、およびforce-unlockと孤児裁定による清掃        |
+| `m7-03-control-plane-api-calls.mjs` | 3 Nodeの参照系Run、`status --json`、`LOCK_NOT_FOUND`となるforce-unlockについて、records/file/その他とheartbeat PUTのcontrol-plane API呼出数を別々に記録 |
+| `m7-04-windows-sigbreak.mjs`        | n1実行中のFlowNetへ`SIGBREAK`を送り、graceful drainか単純終了かを記録し、残ったRUNNING孤児をforce-unlockとresume孤児裁定で回収できること                |
+
+`fault-hook.mjs`は`NODE_OPTIONS=--import`でFlowNet起動時だけ読み込みます。`process.argv[1]`がこのリポジトリの`dist/cli/index.js`と一致するときだけfetchを包むため、子のkSQL-Flowプロセスは遮断しません。制御ファイルは`pass` / `block` / `block-writes`を受け付け、通常試験は全通信を止める`block`を使用します。JSONLログは時刻、HTTP method、URL path、遮断有無、heartbeat分類だけを保存し、URL query、header、body、API tokenは保存しません。
+
+`m7-02`と`m7-04`は30秒leaseの失効を待つ回収工程があるため、完了まで数分かかる場合があります。`m7-04`はWindows専用です。これらのスクリプトをCIや非Windows環境で実行しないでください。
+
 ## SQL文法の根拠
 
 - `C:\Users\rex02\Projects\ksql-flow\docs\ksql_flow_spec.md` 3.1〜3.3: dialect 1ヘッダ、`SELECT COUNT(*)`、`ASSERT (<scalar subquery>) <comparison>, 'message'`。
