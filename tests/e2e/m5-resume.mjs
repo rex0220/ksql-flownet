@@ -2,43 +2,95 @@ import assert from "node:assert/strict";
 
 import {
   byNode,
+  describeRunIdentity,
   loadRunGraph,
   prepareNetwork,
   runFlowNetNetwork,
   runM5,
 } from "./support.mjs";
 
-await runM5(import.meta.url, "resume", async ({ settings, scope }) => {
+await runM5(import.meta.url, "resume", async ({ settings, scope, timing }) => {
   const fixture = await prepareNetwork(scope, "network-midfail.yaml");
-  const timingDiagnostics = {
-    standaloneStartedAt: null,
-    runningConfirmedAt: null,
-    networkStartedAt: { initial: null, resume: null },
-    targetAttemptStartedAt: { initial: null, resume: null },
+  const fixedInput = Object.freeze({
+    profile: settings.profile,
+    networkPath: fixture.networkPath,
+    networkId: fixture.networkId,
+    businessKey: scope,
+  });
+  const resumeDiagnostics = {
+    calls: [],
+    persistedRun: null,
+  };
+  const recordCall = (phase) => {
+    const call = {
+      phase,
+      networkPath: fixedInput.networkPath,
+      ...describeRunIdentity(
+        fixedInput.profile,
+        fixedInput.networkId,
+        fixedInput.businessKey,
+      ),
+    };
+    resumeDiagnostics.calls.push(call);
+    return call;
   };
   try {
-    timingDiagnostics.networkStartedAt.initial = new Date().toISOString();
-    const first = await runFlowNetNetwork(settings, fixture.networkPath, scope);
+    const initialInput = recordCall("initial");
+    timing.mark("initialNetworkStartedAt");
+    const first = await runFlowNetNetwork(
+      settings,
+      fixedInput.networkPath,
+      fixedInput.businessKey,
+    );
+    timing.mark("initialNetworkFinishedAt");
+    timing.measure(
+      "initialNetworkMs",
+      "initialNetworkStartedAt",
+      "initialNetworkFinishedAt",
+    );
     assert.equal(first.exitCode, 1);
-    const before = await loadRunGraph(settings, scope);
+    const before = await loadRunGraph(settings, fixedInput.businessKey);
+    resumeDiagnostics.persistedRun = {
+      recordKey: before.run.recordKey,
+      networkId: before.run.networkId,
+      businessKey: before.run.businessKey,
+      resolvedProfile: before.run.resolvedProfile,
+      r1FromPersistedFields:
+        before.run.resolvedProfile === null
+          ? null
+          : describeRunIdentity(
+              before.run.resolvedProfile,
+              before.run.networkId,
+              before.run.businessKey,
+            ).r1Key,
+    };
     const n1Before = before.attempts.filter(
       ({ nodeId }) => nodeId === "n1_extract",
     );
     assert.equal(n1Before.length, 1);
     assert.equal(n1Before[0].status, "SUCCESS");
-    const n2Before = before.attempts.find(({ nodeId }) => nodeId === "n2_fail");
-    timingDiagnostics.targetAttemptStartedAt.initial =
-      n2Before?.executionStartedAt ?? null;
 
-    timingDiagnostics.networkStartedAt.resume = new Date().toISOString();
+    const resumeInput = recordCall("resume");
+    assert.deepEqual(
+      { ...resumeInput, phase: undefined },
+      { ...initialInput, phase: undefined },
+      "2回のrun-network呼出しはprofile/networkPath/networkId/businessKey/R1が完全同一であること",
+    );
+    timing.mark("resumeNetworkStartedAt");
     const resumed = await runFlowNetNetwork(
       settings,
-      fixture.networkPath,
-      scope,
+      fixedInput.networkPath,
+      fixedInput.businessKey,
       { resume: true },
     );
+    timing.mark("resumeNetworkFinishedAt");
+    timing.measure(
+      "resumeNetworkMs",
+      "resumeNetworkStartedAt",
+      "resumeNetworkFinishedAt",
+    );
     assert.equal(resumed.exitCode, 1);
-    const after = await loadRunGraph(settings, scope);
+    const after = await loadRunGraph(settings, fixedInput.businessKey);
     assert.equal(after.run.runId, before.run.runId);
     const attemptsByNode = Map.groupBy(after.attempts, ({ nodeId }) => nodeId);
     const n1Attempts = attemptsByNode.get("n1_extract") ?? [];
@@ -57,9 +109,6 @@ await runM5(import.meta.url, "resume", async ({ settings, scope }) => {
       [1, 2],
       "n2のattempt_no集合が{1,2}であること",
     );
-    timingDiagnostics.targetAttemptStartedAt.resume =
-      n2Attempts.find(({ attemptNo }) => attemptNo === 2)?.executionStartedAt ??
-      null;
     assert.ok(
       attemptsByNode
         .get("n2_fail")
@@ -82,10 +131,10 @@ await runM5(import.meta.url, "resume", async ({ settings, scope }) => {
       before,
       after,
       networkId: fixture.networkId,
-      timingDiagnostics,
+      resumeDiagnostics,
     };
   } catch (error) {
-    error.timingDiagnostics = timingDiagnostics;
+    error.resumeDiagnostics = resumeDiagnostics;
     throw error;
   } finally {
     await fixture.dispose();

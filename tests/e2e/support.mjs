@@ -15,6 +15,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { networkLockKey } from "../../dist/domain/canonical-lock-key.js";
+import { runKey } from "../../dist/domain/canonical-record-key.js";
 import { ksqlFlowBinArgsEnvironment } from "../../dist/cli/run-network-command.js";
 import { sanitize } from "../../spikes/lib/runtime.mjs";
 
@@ -153,7 +154,11 @@ function jsonField(record, name) {
 }
 
 function decodeRun(record) {
+  const resolvedProfileSnapshot = JSON.parse(
+    field(record, "resolved_profile_snapshot") || "null",
+  );
   return {
+    recordKey: field(record, "record_key"),
     runId: field(record, "run_id"),
     networkId: field(record, "network_id"),
     businessKey: field(record, "business_key"),
@@ -161,6 +166,16 @@ function decodeRun(record) {
     asOf: field(record, "as_of"),
     startedAt: field(record, "started_at"),
     finishedAt: field(record, "finished_at"),
+    resolvedProfile: resolvedProfileSnapshot?.profile ?? null,
+  };
+}
+
+export function describeRunIdentity(profile, networkId, businessKey) {
+  return {
+    profile,
+    networkId,
+    businessKey,
+    r1Key: runKey(profile, networkId, businessKey),
   };
 }
 
@@ -578,21 +593,23 @@ export function resolveKsqlFlowCliPath(binArgs) {
   return matches[0];
 }
 
-export async function killKsqlFlowAttempt(attemptId, ksqlFlowCliPath) {
+function powershellLiteral(value) {
+  return String(value).replaceAll("'", "''");
+}
+
+async function findKsqlFlowScopeProcesses(scope, ksqlFlowCliPath, attemptId) {
   if (process.platform !== "win32")
     throw new Error("m5-kill-unknown is currently a Windows real-device test");
-  const escapedAttemptId = attemptId.replaceAll("'", "''");
-  const escapedCliPath = resolve(ksqlFlowCliPath).replaceAll("'", "''");
+  const escapedScope = powershellLiteral(scope);
+  const escapedCliPath = powershellLiteral(resolve(ksqlFlowCliPath));
+  const escapedAttemptId = powershellLiteral(attemptId ?? "");
   const command = [
-    `$attemptId = '${escapedAttemptId}'`,
+    `$scope = '${escapedScope}'`,
     `$cliPath = '${escapedCliPath}'`,
-    `$target = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($cliPath, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine -like ('*--attempt-id*' + $attemptId + '*') -and $_.ProcessId -ne $PID })`,
-    `$actualItems = @($target | ForEach-Object { [pscustomobject]@{ ProcessId = $_.ProcessId; CommandLine = $_.CommandLine } | ConvertTo-Json -Compress })`,
-    `$actual = '[' + ($actualItems -join ',') + ']'`,
-    `if ($target.Count -ne 1) { throw "expected one kSQL-Flow child containing cliPath=$cliPath, found $($target.Count); matches=$actual" }`,
-    `$pidToStop = [int]$target.ProcessId`,
-    `Stop-Process -Id $pidToStop -Force`,
-    `$pidToStop`,
+    `$attemptId = '${escapedAttemptId}'`,
+    `$target = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($cliPath, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine.IndexOf($scope, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and ($attemptId.Length -eq 0 -or $_.CommandLine -like ('*--attempt-id*' + $attemptId + '*')) -and $_.ProcessId -ne $PID })`,
+    `$items = @($target | ForEach-Object { [pscustomobject]@{ processId = $_.ProcessId; commandLine = $_.CommandLine } })`,
+    `ConvertTo-Json -InputObject $items -Compress`,
   ].join("; ");
   const result = await startProcess(
     "powershell.exe",
@@ -600,7 +617,43 @@ export async function killKsqlFlowAttempt(attemptId, ksqlFlowCliPath) {
     { env: process.env },
   ).completion;
   assert.equal(result.exitCode, 0, result.stderr || result.stdout);
-  return Number(result.stdout.trim().split(/\r?\n/u).at(-1));
+  const output = result.stdout.trim();
+  return output === "" ? [] : JSON.parse(output);
+}
+
+export async function assertNoKsqlFlowScopeProcess(scope, ksqlFlowCliPath) {
+  const matches = await findKsqlFlowScopeProcesses(scope, ksqlFlowCliPath);
+  assert.deepEqual(
+    matches,
+    [],
+    `開始前に同一scopeのkSQL-Flowプロセスが残存しています: scope=${scope}; matches=${JSON.stringify(matches)}`,
+  );
+}
+
+export async function killKsqlFlowAttempt(attemptId, ksqlFlowCliPath, scope) {
+  const matches = await findKsqlFlowScopeProcesses(
+    scope,
+    ksqlFlowCliPath,
+    attemptId,
+  );
+  assert.equal(
+    matches.length,
+    1,
+    `expected one kSQL-Flow child containing cliPath=${resolve(ksqlFlowCliPath)} and scope=${scope}, found ${matches.length}; matches=${JSON.stringify(matches)}`,
+  );
+  const target = matches[0];
+  const result = await startProcess(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `Stop-Process -Id ${Number(target.processId)} -Force`,
+    ],
+    { env: process.env },
+  ).completion;
+  assert.equal(result.exitCode, 0, result.stderr || result.stdout);
+  return Number(target.processId);
 }
 
 function chunks(values, size) {
@@ -738,6 +791,50 @@ function summarizeError(error) {
     ...(error?.lockRecovery === undefined
       ? {}
       : { lockRecovery: error.lockRecovery }),
+    ...(error?.resumeDiagnostics === undefined
+      ? {}
+      : { resumeDiagnostics: error.resumeDiagnostics }),
+    ...(error?.lockConflictDiagnostics === undefined
+      ? {}
+      : { lockConflictDiagnostics: error.lockConflictDiagnostics }),
+  };
+}
+
+export function createM5Timing(now = () => new Date()) {
+  const events = {};
+  const eventMilliseconds = new Map();
+  const intervalsMs = {};
+  return {
+    mark(name) {
+      assert.equal(
+        events[name],
+        undefined,
+        `timing event '${name}' is duplicate`,
+      );
+      const value = now();
+      assert.ok(value instanceof Date && Number.isFinite(value.getTime()));
+      events[name] = value.toISOString();
+      eventMilliseconds.set(name, value.getTime());
+      return events[name];
+    },
+    measure(name, startEvent, endEvent) {
+      const start = eventMilliseconds.get(startEvent);
+      const end = eventMilliseconds.get(endEvent);
+      assert.notEqual(
+        start,
+        undefined,
+        `timing event '${startEvent}' is missing`,
+      );
+      assert.notEqual(end, undefined, `timing event '${endEvent}' is missing`);
+      intervalsMs[name] = Math.max(0, end - start);
+      return intervalsMs[name];
+    },
+    snapshot() {
+      return {
+        events: { ...events },
+        intervalsMs: { ...intervalsMs },
+      };
+    },
   };
 }
 
@@ -765,6 +862,8 @@ async function writeResult(path, result) {
 }
 
 export async function runM5(importMetaUrl, name, test, options = {}) {
+  const timing = createM5Timing();
+  timing.mark("testStartedAt");
   const scope = makeM5Scope(name);
   const resultPath = await allocateResultPath(importMetaUrl);
   const evidenceRef = pathToFileURL(resultPath).href;
@@ -778,12 +877,26 @@ export async function runM5(importMetaUrl, name, test, options = {}) {
       ...baseSettings,
       workdir: join(baseSettings.workdirBase, scope),
     };
-    detail = await test({ settings, scope, resultPath, evidenceRef });
+    timing.mark("scenarioStartedAt");
+    detail = await test({
+      settings,
+      scope,
+      resultPath,
+      evidenceRef,
+      timing,
+    });
+    timing.mark("scenarioFinishedAt");
+    timing.measure("scenarioMs", "scenarioStartedAt", "scenarioFinishedAt");
     passed = true;
   } catch (error) {
+    if (timing.snapshot().events.scenarioStartedAt !== undefined) {
+      timing.mark("scenarioFailedAt");
+      timing.measure("scenarioMs", "scenarioStartedAt", "scenarioFailedAt");
+    }
     detail = { error: summarizeError(error) };
   } finally {
     if (settings && options.selfCleanup !== false) {
+      timing.mark("cleanupStartedAt");
       try {
         cleanup = await cleanupM5Records(settings, scope);
       } catch (error) {
@@ -799,14 +912,19 @@ export async function runM5(importMetaUrl, name, test, options = {}) {
         };
         passed = false;
       }
+      timing.mark("cleanupFinishedAt");
+      timing.measure("cleanupMs", "cleanupStartedAt", "cleanupFinishedAt");
     }
   }
+  timing.mark("resultAssembledAt");
+  timing.measure("totalMs", "testStartedAt", "resultAssembledAt");
   const result = {
     test: name,
     passed,
     scope,
     observedAt: new Date().toISOString(),
     nodeVersion: process.version,
+    timing: timing.snapshot(),
     detail,
     cleanup,
   };

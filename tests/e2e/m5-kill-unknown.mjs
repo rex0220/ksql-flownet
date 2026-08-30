@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import {
+  assertNoKsqlFlowScopeProcess,
   byNode,
   killKsqlFlowAttempt,
   m5ConfirmedBy,
@@ -17,30 +18,22 @@ import {
 await runM5(
   import.meta.url,
   "kill-unknown",
-  async ({ settings, scope, evidenceRef }) => {
+  async ({ settings, scope, evidenceRef, timing }) => {
     const confirmedBy = m5ConfirmedBy();
     const fixture = await prepareNetwork(scope, "network-diamond.yaml", {
       longReadNodeId: "n1_customers",
     });
-    const networkStartedAt = new Date().toISOString();
-    const network = await startFlowNetNetwork(
-      settings,
-      fixture.networkPath,
-      scope,
-    );
-    const timingDiagnostics = {
-      standaloneStartedAt: null,
-      runningConfirmedAt: null,
-      networkStartedAt,
-      targetAttemptStartedAt: null,
-      targetAttemptObservedAt: null,
-      killedAt: null,
-    };
+    const ksqlFlowCliPath = resolveKsqlFlowCliPath(settings.ksqlFlowBinArgs);
+    let network;
     let killed = false;
     let detail;
     let testError;
     let lockRecovery;
     try {
+      await assertNoKsqlFlowScopeProcess(scope, ksqlFlowCliPath);
+      timing.mark("scopeProcessPrecheckFinishedAt");
+      timing.mark("networkStartedAt");
+      network = await startFlowNetNetwork(settings, fixture.networkPath, scope);
       const running = await waitForRunGraph(settings, scope, (graph) =>
         graph.attempts.some(
           ({ nodeId, status }) =>
@@ -50,21 +43,27 @@ await runM5(
       const attempt = running.attempts.find(
         ({ nodeId }) => nodeId === "n1_customers",
       );
-      timingDiagnostics.targetAttemptObservedAt = new Date().toISOString();
-      timingDiagnostics.targetAttemptStartedAt = attempt.executionStartedAt;
+      timing.mark("targetAttemptObservedAt");
       const runningLog = await waitForRunningJobLog(
         settings,
         attempt.attemptId,
       );
-      timingDiagnostics.runningConfirmedAt = new Date().toISOString();
-      const ksqlFlowCliPath = resolveKsqlFlowCliPath(settings.ksqlFlowBinArgs);
+      timing.mark("runningJobLogConfirmedAt");
       const killedPid = await killKsqlFlowAttempt(
         attempt.attemptId,
         ksqlFlowCliPath,
+        scope,
       );
-      timingDiagnostics.killedAt = new Date().toISOString();
+      timing.mark("childKilledAt");
+      timing.measure(
+        "attemptObservationToKillMs",
+        "targetAttemptObservedAt",
+        "childKilledAt",
+      );
       killed = true;
       const networkProcess = await network.completion;
+      timing.mark("networkFinishedAt");
+      timing.measure("networkMs", "networkStartedAt", "networkFinishedAt");
       assert.equal(networkProcess.exitCode, 1);
       const graph = await waitForRunGraph(
         settings,
@@ -93,13 +92,11 @@ await runM5(
         graph,
         networkId: fixture.networkId,
         ksqlFlowCliPath,
-        timingDiagnostics,
       };
     } catch (error) {
-      error.timingDiagnostics = timingDiagnostics;
       testError = error;
     } finally {
-      if (network.child.exitCode === null) network.child.kill("SIGKILL");
+      if (network?.child.exitCode === null) network.child.kill("SIGKILL");
       if (killed) {
         try {
           lockRecovery = await recoverM5JobLock(
