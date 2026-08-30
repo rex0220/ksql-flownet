@@ -124,6 +124,9 @@ function createKintoneFake({ loseFirstAttemptResponse = false } = {}) {
     }
     if (method === "PUT") {
       const records = recordsFor(body.app);
+      if (body.updateKey && Object.hasOwn(body.record, body.updateKey.field)) {
+        return response({ code: "CB_VA01" }, 400);
+      }
       const record = records.find(
         (candidate) => candidate.record_key.value === body.updateKey.value,
       );
@@ -198,6 +201,7 @@ test("app-design-2app.mdのrecord type別field mapを固定する", () => {
     "written_count",
     "last_successful_chunk_no",
     "last_written_key",
+    "state_revision_before",
   ]);
 });
 
@@ -250,6 +254,15 @@ test("kintone: Attempt INSERT成功応答消失は再GETで同一性を裁定す
   });
   assert.equal(attempt.value.node_attempt_id, "attempt_1");
   assert.equal(attempt.value.attempt_no, 1);
+  assert.equal(attempt.value.state_revision_before, state.revision);
+  const attemptPost = fake.calls.find(
+    ({ method, body }) =>
+      method === "POST" && body.record.record_type.value === "NODE_ATTEMPT",
+  );
+  assert.equal(
+    attemptPost.body.record.state_revision_before.value,
+    state.revision,
+  );
   assert.ok(
     fake.calls.some(
       ({ method, url }) =>

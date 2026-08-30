@@ -83,6 +83,7 @@ export const KINTONE_FIELD_MAP = {
     written_count: "written_count",
     last_successful_chunk_no: "last_successful_chunk_no",
     last_written_key: "last_written_key",
+    state_revision_before: "state_revision_before",
   },
   ATTEMPT_RESOLUTION: {
     record_key: "record_key",

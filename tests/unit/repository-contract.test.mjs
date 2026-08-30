@@ -71,6 +71,9 @@ function kintoneFetchFake() {
       return json({ id: String(appRecords.length), revision: "1" });
     }
     if (init.method === "PUT") {
+      if (body.updateKey && Object.hasOwn(body.record, body.updateKey.field)) {
+        return json({ code: "CB_VA01" }, 400);
+      }
       const record = records(body.app).find(
         (candidate) => candidate.record_key.value === body.updateKey.value,
       );
