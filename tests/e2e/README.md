@@ -1,0 +1,149 @@
+# M5 実機E2E
+
+M5完了ゲートの実機確認用fixtureと実行スクリプトです。スクリプトは実kSQL-Flowをsubprocess起動し、FlowNetのスパイク2アプリとJOBログアプリ4249を読み戻して状態・相関を判定します。実機実行は人間が行ってください。
+
+## 安全境界
+
+- `fixtures/**/*.sql` は `SELECT` / `ASSERT` / `CREATE TEMP TABLE` のみです。既存アプリに対する `INSERT` / `UPDATE` / `UPSERT` / `DELETE` はありません。
+- `LAPP_顧客管理`（4246）と`LAPP_案件管理`（4247）は読取専用です。
+- 書込みが発生するのは、kSQL-Flow自身のJOBログ（4249）と、FlowNet永続化用の`KSQL_SPIKE_APP_EXEC` / `KSQL_SPIKE_APP_AUDIT`だけです。
+- `m5-cleanup.mjs`はスパイク2アプリのM5試験レコードとM5ローカル作業ディレクトリだけを削除します。4249のレコードはkSQL-Flow所有の監査証跡なので削除しません。
+- スクリプトはOS環境を子プロセスへ継承します。`KSQL_TOKEN_DEALS` / `KSQL_TOKEN_CUSTOMERS` / `KSQL_TOKEN_LOGS`は既存のkSQL-Flow設定どおりに使用されます。結果JSONでは名前に`TOKEN` / `SECRET` / `PASSWORD`を含む環境変数値を秘匿化します。
+
+`job-longread.sql`はロック競合・kill試験用です。`$id`だけを投影して顧客管理と案件管理を各6回、合計12個のsource SELECTで読み、一時テーブルへ実体化します。最終集計とASSERT内のsubqueryを含めるとSELECT句は16個です。1 source SELECT約0.5秒という実機目安から5秒以上（目標約6秒）の競合窓を確保しつつ、読取専用かつkSQL-Flow profileの`maxReadRows` / `maxApiCalls`上限内で実行します。
+
+## 実行前提・注意
+
+- このリポジトリで`npm ci && npm run build`が完了していること。
+- kSQL-Flow v0.7.0（M1実装済み）が`C:\Users\rex02\Projects\ksql-flow`にあること。
+- configは`C:\Users\rex02\Projects\my-ksql-jobs\ksql.config.json`、profileは`prod`であること。
+- 4249へ相関フィールド（`correlation_id` / `attempt_id` / `execution_id` / `job_id` / `runner_execution_started_at`）が適用済みであること。
+- PowerShellから実行すること。`m5-kill-unknown.mjs`は`Get-CimInstance Win32_Process`で対象`--attempt-id`を持つkSQL-Flow子プロセスを1件に限定してkillします。
+- VPSでは`poll_control` cronが5分間隔で稼働しています。ポーラーは`rerun_request`がチェックされたレコードだけをclaimします。M5 E2Eとcleanupは4249の`rerun_request`を参照・変更せず、試験レコードでも手動操作しないでください。
+- ジョブ論理名はすべて`m5_`プレフィックスの専用名です。既存運用ジョブ名へ変更しないでください。
+- kSQL-Flowは分散ロックの前に`process.cwd()`単位の`.ksql/lock-<profile>.json`を取得します。競合試験の2プロセスを同一cwdで起動するとローカルロック衝突（同じExit 5）となり、分散ロック裁定へ到達しません。`m5-lock-conflict.mjs`はFlowNet CLIをリポジトリroot、standalone holderをscope専用cwdから起動し、起動前assertでも両者の相違を保証します。
+- `m5-lock-conflict.mjs`はstandalone holderの4249 JOBログについて、`job_id = m5_shared_read`かつ対象`attempt_id`の`RUNNING`をポーリング確認した後にだけnetworkを起動します。
+- kill後に4249のRUNNINGが残ると、`prod:m5_shared_read`の`job_key`が最大3600秒ブロックされます。`m5-kill-unknown.mjs`はまず`inspect-lock`で照会し、残留時だけ`force-unlock-job --job-key prod:m5_shared_read --reason "M5 kill試験の後始末" --confirmed-by <実行者> --evidence-ref <結果JSONのfile URI> --json`を呼びます。4249を直接編集・削除してはいけません。
+- kill試験の実行者名は`--confirmed-by <実行者>`または`M5_FORCE_UNLOCK_CONFIRMED_BY`で必ず指定してください。`LOCK_INSPECTION_RESULT`と、解除を実行した場合の`LOCK_RECOVERY_RESULT`は試験結果JSONへ保存されます。
+- 4249への書込みはkSQL-Flowだけが行います。FlowNet/E2Eは`KSQL_TOKEN_LOGS_RO`による読取りだけで、4249へのPOST / PUT / DELETEを行いません。4249のM5レコードは削除せず、`m5_`ジョブ名と`correlation_id`（networkはFlowNet `run_id`、standaloneは`<M5 scope>_holder`）で識別して監査証跡として保持します。
+
+必須環境変数は次のとおりです。
+
+| 変数                     | 値・用途                                                |
+| ------------------------ | ------------------------------------------------------- |
+| `KSQL_SPIKE_BASE_URL`    | `https://devenxyfi.cybozu.com`                          |
+| `KSQL_SPIKE_APP_EXEC`    | FlowNet state用スパイクアプリID（4246/4247/4249は禁止） |
+| `KSQL_SPIKE_APP_AUDIT`   | FlowNet audit用スパイクアプリID（EXECとは別）           |
+| `KSQL_SPIKE_TOKEN_EXEC`  | EXECアプリ書込トークン                                  |
+| `KSQL_SPIKE_TOKEN_AUDIT` | AUDITアプリ書込トークン                                 |
+| `KSQL_TOKEN_DEALS`       | kSQL-Flowが案件管理4247を読むOS環境変数                 |
+| `KSQL_TOKEN_CUSTOMERS`   | kSQL-Flowが顧客管理4246を読むOS環境変数                 |
+| `KSQL_TOKEN_LOGS`        | kSQL-FlowがJOBログ4249へ書くOS環境変数                  |
+| `KSQL_TOKEN_LOGS_RO`     | FlowNet/E2Eが4249の開始マーカー・相関を読むトークン     |
+| `KSQL_FLOW_LOG_APP_ID`   | `4249`（省略時も4249。別IDは拒否）                      |
+| `KSQL_FLOW_BIN`          | 引数なしで起動できるkSQL-Flow実行ファイル（下記参照）   |
+
+任意環境変数です。
+
+| 変数                           | 既定値                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `KSQL_FLOW_CONFIG`             | `C:\Users\rex02\Projects\my-ksql-jobs\ksql.config.json`                |
+| `KSQL_FLOWNET_PROFILE`         | `prod`                                                                 |
+| `KSQL_FLOW_WORKDIR`            | `%TEMP%\ksql-flownet-m5-work`（この下に試験scope別ディレクトリを作成） |
+| `M5_FORCE_UNLOCK_CONFIRMED_BY` | kill後のforce-unlockを確認した実行者（`--confirmed-by`指定時は省略可） |
+
+### KSQL_FLOW_BINの設定
+
+配布exeを使う実機E2Eの設定値は次です。
+
+```powershell
+$env:KSQL_FLOW_BIN = 'C:\Users\rex02\Projects\ksql-flow\dist-bin\ksql-flow.exe'
+```
+
+Node版CLIそのものの起動コマンドは次です。
+
+```powershell
+node C:\Users\rex02\Projects\ksql-flow\dist\cli.js
+```
+
+ただし、現行FlowNetの`KSQL_FLOW_BIN`契約は「実行ファイルパス1個」で、prefix引数を保持しません。そのため、次の値はそのままでは使用できません。
+
+```powershell
+# 現行FlowNetでは使用不可（nodeとCLIパスを1変数へ入れても1実行ファイル名として扱われる）
+$env:KSQL_FLOW_BIN = 'node C:\Users\rex02\Projects\ksql-flow\dist\cli.js'
+```
+
+Node版を使う場合も、引数を透過するネイティブ実行形式のlauncherを用意し、そのlauncherの絶対パスを`KSQL_FLOW_BIN`へ設定する必要があります。Windowsの`.cmd`はFlowNetが`spawn(..., { shell: false })`で起動するため使用できません。本E2Eでは確定済みの`dist-bin\ksql-flow.exe`案を使用してください。
+
+## fixture
+
+| fixture                | DAG                                         | 用途                                       |
+| ---------------------- | ------------------------------------------- | ------------------------------------------ |
+| `network-success.yaml` | `n1_extract -> n2_aggregate -> n3_finalize` | 直列SUCCESS・相関・時刻非重複              |
+| `network-midfail.yaml` | `n1_extract -> n2_fail -> n3_finalize`      | 中央の決定的`ASSERT_FAILED`と下流`BLOCKED` |
+| `network-diamond.yaml` | `n1_customers`, `n2_deals` -> `n3_join`     | 複数開始点・分岐合流、独立系統継続         |
+| `job-longread.sql`     | standaloneまたはdiamondのn1へ差替え         | Node lock保持、開始マーカー後kill          |
+
+全networkは`business_key_policy.type: explicit`、lease 60秒 / heartbeat 15秒（heartbeatはleaseの1/3以下）です。`job-longread.sql`と各networkのn1は同じ`job_id: m5_shared_read`を持ち、`node_id != job_id`を明示的に通します。
+
+## 実行順
+
+先にfixtureのFlowNet構造検証を行います。これはkSQL-Flowを起動せず、YAML/DAG/SQLファイル存在だけを検証します。
+
+```powershell
+node dist\cli\index.js validate tests\e2e\fixtures\network-success.yaml
+node dist\cli\index.js validate tests\e2e\fixtures\network-midfail.yaml
+node dist\cli\index.js validate tests\e2e\fixtures\network-diamond.yaml
+```
+
+SQLの実機`validate`は実行担当者が、上記環境変数を設定後に次の形で各SQLへ実施してください（準備実装では実機接続を行いません）。
+
+```powershell
+& $env:KSQL_FLOW_BIN validate -f tests\e2e\fixtures\jobs\success-n1-extract.sql --profile prod --config C:\Users\rex02\Projects\my-ksql-jobs\ksql.config.json
+```
+
+E2Eは競合を避けるため必ず直列に実行します。kill試験だけは実行者確認値を渡します。
+
+```powershell
+node tests\e2e\m5-serial-success.mjs
+node tests\e2e\m5-mid-failure.mjs
+node tests\e2e\m5-resume.mjs
+node tests\e2e\m5-lock-conflict.mjs
+node tests\e2e\m5-kill-unknown.mjs --confirmed-by $env:USERNAME
+node tests\e2e\m5-cleanup.mjs
+```
+
+各スクリプトは`tests/e2e/results/<timestamp>-<script>.json`へ秘匿済み結果を保存します。通常は各シナリオが自己清掃します。異常終了で残った場合は最後に`m5-cleanup.mjs`を実行してください。
+
+## M5ゲート対応
+
+| 受入             | スクリプト              | 実測する内容                                                                                                             |
+| ---------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 1                | `m5-mid-failure.mjs`    | n2=`FAILED / ASSERT_FAILED`、n3=`BLOCKED`、Run=`FAILED`                                                                  |
+| 2・3・4          | `m5-resume.mjs`         | 同一RunのRESUME、n1 preserved（Attempt追加なし）、冪等n2のattempt_no=2再失敗、n3再評価                                   |
+| 直列SUCCESS      | `m5-serial-success.mjs` | 3 Node/Attempt SUCCESS、Run/Invocation SUCCESS、Attempt時刻非重複                                                        |
+| JOBログ相関      | `m5-serial-success.mjs` | 4249のcorrelation/attempt/execution/job IDとFlowNet Attemptの一致                                                        |
+| 複数開始点・合流 | `network-diamond.yaml`  | n1/n2独立開始、n3が両方へ依存                                                                                            |
+| 10・24           | `m5-lock-conflict.mjs`  | standalone RUNNING確認後、同job_idのn1を`CANCELLED / PREPARE_FAILED`、Stateを`WAITING`、attempt番号保持。独立n2はSUCCESS |
+| 23相当           | `m5-kill-unknown.mjs`   | 4249の耐久開始マーカー確認後に子プロセスkill。n1 Attempt/State=`UNKNOWN`、独立n2継続、n3 BLOCKED、Run=`UNKNOWN`          |
+
+## 4249の識別と清掃
+
+試験レコードは次で識別できます。
+
+- FlowNetスパイク2アプリ: `business_key`または動的`network_id`が`M5`で始まる。関連するNode State / Attempt / Invocationは同じ`run_id`で追跡する。
+- 4249: network実行は`correlation_id = FlowNet run_id`、`attempt_id = FlowNet node_attempt_id`。standalone lock holderは`correlation_id = <M5 scope>_holder`、`attempt_id = <M5 scope>_standalone`。
+- ローカル: `KSQL_FLOW_WORKDIR`配下のディレクトリ名が`M5`で始まる。
+
+`m5-cleanup.mjs`は上記FlowNetレコード、Network lock、ローカル作業ディレクトリを削除します。4249は読取専用トークンで照合し、削除APIを呼びません。4249に残るM5 JOBログは監査証跡として保持してください。
+
+## SQL文法の根拠
+
+- `C:\Users\rex02\Projects\ksql-flow\docs\ksql_flow_spec.md` 3.1〜3.3: dialect 1ヘッダ、`SELECT COUNT(*)`、`ASSERT (<scalar subquery>) <comparison>, 'message'`。
+- 同仕様 3.2: ASSERT違反はABORTED / Exit 2。M1 execution contractではFlowNet向けresultCodeが`ASSERT_FAILED`。
+- `C:\Users\rex02\Projects\ksql-flow\examples\jobs\01_sync_master_customers.sql` / `02_monthly_sales_sync.sql`: 3ヘッダ、LAPP参照、COUNT scalar subquery、ASSERTの公式例。
+- `C:\Users\rex02\Projects\kintone-sql-tools\src\flow-library\__tests__\previewStatement.test.ts`: `ASSERT (SELECT 1) = 1, 'ok'`のdialect 1実装例。本fixtureは比較値を0にして決定的失敗にする。
+- `C:\Users\rex02\Projects\kintone-sql-tools\src\cli\__tests__\b168_dialect1.e2e.test.ts`: `CREATE TEMP TABLE ... AS SELECT`と後続ASSERTのdialect 1 E2E例。
+- `C:\Users\rex02\Projects\kintone-sql-tools\src\__tests__\b105UnionCountTotalCount.test.ts`: 複数アプリの`COUNT(*) ... UNION ALL`実装例。
+
+これらは文法根拠の机上確認です。実kSQL-Flowの`validate`と本実行結果は、実行担当者のゲート結果として別途保存してください。
