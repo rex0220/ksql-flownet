@@ -1,0 +1,232 @@
+{
+  "test": "nonidem-no-auto-rerun",
+  "passed": true,
+  "scope": "M6260830140948_8e1f_nonidem-no-auto-rerun",
+  "observedAt": "2026-08-30T14:10:44.352Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T14:09:48.795Z",
+      "scenarioStartedAt": "2026-08-30T14:09:48.802Z",
+      "scenarioFinishedAt": "2026-08-30T14:10:42.480Z",
+      "cleanupStartedAt": "2026-08-30T14:10:42.480Z",
+      "cleanupFinishedAt": "2026-08-30T14:10:44.352Z",
+      "resultAssembledAt": "2026-08-30T14:10:44.352Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 53678,
+      "cleanupMs": 1872,
+      "totalMs": 55557
+    }
+  },
+  "detail": {
+    "networkId": "M6260830140948_8e1f_nonidem-no-auto-rerun_nonidem",
+    "initialProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "NEW: Run netrun_34eeefc0-a59b-40f5-8187-3612b56a97bc finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+      "stderr": ""
+    },
+    "automaticResumeProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "RESUME: Run netrun_34eeefc0-a59b-40f5-8187-3612b56a97bc finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+      "stderr": ""
+    },
+    "rejectedResolutionProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "Error [DISTINCT_APPROVER_REQUIRED]: non-idempotent SUCCESS requires an approved_by distinct from requested_by and service_principal\n"
+    },
+    "acceptedResolutionProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "RESOLVED: netrun_34eeefc0-a59b-40f5-8187-3612b56a97bc/n2_nonidem -> SUCCESS (revision 4).\n",
+      "stderr": ""
+    },
+    "completedProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "RESUME: Run netrun_34eeefc0-a59b-40f5-8187-3612b56a97bc finished with aggregate SUCCESS (OK).\n",
+      "stderr": ""
+    },
+    "resolutions": [
+      {
+        "recordId": 311,
+        "attemptId": "attempt_1bd54589-96e1-42fd-bf23-8e8bc0728ce7",
+        "eventType": "ATTEMPT_RESOLVED",
+        "resolutionType": "NODE_MANUAL_COMPLETION_CONFIRMED",
+        "resolvedOutcome": "SUCCESS",
+        "reason": "M6 E2E operator verified the non-idempotent work was completed manually.",
+        "evidenceRef": "file:///C:/Users/rex02/Projects/ksql-flownet/tests/e2e/results/2026-08-30T14-09-48.801Z-m6-03-nonidem-no-auto-rerun.json",
+        "servicePrincipal": "m6-e2e-service",
+        "requestedBy": "m6-e2e-requester",
+        "approvedBy": "m6-e2e-independent-approver",
+        "stopConfirmedBy": "m6-e2e-operator",
+        "stopEvidenceRef": "file:///C:/Users/rex02/Projects/ksql-flownet/tests/e2e/results/2026-08-30T14-09-48.801Z-m6-03-nonidem-no-auto-rerun.json",
+        "resolvedAt": "2026-08-30T14:10:00Z"
+      }
+    ],
+    "finalGraph": {
+      "run": {
+        "recordKey": "R1:IGWPiYbrfthXWyEObxWgnBwyJDOn9dkIatIwRO2oDd0",
+        "runId": "netrun_34eeefc0-a59b-40f5-8187-3612b56a97bc",
+        "networkId": "M6260830140948_8e1f_nonidem-no-auto-rerun_nonidem",
+        "businessKey": "M6260830140948_8e1f_nonidem-no-auto-rerun",
+        "status": "SUCCESS",
+        "asOf": "",
+        "startedAt": "2026-08-30T14:09:00Z",
+        "finishedAt": "2026-08-30T14:10:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_read",
+          "jobId": "m6_read_customers",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T14:09:00Z",
+          "finishedAt": "2026-08-30T14:10:00Z"
+        },
+        {
+          "nodeId": "n2_nonidem",
+          "jobId": "m6_nonidem_sql_error",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "NODE_MANUAL_COMPLETION_CONFIRMED",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T14:10:00Z",
+          "finishedAt": "2026-08-30T14:10:00Z"
+        },
+        {
+          "nodeId": "n3_finalize",
+          "jobId": "m6_read_deals",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T14:10:00Z",
+          "finishedAt": "2026-08-30T14:10:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 308,
+          "attemptId": "attempt_0a6ac7f0-bdba-47eb-a75c-7f99202ef447",
+          "nodeId": "n1_read",
+          "jobId": "m6_read_customers",
+          "invocationId": "invoke_f5e7cf84-ed17-4f2c-8306-188d459e69ec",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T14:09:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T14:10:00Z",
+          "executionId": "7791afea-4aef-4c38-ab5a-094e4fd401d9",
+          "finishedAt": "2026-08-30T14:10:00Z",
+          "readCount": 11,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 309,
+          "attemptId": "attempt_1bd54589-96e1-42fd-bf23-8e8bc0728ce7",
+          "nodeId": "n2_nonidem",
+          "jobId": "m6_nonidem_sql_error",
+          "invocationId": "invoke_f5e7cf84-ed17-4f2c-8306-188d459e69ec",
+          "attemptNo": 1,
+          "status": "FAILED",
+          "resultCode": "ASSERT_FAILED",
+          "executionStartedAt": "2026-08-30T14:10:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T14:10:00Z",
+          "executionId": "acad7299-f3d5-4162-b0ad-2146c63b77fd",
+          "finishedAt": "2026-08-30T14:10:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 313,
+          "attemptId": "attempt_51bdf762-5f0f-40ea-b0bb-2384d8548194",
+          "nodeId": "n3_finalize",
+          "jobId": "m6_read_deals",
+          "invocationId": "invoke_082c9e69-58ed-44d7-a24b-5c3288fa8dc1",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T14:10:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T14:10:00Z",
+          "executionId": "056b303e-99d0-418d-910d-6d92f9e33624",
+          "finishedAt": "2026-08-30T14:10:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 307,
+          "invocationId": "invoke_f5e7cf84-ed17-4f2c-8306-188d459e69ec",
+          "mode": "NEW",
+          "status": "FAILED",
+          "resultCode": "NODE_FAILED_OR_BLOCKED",
+          "selectedNodeIds": [
+            "n1_read",
+            "n2_nonidem"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [
+            "n3_finalize"
+          ],
+          "startedAt": "2026-08-30T14:09:00Z",
+          "finishedAt": "2026-08-30T14:10:00Z"
+        },
+        {
+          "recordId": 310,
+          "invocationId": "invoke_c5f51fa1-cfae-423f-9a94-67c484c55481",
+          "mode": "RESUME",
+          "status": "FAILED",
+          "resultCode": "NODE_FAILED_OR_BLOCKED",
+          "selectedNodeIds": [],
+          "preservedNodeIds": [
+            "n1_read"
+          ],
+          "blockedNodeIds": [
+            "n2_nonidem",
+            "n3_finalize"
+          ],
+          "startedAt": "2026-08-30T14:10:00Z",
+          "finishedAt": "2026-08-30T14:10:00Z"
+        },
+        {
+          "recordId": 312,
+          "invocationId": "invoke_082c9e69-58ed-44d7-a24b-5c3288fa8dc1",
+          "mode": "RESUME",
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "selectedNodeIds": [
+            "n3_finalize"
+          ],
+          "preservedNodeIds": [
+            "n1_read",
+            "n2_nonidem"
+          ],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T14:10:00Z",
+          "finishedAt": "2026-08-30T14:10:00Z"
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "prefix": "M6260830140948_8e1f_nonidem-no-auto-rerun",
+    "runIds": [
+      "netrun_34eeefc0-a59b-40f5-8187-3612b56a97bc"
+    ],
+    "networkIds": [
+      "M6260830140948_8e1f_nonidem-no-auto-rerun_nonidem"
+    ],
+    "state": 4,
+    "audit": 6,
+    "total": 10
+  }
+}

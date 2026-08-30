@@ -1,0 +1,28 @@
+schema_version: 1
+network_id: m6_midfail
+description: M6 resume identity fixture with deterministic middle-node failure
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 60
+  heartbeat_interval_sec: 15
+nodes:
+  - id: n1_extract
+    job_id: m6_read_customers
+    sql: jobs/m6-read-customers.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n2_fail
+    job_id: m6_assert_fail
+    sql: jobs/m6-assert-fail.sql
+    depends_on: [n1_extract]
+    trigger_rule: all_success
+    idempotent: true
+  - id: n3_finalize
+    job_id: m6_read_deals
+    sql: jobs/m6-read-deals.sql
+    depends_on: [n2_fail]
+    trigger_rule: all_success
+    idempotent: true

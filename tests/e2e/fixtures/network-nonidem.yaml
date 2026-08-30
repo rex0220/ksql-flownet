@@ -1,0 +1,28 @@
+schema_version: 1
+network_id: m6_nonidem
+description: M6 non-idempotent failed-node recovery fixture
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 60
+  heartbeat_interval_sec: 15
+nodes:
+  - id: n1_read
+    job_id: m6_read_customers
+    sql: jobs/m6-read-customers.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n2_nonidem
+    job_id: m6_nonidem_sql_error
+    sql: jobs/m6-nonidem-sql-error.sql
+    depends_on: [n1_read]
+    trigger_rule: all_success
+    idempotent: false
+  - id: n3_finalize
+    job_id: m6_read_deals
+    sql: jobs/m6-read-deals.sql
+    depends_on: [n2_nonidem]
+    trigger_rule: all_success
+    idempotent: true
