@@ -96,6 +96,52 @@ nodes:
   return { directory, networkPath };
 }
 
+function rerunFixture(context, childIdempotent = true) {
+  const directory = mkdtempSync(join(tmpdir(), "ksql-flownet-rerun-"));
+  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  mkdirSync(join(directory, "jobs"));
+  for (const id of ["upstream", "selected", "child", "sibling"])
+    writeFileSync(join(directory, "jobs", `${id}.sql`), "SELECT 1;\n");
+  const networkPath = join(directory, "network.yaml");
+  writeFileSync(
+    networkPath,
+    `schema_version: 1
+network_id: net
+business_key_policy:
+  type: explicit
+network_lock:
+  lease_duration_sec: 3
+  heartbeat_interval_sec: 1
+nodes:
+  - id: upstream
+    job_id: job_upstream
+    sql: jobs/upstream.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: selected
+    job_id: job_selected
+    sql: jobs/selected.sql
+    depends_on: [upstream]
+    trigger_rule: all_success
+    idempotent: true
+  - id: child
+    job_id: job_child
+    sql: jobs/child.sql
+    depends_on: [selected]
+    trigger_rule: all_success
+    idempotent: ${String(childIdempotent)}
+  - id: sibling
+    job_id: job_sibling
+    sql: jobs/sibling.sql
+    depends_on: [upstream]
+    trigger_rule: all_success
+    idempotent: true
+`,
+  );
+  return { networkPath };
+}
+
 class CapturingRepository extends InMemoryPersistenceRepository {
   events;
   finalized = [];
@@ -136,9 +182,13 @@ function harness(repository = new CapturingRepository(), overrides = {}) {
       events.push("profile");
       return overrides.profile ?? description();
     },
-    async inspectJob() {
+    async inspectJob(sqlPath) {
       events.push("inspect");
-      return inspection();
+      const jobId = `job_${sqlPath
+        .split(/[\\/]/u)
+        .at(-1)
+        .replace(/\.sql$/u, "")}`;
+      return overrides.inspection?.(sqlPath) ?? inspection(jobId);
     },
   };
   const bundleStore = {
@@ -175,6 +225,23 @@ function input(networkPath, h, overrides = {}) {
     })(),
     ...overrides,
   };
+}
+
+async function setNodeStatus(repository, runId, nodeId, status) {
+  let state = (await repository.getNodeStates(runId)).find(
+    ({ value }) => value.node_id === nodeId,
+  );
+  if (state.value.status === status) return;
+  if (state.value.status !== "RUNNING") {
+    state = await repository.upsertNodeState({
+      expected_revision: state.revision,
+      value: { ...state.value, status: "RUNNING" },
+    });
+  }
+  await repository.upsertNodeState({
+    expected_revision: state.revision,
+    value: { ...state.value, status },
+  });
 }
 
 test("D-02 0件NEW: capability後にlockを取り、その後だけ検索・作成する", async (context) => {
@@ -428,4 +495,156 @@ test("capability不一致ではNetwork lockを取得しない", async (context) 
   });
   await assert.rejects(ensureRun(input(networkPath, h)), /not supported/);
   assert.ok(!h.events.includes("lock"));
+});
+
+test("--rerun-fromは指定ノードと子孫だけをWAITINGへ戻しmodeと対象集合を記録する", async (context) => {
+  const { networkPath } = rerunFixture(context);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  for (const id of ["upstream", "selected", "sibling"])
+    await setNodeStatus(h.repository, created.run.value.run_id, id, "SUCCESS");
+  await setNodeStatus(
+    h.repository,
+    created.run.value.run_id,
+    "child",
+    "FAILED",
+  );
+  const current = await h.repository.getRun(created.run.value.run_id);
+  await h.repository.updateRunAggregate(
+    current.value.run_id,
+    current.revision,
+    {
+      status: "FAILED",
+      started_at: T0,
+      finished_at: T0,
+      updated_at: T0,
+    },
+  );
+
+  const result = await ensureRun(
+    input(networkPath, h, {
+      businessKey: undefined,
+      resumeRunId: current.value.run_id,
+      rerunFrom: "selected",
+    }),
+  );
+  assert.equal(result.invocation.value.mode, "RERUN_FROM");
+  assert.deepEqual(result.invocation.value.selected_node_ids, [
+    "selected",
+    "child",
+  ]);
+  const statuses = Object.fromEntries(
+    (await h.repository.getNodeStates(current.value.run_id)).map(
+      ({ value }) => [value.node_id, value.status],
+    ),
+  );
+  assert.deepEqual(statuses, {
+    upstream: "SUCCESS",
+    selected: "WAITING",
+    child: "WAITING",
+    sibling: "SUCCESS",
+  });
+  await result.close({ status: "CANCELLED", resultCode: "TEST_DONE" });
+});
+
+test("--rerun-fromは終端SUCCESS Runをcorrection案内付き安定codeで拒否する", async (context) => {
+  const { networkPath } = rerunFixture(context);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  for (const id of ["upstream", "selected", "child", "sibling"])
+    await setNodeStatus(h.repository, created.run.value.run_id, id, "SUCCESS");
+  let current = await h.repository.getRun(created.run.value.run_id);
+  current = await h.repository.updateRunAggregate(
+    current.value.run_id,
+    current.revision,
+    { status: "SUCCESS", started_at: T0, finished_at: T0, updated_at: T0 },
+  );
+  const before = await h.repository.getNodeStates(current.value.run_id);
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, {
+        businessKey: undefined,
+        resumeRunId: current.value.run_id,
+        rerunFrom: "selected",
+      }),
+    ),
+    (error) => {
+      assert.equal(error.code, "RERUN_FROM_SUCCESS_RUN");
+      assert.match(error.message, /correction business key/);
+      return true;
+    },
+  );
+  assert.deepEqual(
+    await h.repository.getNodeStates(current.value.run_id),
+    before,
+  );
+});
+
+test("--rerun-fromはノード不在を安定codeで拒否する", async (context) => {
+  const { networkPath } = rerunFixture(context);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, {
+        businessKey: undefined,
+        resumeRunId: created.run.value.run_id,
+        rerunFrom: "missing",
+      }),
+    ),
+    (error) => error.code === "RERUN_FROM_NODE_NOT_FOUND",
+  );
+});
+
+test("--rerun-fromは対象内UNKNOWNを状態変更せず安定codeで拒否する", async (context) => {
+  const { networkPath } = rerunFixture(context);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  await setNodeStatus(
+    h.repository,
+    created.run.value.run_id,
+    "child",
+    "UNKNOWN",
+  );
+  const before = await h.repository.getNodeStates(created.run.value.run_id);
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, {
+        businessKey: undefined,
+        resumeRunId: created.run.value.run_id,
+        rerunFrom: "selected",
+      }),
+    ),
+    (error) => error.code === "RERUN_FROM_UNKNOWN_STATE",
+  );
+  assert.deepEqual(
+    await h.repository.getNodeStates(created.run.value.run_id),
+    before,
+  );
+});
+
+test("--rerun-fromは対象内idempotent=falseを状態変更せず安定codeで拒否する", async (context) => {
+  const { networkPath } = rerunFixture(context, false);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  const before = await h.repository.getNodeStates(created.run.value.run_id);
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, {
+        businessKey: undefined,
+        resumeRunId: created.run.value.run_id,
+        rerunFrom: "selected",
+      }),
+    ),
+    (error) => error.code === "RERUN_FROM_NON_IDEMPOTENT",
+  );
+  assert.deepEqual(
+    await h.repository.getNodeStates(created.run.value.run_id),
+    before,
+  );
 });

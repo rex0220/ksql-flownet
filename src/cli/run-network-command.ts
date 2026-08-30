@@ -33,6 +33,7 @@ interface RunNetworkArguments {
   readonly businessKey?: string;
   readonly resume: boolean;
   readonly resumeRunId?: string;
+  readonly rerunFrom?: string;
   readonly ksqlFlowBin?: string;
   readonly ksqlFlowConfig?: string;
   readonly ksqlFlowWorkdir?: string;
@@ -84,6 +85,9 @@ export async function runRunNetworkCommand(
       ...(parsed.resumeRunId === undefined
         ? {}
         : { resumeRunId: parsed.resumeRunId }),
+      ...(parsed.rerunFrom === undefined
+        ? {}
+        : { rerunFrom: parsed.rerunFrom }),
     });
     if (result.outcome === "NOOP") {
       process.stdout.write(
@@ -116,6 +120,7 @@ function parseRunNetworkArguments(
   let scheduledFor: string | undefined;
   let businessKey: string | undefined;
   let resumeRunId: string | undefined;
+  let rerunFrom: string | undefined;
   let ksqlFlowBin: string | undefined;
   let ksqlFlowConfig: string | undefined;
   let ksqlFlowWorkdir: string | undefined;
@@ -132,6 +137,7 @@ function parseRunNetworkArguments(
       argument === "--scheduled-for" ||
       argument === "--business-key" ||
       argument === "--resume-run" ||
+      argument === "--rerun-from" ||
       argument === "--ksql-flow-bin" ||
       argument === "--ksql-flow-config" ||
       argument === "--ksql-flow-workdir"
@@ -153,6 +159,10 @@ function parseRunNetworkArguments(
         if (resumeRunId !== undefined)
           errors.push(`${argument} was specified more than once`);
         resumeRunId = value;
+      } else if (argument === "--rerun-from") {
+        if (rerunFrom !== undefined)
+          errors.push(`${argument} was specified more than once`);
+        rerunFrom = value;
       } else if (argument === "--ksql-flow-bin") {
         if (ksqlFlowBin !== undefined)
           errors.push(`${argument} was specified more than once`);
@@ -183,6 +193,9 @@ function parseRunNetworkArguments(
       "--resume-run must not be combined with --resume, --scheduled-for, or --business-key",
     );
   }
+  if (rerunFrom !== undefined && resumeRunId === undefined && !resume) {
+    errors.push("--rerun-from requires --resume-run or --resume");
+  }
   return {
     resume,
     errors,
@@ -190,6 +203,7 @@ function parseRunNetworkArguments(
     ...(scheduledFor === undefined ? {} : { scheduledFor }),
     ...(businessKey === undefined ? {} : { businessKey }),
     ...(resumeRunId === undefined ? {} : { resumeRunId }),
+    ...(rerunFrom === undefined ? {} : { rerunFrom }),
     ...(ksqlFlowBin === undefined ? {} : { ksqlFlowBin }),
     ...(ksqlFlowConfig === undefined ? {} : { ksqlFlowConfig }),
     ...(ksqlFlowWorkdir === undefined ? {} : { ksqlFlowWorkdir }),

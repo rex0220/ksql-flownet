@@ -117,7 +117,7 @@ Commands:
   plan <network> [--scheduled-for <timestamp>] [--business-key <key>]
                       display the business key and stable execution plan (read-only)
   run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
-                        [--resume] [--resume-run <run_id>]
+                        [--resume] [--resume-run <run_id>] [--rerun-from <node_id>]
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
@@ -214,6 +214,53 @@ test("run-network --resume-run is exclusive and NO-OP exits 0", async (context) 
   );
   assert.equal(received.resumeRunId, "run-1");
   assert.match(stdout.join(""), /already SUCCESS/);
+});
+
+test("run-networkは--rerun-fromをresume経路だけで受理してensure-runへ渡す", async (context) => {
+  const stderr = [];
+  context.mock.method(process.stderr, "write", (value) => {
+    stderr.push(String(value));
+    return true;
+  });
+  assert.equal(
+    await runRunNetworkCommand(["network.yaml", "--rerun-from", "child"], {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        throw new Error("must not be called");
+      },
+    }),
+    1,
+  );
+  assert.match(stderr.join(""), /requires --resume-run or --resume/);
+
+  let received;
+  await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-1", "--rerun-from", "child"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke(value) {
+        received = value;
+        return {
+          outcome: "RESUME",
+          run: { value: { run_id: "run-1" } },
+          invocation: { value: { invocation_id: "invoke-1" } },
+          blockedBy: [],
+          businessKey: "net@one",
+          bundleBytes: Buffer.from("bundle"),
+          async close() {},
+        };
+      },
+      async schedule() {
+        return { aggregateStatus: "SUCCESS", invocationResultCode: "OK" };
+      },
+    },
+  );
+  assert.equal(received.resumeRunId, "run-1");
+  assert.equal(received.rerunFrom, "child");
 });
 
 test("run-network reports max_active_runs blockers and exits 1", async (context) => {
