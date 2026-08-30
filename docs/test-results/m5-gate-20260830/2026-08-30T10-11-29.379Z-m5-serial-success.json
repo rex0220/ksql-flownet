@@ -1,0 +1,193 @@
+{
+  "test": "serial-success",
+  "passed": true,
+  "scope": "M5260830101129_dcc3_serial-success",
+  "observedAt": "2026-08-30T10:11:48.851Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T10:11:29.375Z",
+      "scenarioStartedAt": "2026-08-30T10:11:29.380Z",
+      "scenarioFinishedAt": "2026-08-30T10:11:47.771Z",
+      "cleanupStartedAt": "2026-08-30T10:11:47.772Z",
+      "cleanupFinishedAt": "2026-08-30T10:11:48.851Z",
+      "resultAssembledAt": "2026-08-30T10:11:48.851Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 18391,
+      "cleanupMs": 1079,
+      "totalMs": 19476
+    }
+  },
+  "detail": {
+    "process": {
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "NEW: Run netrun_514e9327-52cc-456b-a079-f9f74975252b finished with aggregate SUCCESS (OK).\n",
+      "stderr": ""
+    },
+    "graph": {
+      "run": {
+        "recordKey": "R1:9meiMj5e-QhFJD2TeqUYgwbiAcdG-56-nfJCsWu1wn4",
+        "runId": "netrun_514e9327-52cc-456b-a079-f9f74975252b",
+        "networkId": "M5260830101129_dcc3_serial-success_success",
+        "businessKey": "M5260830101129_dcc3_serial-success",
+        "status": "SUCCESS",
+        "asOf": "",
+        "startedAt": "2026-08-30T10:11:00Z",
+        "finishedAt": "2026-08-30T10:11:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_extract",
+          "jobId": "m5_shared_read",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T10:11:00Z",
+          "finishedAt": "2026-08-30T10:11:00Z"
+        },
+        {
+          "nodeId": "n2_aggregate",
+          "jobId": "m5_success_aggregate",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T10:11:00Z",
+          "finishedAt": "2026-08-30T10:11:00Z"
+        },
+        {
+          "nodeId": "n3_finalize",
+          "jobId": "m5_success_finalize",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T10:11:00Z",
+          "finishedAt": "2026-08-30T10:11:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 177,
+          "attemptId": "attempt_69a57d51-80f3-44b7-a747-f52f1621fda3",
+          "nodeId": "n1_extract",
+          "jobId": "m5_shared_read",
+          "invocationId": "invoke_a633460e-0687-4cf4-8f1a-da528bcac8dc",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T10:11:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T10:11:00Z",
+          "executionId": "d84c751c-5837-4ca6-a699-74e39a7d89a9",
+          "finishedAt": "2026-08-30T10:11:00Z",
+          "readCount": 11,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 178,
+          "attemptId": "attempt_5723269d-d6e4-4bb9-a3dc-58bc1b58d435",
+          "nodeId": "n2_aggregate",
+          "jobId": "m5_success_aggregate",
+          "invocationId": "invoke_a633460e-0687-4cf4-8f1a-da528bcac8dc",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T10:11:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T10:11:00Z",
+          "executionId": "a3db65a4-8c77-4a27-b11a-eb4d5771564e",
+          "finishedAt": "2026-08-30T10:11:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 179,
+          "attemptId": "attempt_fa3dd4e7-e635-431b-8ad1-ae58b2693a5d",
+          "nodeId": "n3_finalize",
+          "jobId": "m5_success_finalize",
+          "invocationId": "invoke_a633460e-0687-4cf4-8f1a-da528bcac8dc",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T10:11:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T10:11:00Z",
+          "executionId": "bb8ace46-052d-4066-af64-25a5be09aa5e",
+          "finishedAt": "2026-08-30T10:11:00Z",
+          "readCount": 12,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 176,
+          "invocationId": "invoke_a633460e-0687-4cf4-8f1a-da528bcac8dc",
+          "mode": "NEW",
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "selectedNodeIds": [
+            "n1_extract",
+            "n2_aggregate",
+            "n3_finalize"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T10:11:00Z",
+          "finishedAt": "2026-08-30T10:11:00Z"
+        }
+      ]
+    },
+    "jobLogs": [
+      {
+        "recordId": "499",
+        "correlationId": "netrun_514e9327-52cc-456b-a079-f9f74975252b",
+        "attemptId": "attempt_69a57d51-80f3-44b7-a747-f52f1621fda3",
+        "executionId": "d84c751c-5837-4ca6-a699-74e39a7d89a9",
+        "jobId": "m5_shared_read",
+        "status": "SUCCESS",
+        "runnerExecutionStartedAt": "2026-08-30T10:11:00Z",
+        "finishedAt": "2026-08-30T10:11:00Z"
+      },
+      {
+        "recordId": "500",
+        "correlationId": "netrun_514e9327-52cc-456b-a079-f9f74975252b",
+        "attemptId": "attempt_5723269d-d6e4-4bb9-a3dc-58bc1b58d435",
+        "executionId": "a3db65a4-8c77-4a27-b11a-eb4d5771564e",
+        "jobId": "m5_success_aggregate",
+        "status": "SUCCESS",
+        "runnerExecutionStartedAt": "2026-08-30T10:11:00Z",
+        "finishedAt": "2026-08-30T10:11:00Z"
+      },
+      {
+        "recordId": "501",
+        "correlationId": "netrun_514e9327-52cc-456b-a079-f9f74975252b",
+        "attemptId": "attempt_fa3dd4e7-e635-431b-8ad1-ae58b2693a5d",
+        "executionId": "bb8ace46-052d-4066-af64-25a5be09aa5e",
+        "jobId": "m5_success_finalize",
+        "status": "SUCCESS",
+        "runnerExecutionStartedAt": "2026-08-30T10:11:00Z",
+        "finishedAt": "2026-08-30T10:11:00Z"
+      }
+    ],
+    "serialOrder": [
+      "n1_extract",
+      "n2_aggregate",
+      "n3_finalize"
+    ],
+    "networkId": "M5260830101129_dcc3_serial-success_success"
+  },
+  "cleanup": {
+    "prefix": "M5260830101129_dcc3_serial-success",
+    "runIds": [
+      "netrun_514e9327-52cc-456b-a079-f9f74975252b"
+    ],
+    "networkIds": [
+      "M5260830101129_dcc3_serial-success_success"
+    ],
+    "state": 4,
+    "audit": 4,
+    "total": 8
+  }
+}

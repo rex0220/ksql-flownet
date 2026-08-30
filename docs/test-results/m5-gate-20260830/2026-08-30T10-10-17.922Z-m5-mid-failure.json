@@ -1,0 +1,143 @@
+{
+  "test": "mid-failure",
+  "passed": true,
+  "scope": "M5260830101017_f529_mid-failure",
+  "observedAt": "2026-08-30T10:10:32.894Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T10:10:17.918Z",
+      "scenarioStartedAt": "2026-08-30T10:10:17.923Z",
+      "scenarioFinishedAt": "2026-08-30T10:10:32.072Z",
+      "cleanupStartedAt": "2026-08-30T10:10:32.072Z",
+      "cleanupFinishedAt": "2026-08-30T10:10:32.894Z",
+      "resultAssembledAt": "2026-08-30T10:10:32.894Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 14149,
+      "cleanupMs": 822,
+      "totalMs": 14976
+    }
+  },
+  "detail": {
+    "process": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "NEW: Run netrun_7d49855e-32c7-4a2d-a7e7-4624eb8e12f5 finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+      "stderr": ""
+    },
+    "graph": {
+      "run": {
+        "recordKey": "R1:UxB2cbGl8HglKjzQu9_RTHRmiFf7XDHL3W8drtbBUtY",
+        "runId": "netrun_7d49855e-32c7-4a2d-a7e7-4624eb8e12f5",
+        "networkId": "M5260830101017_f529_mid-failure_midfail",
+        "businessKey": "M5260830101017_f529_mid-failure",
+        "status": "FAILED",
+        "asOf": "",
+        "startedAt": "2026-08-30T10:10:00Z",
+        "finishedAt": "2026-08-30T10:10:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_extract",
+          "jobId": "m5_shared_read",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T10:10:00Z",
+          "finishedAt": "2026-08-30T10:10:00Z"
+        },
+        {
+          "nodeId": "n2_fail",
+          "jobId": "m5_midfail_assert",
+          "status": "FAILED",
+          "latestAttemptNo": 1,
+          "statusReason": "ASSERT_FAILED",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T10:10:00Z",
+          "finishedAt": "2026-08-30T10:10:00Z"
+        },
+        {
+          "nodeId": "n3_finalize",
+          "jobId": "m5_midfail_finalize",
+          "status": "BLOCKED",
+          "latestAttemptNo": 0,
+          "statusReason": "ALL_SUCCESS_NOT_SATISFIED",
+          "blockedBy": [
+            "n2_fail"
+          ],
+          "startedAt": "",
+          "finishedAt": "2026-08-30T10:10:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 163,
+          "attemptId": "attempt_fa4bbbcb-9762-4218-ba05-ba0e4579561f",
+          "nodeId": "n1_extract",
+          "jobId": "m5_shared_read",
+          "invocationId": "invoke_3f9c0d6a-b512-4799-97e0-cc6257aea521",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T10:10:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T10:10:00Z",
+          "executionId": "adfc650e-1274-4444-8c67-9a4568c47b8c",
+          "finishedAt": "2026-08-30T10:10:00Z",
+          "readCount": 11,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 164,
+          "attemptId": "attempt_940843db-63a1-4254-98b8-426a24865bdb",
+          "nodeId": "n2_fail",
+          "jobId": "m5_midfail_assert",
+          "invocationId": "invoke_3f9c0d6a-b512-4799-97e0-cc6257aea521",
+          "attemptNo": 1,
+          "status": "FAILED",
+          "resultCode": "ASSERT_FAILED",
+          "executionStartedAt": "2026-08-30T10:10:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T10:10:00Z",
+          "executionId": "7416fcbe-156c-4ac3-873c-a6918305ec12",
+          "finishedAt": "2026-08-30T10:10:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 162,
+          "invocationId": "invoke_3f9c0d6a-b512-4799-97e0-cc6257aea521",
+          "mode": "NEW",
+          "status": "FAILED",
+          "resultCode": "NODE_FAILED_OR_BLOCKED",
+          "selectedNodeIds": [
+            "n1_extract",
+            "n2_fail"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [
+            "n3_finalize"
+          ],
+          "startedAt": "2026-08-30T10:10:00Z",
+          "finishedAt": "2026-08-30T10:10:00Z"
+        }
+      ]
+    },
+    "networkId": "M5260830101017_f529_mid-failure_midfail"
+  },
+  "cleanup": {
+    "prefix": "M5260830101017_f529_mid-failure",
+    "runIds": [
+      "netrun_7d49855e-32c7-4a2d-a7e7-4624eb8e12f5"
+    ],
+    "networkIds": [
+      "M5260830101017_f529_mid-failure_midfail"
+    ],
+    "state": 4,
+    "audit": 3,
+    "total": 7
+  }
+}

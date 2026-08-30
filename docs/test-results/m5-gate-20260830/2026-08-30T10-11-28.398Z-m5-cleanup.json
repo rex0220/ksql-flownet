@@ -1,0 +1,33 @@
+{
+  "test": "cleanup",
+  "passed": true,
+  "scope": "M5260830101128_72ba_cleanup",
+  "observedAt": "2026-08-30T10:11:28.746Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T10:11:28.392Z",
+      "scenarioStartedAt": "2026-08-30T10:11:28.399Z",
+      "scenarioFinishedAt": "2026-08-30T10:11:28.746Z",
+      "resultAssembledAt": "2026-08-30T10:11:28.746Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 347,
+      "totalMs": 354
+    }
+  },
+  "detail": {
+    "prefix": "M5",
+    "removed": {
+      "prefix": "M5",
+      "runIds": [],
+      "networkIds": [],
+      "state": 0,
+      "audit": 0,
+      "total": 0
+    },
+    "localWorkdirs": [],
+    "jobLogApp4249": "NOT_DELETED"
+  },
+  "cleanup": null
+}

@@ -1,0 +1,200 @@
+{
+  "test": "lock-conflict",
+  "passed": true,
+  "scope": "M5260830101058_d104_lock-conflict",
+  "observedAt": "2026-08-30T10:11:10.892Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T10:10:58.557Z",
+      "scenarioStartedAt": "2026-08-30T10:10:58.561Z",
+      "trial1NetworkStartedAt": "2026-08-30T10:10:58.615Z",
+      "trial1GateObservedAt": "2026-08-30T10:11:02.217Z",
+      "trial1StandaloneStartedAt": "2026-08-30T10:11:02.217Z",
+      "trial1ProcessesFinishedAt": "2026-08-30T10:11:10.282Z",
+      "scenarioFinishedAt": "2026-08-30T10:11:10.818Z",
+      "cleanupStartedAt": "2026-08-30T10:11:10.818Z",
+      "cleanupFinishedAt": "2026-08-30T10:11:10.892Z",
+      "resultAssembledAt": "2026-08-30T10:11:10.892Z"
+    },
+    "intervalsMs": {
+      "trial1NetworkToGateMs": 3602,
+      "trial1FromGateMs": 8065,
+      "trial1StandaloneRunMs": 8065,
+      "scenarioMs": 12257,
+      "cleanupMs": 74,
+      "totalMs": 12335
+    }
+  },
+  "detail": {
+    "successfulTrial": 1,
+    "holder": {
+      "attemptId": "M5260830101058_d104_lock-conflict_trial1_standalone",
+      "correlationId": "M5260830101058_d104_lock-conflict_trial1_holder",
+      "cwd": "C:\\Users\\rex02\\AppData\\Local\\Temp\\ksql-flownet-m5-work\\M5260830101058_d104_lock-conflict\\standalone-cwd",
+      "flowNetCwd": "C:\\Users\\rex02\\Projects\\ksql-flownet",
+      "process": {
+        "exitCode": 0,
+        "signal": null,
+        "stdout": "",
+        "stderr": "[RUN] job-longread.sql (profile: prod, as-of: 2026-08-30T10:11:02.487Z)\n  => SUCCESS (exit 0) 読取 810 件 / 書込 0 件 / API 65 回\n"
+      }
+    },
+    "networkProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "NEW: Run netrun_a2d34d79-2b99-42cb-bbc3-78bccee8ca3c finished with aggregate RUNNING (NODES_DEFERRED).\n",
+      "stderr": ""
+    },
+    "graph": {
+      "run": {
+        "recordKey": "R1:0NrjfjDuxe-RJ7cMMJwzxnKcPWgflP62flzHsG_pDvQ",
+        "runId": "netrun_a2d34d79-2b99-42cb-bbc3-78bccee8ca3c",
+        "networkId": "M5260830101058_d104_lock-conflict_trial1_diamond",
+        "businessKey": "M5260830101058_d104_lock-conflict_trial1",
+        "status": "RUNNING",
+        "asOf": "",
+        "startedAt": "2026-08-30T10:11:00Z",
+        "finishedAt": "",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_customers",
+          "jobId": "m5_shared_read",
+          "status": "WAITING",
+          "latestAttemptNo": 1,
+          "statusReason": "PREPARE_FAILED",
+          "blockedBy": [],
+          "startedAt": "",
+          "finishedAt": ""
+        },
+        {
+          "nodeId": "n2_deals",
+          "jobId": "m5_diamond_deals",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T10:11:00Z",
+          "finishedAt": "2026-08-30T10:11:00Z"
+        },
+        {
+          "nodeId": "n3_join",
+          "jobId": "m5_diamond_join",
+          "status": "WAITING",
+          "latestAttemptNo": 0,
+          "statusReason": "",
+          "blockedBy": [],
+          "startedAt": "",
+          "finishedAt": ""
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 171,
+          "attemptId": "attempt_9dc46448-0d78-4732-830c-ac793e8b9ffc",
+          "nodeId": "n1_customers",
+          "jobId": "m5_shared_read",
+          "invocationId": "invoke_b7fad2ac-0445-4530-a2c4-fe171b0adb36",
+          "attemptNo": 1,
+          "status": "CANCELLED",
+          "resultCode": "PREPARE_FAILED",
+          "executionStartedAt": "2026-08-30T10:11:00Z",
+          "runnerExecutionStartedAt": "",
+          "executionId": "935688e5-7074-4c7f-ba8e-d857d12344f7",
+          "finishedAt": "2026-08-30T10:11:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 172,
+          "attemptId": "attempt_b45c0d5a-e3f0-4829-95a3-4eb03a02e396",
+          "nodeId": "n2_deals",
+          "jobId": "m5_diamond_deals",
+          "invocationId": "invoke_b7fad2ac-0445-4530-a2c4-fe171b0adb36",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T10:11:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T10:11:00Z",
+          "executionId": "99af9527-2930-47dd-afb1-33503444829c",
+          "finishedAt": "2026-08-30T10:11:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 170,
+          "invocationId": "invoke_b7fad2ac-0445-4530-a2c4-fe171b0adb36",
+          "mode": "NEW",
+          "status": "CANCELLED",
+          "resultCode": "NODES_DEFERRED",
+          "selectedNodeIds": [
+            "n1_customers",
+            "n2_deals",
+            "n3_join"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [],
+          "startedAt": "2026-08-30T10:11:00Z",
+          "finishedAt": "2026-08-30T10:11:00Z"
+        }
+      ]
+    },
+    "networkId": "M5260830101058_d104_lock-conflict_trial1_diamond",
+    "lockConflictDiagnostics": {
+      "maxAttempts": 3,
+      "trials": [
+        {
+          "trialNo": 1,
+          "scope": "M5260830101058_d104_lock-conflict_trial1",
+          "networkId": "M5260830101058_d104_lock-conflict_trial1_diamond",
+          "gateObservation": {
+            "runId": "netrun_a2d34d79-2b99-42cb-bbc3-78bccee8ca3c",
+            "state": {
+              "nodeId": "n1_customers",
+              "jobId": "m5_shared_read",
+              "status": "WAITING",
+              "latestAttemptNo": 0,
+              "statusReason": "",
+              "blockedBy": [],
+              "startedAt": "",
+              "finishedAt": ""
+            },
+            "targetAttemptCount": 0,
+            "eligibleWaiting": true
+          },
+          "holder": {
+            "attemptId": "M5260830101058_d104_lock-conflict_trial1_standalone",
+            "correlationId": "M5260830101058_d104_lock-conflict_trial1_holder",
+            "cwd": "C:\\Users\\rex02\\AppData\\Local\\Temp\\ksql-flownet-m5-work\\M5260830101058_d104_lock-conflict\\standalone-cwd",
+            "flowNetCwd": "C:\\Users\\rex02\\Projects\\ksql-flownet",
+            "process": {
+              "exitCode": 0,
+              "signal": null,
+              "stdout": "",
+              "stderr": "[RUN] job-longread.sql (profile: prod, as-of: 2026-08-30T10:11:02.487Z)\n  => SUCCESS (exit 0) 読取 810 件 / 書込 0 件 / API 65 回\n"
+            }
+          },
+          "networkProcess": {
+            "exitCode": 1,
+            "signal": null,
+            "stdout": "NEW: Run netrun_a2d34d79-2b99-42cb-bbc3-78bccee8ca3c finished with aggregate RUNNING (NODES_DEFERRED).\n",
+            "stderr": ""
+          },
+          "ordering": "STANDALONE_FIRST"
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "prefix": "M5260830101058_d104_lock-conflict",
+    "runIds": [],
+    "networkIds": [],
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}
