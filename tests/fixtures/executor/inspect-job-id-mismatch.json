@@ -1,0 +1,12 @@
+{
+  "formatVersion": 1,
+  "kind": "JOB_INSPECTION",
+  "jobId": "different_job",
+  "fileName": "aggregate_customer.sql",
+  "dialect": 1,
+  "statementCount": 1,
+  "dependsOn": [],
+  "timeoutSec": 90,
+  "diagnostics": [],
+  "nondeterministicElements": []
+}

@@ -5,7 +5,9 @@ import {
   assertIntegrationKeyLengths,
   assertIntegrationKeySampleLengths,
   assertObserved,
+  createM4Executor,
   integrationKeySamples,
+  m4CliSettings,
   makeScope,
   summarizeError,
 } from "../integration/support.mjs";
@@ -94,4 +96,69 @@ test("M3 assertion失敗は期待値と観測値をmessageとJSON項目へ残す
   });
   assert.match(caught.message, /expected=.*DUPLICATE_RECORD/);
   assert.match(caught.message, /actual=.*REMOTE_ERROR/);
+});
+
+test("M4 CLI層は既定でfixture injectableなfake spawnを使う", async () => {
+  const events = [];
+  const { executor, settings } = createM4Executor({
+    environment: {},
+    fixtures: { inspectJob: "inspect-job-ksql1306.json" },
+    events,
+  });
+
+  assert.deepEqual(settings, { real: false, profile: "prod" });
+  assert.equal((await executor.capabilities()).kind, "CAPABILITIES");
+  assert.equal((await executor.describeProfile()).profile, "prod");
+  assert.deepEqual(
+    (await executor.inspectJob("ignored-by-fake.sql")).diagnostics.map(
+      ({ code }) => code,
+    ),
+    ["KSQL1306"],
+  );
+  assert.deepEqual(
+    events.map(({ command, mode, fixture }) => ({ command, mode, fixture })),
+    [
+      {
+        command: "capabilities",
+        mode: "fixture",
+        fixture: "capabilities.json",
+      },
+      {
+        command: "describe-profile",
+        mode: "fixture",
+        fixture: "describe-profile.json",
+      },
+      {
+        command: "inspect-job",
+        mode: "fixture",
+        fixture: "inspect-job-ksql1306.json",
+      },
+    ],
+  );
+});
+
+test("M4実CLIモードはbinaryとconfigを明示した場合だけ有効になる", () => {
+  assert.deepEqual(m4CliSettings({}), {
+    real: false,
+    profile: "prod",
+    command: "fixture:ksql-flow",
+    configPath: "fixture:config",
+  });
+  assert.throws(
+    () => m4CliSettings({ KSQL_FLOW_BIN: "ksql-flow.exe" }),
+    /KSQL_FLOW_CONFIG_PATH/,
+  );
+  assert.deepEqual(
+    m4CliSettings({
+      KSQL_FLOW_BIN: "ksql-flow.exe",
+      KSQL_FLOW_CONFIG_PATH: "ksql-flow.json",
+      KSQL_FLOW_PROFILE: "trial",
+    }),
+    {
+      real: true,
+      profile: "trial",
+      command: "ksql-flow.exe",
+      configPath: "ksql-flow.json",
+    },
+  );
 });

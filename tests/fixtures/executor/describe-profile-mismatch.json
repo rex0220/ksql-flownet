@@ -1,0 +1,29 @@
+{
+  "apps": {
+    "orders": 102,
+    "execution_log": 999
+  },
+  "baseUrl": "https://other.cybozu.com",
+  "formatVersion": 1,
+  "guestSpaceId": 42,
+  "httpTimeoutMs": 4567,
+  "kind": "PROFILE_DESCRIPTION",
+  "limits": {
+    "batchTimeoutSec": 1200,
+    "maxApiCalls": 321,
+    "maxReadRows": 654,
+    "maxTempRows": 987
+  },
+  "logApp": {
+    "appId": 999,
+    "name": "execution_log"
+  },
+  "profile": "prod",
+  "retry": {
+    "initialDelayMs": 25,
+    "maxAttempts": 7,
+    "maxDelayMs": 2500,
+    "respectRetryAfter": false
+  },
+  "timezone": "Asia/Tokyo"
+}

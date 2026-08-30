@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "kind": "JOB_INSPECTION",
+  "jobId": "aggregate_customer",
+  "fileName": "aggregate_customer.sql",
+  "dialect": 1,
+  "statementCount": 1,
+  "dependsOn": [],
+  "timeoutSec": 90,
+  "diagnostics": [
+    {
+      "code": "KSQL1306",
+      "severity": "warning",
+      "line": 2,
+      "column": 8,
+      "message": "server time function is not fixed by as-of"
+    }
+  ],
+  "nondeterministicElements": [
+    {
+      "code": "KSQL1306",
+      "severity": "warning",
+      "line": 2,
+      "column": 8,
+      "message": "server time function is not fixed by as-of"
+    }
+  ]
+}
