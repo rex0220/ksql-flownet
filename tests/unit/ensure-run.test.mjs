@@ -42,8 +42,9 @@ function description(overrides = {}) {
     apps: { orders: 1 },
     logApp: null,
     limits: {
-      maxApiCalls: 5000,
-      maxReadRows: 200000,
+      maxApiCalls: null,
+      maxReadRows: null,
+      maxTempRows: null,
       batchTimeoutSec: 3600,
     },
     retry: { maxAttempts: 3 },
@@ -184,6 +185,11 @@ test("D-02 0件NEW: capability後にlockを取り、その後だけ検索・作�
   assert.equal(result.outcome, "NEW");
   assert.deepEqual(events.slice(0, 3), ["capabilities", "lock", "search"]);
   assert.equal(result.run.value.status, "CREATED");
+  assert.deepEqual(result.run.value.resolved_profile_snapshot.limits, {
+    max_api_calls: null,
+    max_read_rows: null,
+    batch_timeout_sec: 3600,
+  });
   assert.equal(
     (await h.repository.getNodeStates(result.run.value.run_id)).length,
     1,
@@ -191,6 +197,26 @@ test("D-02 0件NEW: capability後にlockを取り、その後だけ検索・作�
   await result.close({ status: "CANCELLED", resultCode: "TEST_DONE" });
   assert.ok(events.includes("release:CANCELLED:TEST_DONE"));
   assert.equal(h.repository.finalized.at(-1).result_code, "TEST_DONE");
+});
+
+test("未設定のbatchTimeoutSecをnullのままsnapshotへ保存する", async (context) => {
+  const { networkPath } = fixture(context);
+  const h = harness(undefined, {
+    profile: description({
+      limits: {
+        maxApiCalls: null,
+        maxReadRows: null,
+        maxTempRows: null,
+        batchTimeoutSec: null,
+      },
+    }),
+  });
+  const result = await ensureRun(input(networkPath, h));
+  assert.equal(
+    result.run.value.resolved_profile_snapshot.limits.batch_timeout_sec,
+    null,
+  );
+  await result.close({ status: "CANCELLED", resultCode: "TEST_DONE" });
 });
 
 test("D-02 未完了1件RESUME: 保存bundleだけを検証し作業ツリーSQLを参照しない", async (context) => {

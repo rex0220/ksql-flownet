@@ -730,12 +730,9 @@ function persistenceProfileSnapshot(
   const batchTimeoutSec = description.limits.batchTimeoutSec;
   if (
     description.timezone === null ||
-    typeof maxApiCalls !== "number" ||
-    !Number.isFinite(maxApiCalls) ||
-    typeof maxReadRows !== "number" ||
-    !Number.isFinite(maxReadRows) ||
-    typeof batchTimeoutSec !== "number" ||
-    !Number.isFinite(batchTimeoutSec)
+    !isFiniteNumberOrNull(maxApiCalls) ||
+    !isFiniteNumberOrNull(maxReadRows) ||
+    !isFiniteNumberOrNull(batchTimeoutSec)
   ) {
     throw new EnsureRunError(
       "PROFILE_DESCRIPTION_INVALID",
@@ -754,6 +751,12 @@ function persistenceProfileSnapshot(
       batch_timeout_sec: batchTimeoutSec,
     },
   };
+}
+
+function isFiniteNumberOrNull(value: unknown): value is number | null {
+  return (
+    value === null || (typeof value === "number" && Number.isFinite(value))
+  );
 }
 
 function formatValidationErrors(

@@ -22,8 +22,14 @@ export interface ProfileDescription {
   readonly timezone: string | null;
   readonly apps: Readonly<Record<string, number>>;
   readonly logApp: { readonly name: string; readonly appId: number } | null;
-  readonly limits: Readonly<Record<string, number>>;
-  readonly retry: Readonly<Record<string, number | boolean>>;
+  readonly limits: Readonly<Record<string, number | null>>;
+  readonly retry: {
+    readonly initialDelayMs: number;
+    readonly maxAttempts: number;
+    readonly maxDelayMs: number;
+    readonly respectRetryAfter: boolean;
+    readonly [key: string]: unknown;
+  };
   readonly httpTimeoutMs: number;
 }
 
@@ -260,10 +266,13 @@ function isProfileDescription(value: unknown): value is ProfileDescription {
     (value.timezone === null || typeof value.timezone === "string") &&
     Object.values(value.apps).every(Number.isSafeInteger) &&
     logAppValid &&
-    Object.values(value.limits).every((item) => typeof item === "number") &&
-    Object.values(value.retry).every(
-      (item) => typeof item === "number" || typeof item === "boolean",
+    Object.values(value.limits).every(
+      (item) => item === null || typeof item === "number",
     ) &&
+    typeof value.retry.initialDelayMs === "number" &&
+    typeof value.retry.maxAttempts === "number" &&
+    typeof value.retry.maxDelayMs === "number" &&
+    typeof value.retry.respectRetryAfter === "boolean" &&
     typeof value.httpTimeoutMs === "number"
   );
 }

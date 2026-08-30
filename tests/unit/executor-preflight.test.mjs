@@ -28,12 +28,13 @@ const fixture = (name) =>
 const capabilities = () => fixture("capabilities");
 const profile = () => fixture("describe-profile");
 const inspection = () => fixture("inspect-job");
+const nondeterministicInspection = () => fixture("inspect-job-ksql1306");
 
 function node(overrides = {}) {
   return {
     id: "aggregate",
-    job_id: "aggregate_customer",
-    sql: "jobs/aggregate_customer.sql",
+    job_id: "m5_shared_read",
+    sql: "jobs/success-n1-extract.sql",
     depends_on: [],
     trigger_rule: "all_success",
     idempotent: true,
@@ -72,10 +73,12 @@ test("CLI invoker injects command/profile/config and validates all M1 output kin
 
   assert.equal((await cli.capabilities()).kind, "CAPABILITIES");
   assert.equal((await cli.describeProfile()).kind, "PROFILE_DESCRIPTION");
-  assert.equal(
-    (await cli.inspectJob("snapshot/jobs/aggregate_customer.sql")).kind,
-    "JOB_INSPECTION",
+  const inspected = await cli.inspectJob(
+    "snapshot/jobs/success-n1-extract.sql",
   );
+  assert.equal(inspected.kind, "JOB_INSPECTION");
+  assert.equal(inspected.fileName, "success-n1-extract.sql");
+  assert.equal(inspected.statementCount, 2);
   assert.deepEqual(calls, [
     {
       command: "node.exe",
@@ -99,7 +102,7 @@ test("CLI invoker injects command/profile/config and validates all M1 output kin
         "C:/tools/ksql flow/dist/cli.js",
         "inspect-job",
         "-f",
-        "snapshot/jobs/aggregate_customer.sql",
+        "snapshot/jobs/success-n1-extract.sql",
         "--profile",
         "prod",
         "--config",
@@ -152,6 +155,30 @@ test("CLI invoker maps spawn, exit, JSON, and output-shape failures to stable co
   }
 });
 
+test("describe-profile accepts null limits and additive output fields", async () => {
+  const value = profile();
+  value.limits.batchTimeoutSec = null;
+  value.futureField = { enabled: true };
+  value.retry.futureRetryField = "additive";
+  const cli = new KsqlFlowCli({
+    command: "fake",
+    profile: "prod",
+    configPath: "config.json",
+    spawn: async () => ({
+      exitCode: 0,
+      stdout: JSON.stringify(value),
+      stderr: "",
+    }),
+  });
+
+  assert.deepEqual((await cli.describeProfile()).limits, {
+    batchTimeoutSec: null,
+    maxApiCalls: null,
+    maxReadRows: null,
+    maxTempRows: null,
+  });
+});
+
 test("capability preflight rejects a missing contract and every required false/missing feature", () => {
   const noContract = capabilities();
   noContract.executionContracts = [];
@@ -190,28 +217,36 @@ test("canonical profile JSON/hash is deterministic for shuffled keys at every de
   const right = {
     timezone: left.timezone,
     retry: {
-      respectRetryAfter: false,
-      maxDelayMs: 2500,
-      maxAttempts: 7,
-      initialDelayMs: 25,
+      respectRetryAfter: true,
+      maxDelayMs: 60000,
+      maxAttempts: 5,
+      initialDelayMs: 1000,
     },
     profile: left.profile,
-    logApp: { name: "execution_log", appId: 999 },
+    logApp: { name: "実行ログ", appId: 4249 },
     limits: {
-      maxTempRows: 987,
-      maxReadRows: 654,
-      maxApiCalls: 321,
-      batchTimeoutSec: 1200,
+      maxTempRows: null,
+      maxReadRows: null,
+      maxApiCalls: null,
+      batchTimeoutSec: 3600,
     },
     kind: left.kind,
     httpTimeoutMs: left.httpTimeoutMs,
     guestSpaceId: left.guestSpaceId,
     formatVersion: left.formatVersion,
     baseUrl: left.baseUrl,
-    apps: { execution_log: 999, orders: 101 },
+    apps: { 顧客管理: 4246, 案件管理: 4247, 実行ログ: 4249 },
   };
   assert.equal(canonicalJson(right), canonicalJson(left));
   assert.equal(canonicalJsonSha256(right), canonicalJsonSha256(left));
+  assert.match(canonicalJson(left), /"maxApiCalls":null/);
+  assert.notEqual(
+    canonicalJsonSha256(left),
+    canonicalJsonSha256({
+      ...left,
+      limits: { ...left.limits, maxApiCalls: 0 },
+    }),
+  );
 });
 
 test("profile snapshot detects hash, URL, guest space, app IDs, and timezone mismatches", () => {
@@ -223,7 +258,7 @@ test("profile snapshot detects hash, URL, guest space, app IDs, and timezone mis
     { canonicalJsonSha256: "0".repeat(64) },
     { baseUrl: "https://other.cybozu.com" },
     { guestSpaceId: 99 },
-    { apps: { ...snapshot.apps, orders: 102 } },
+    { apps: { ...snapshot.apps, 顧客管理: 4248 } },
     { timezone: "UTC" },
   ];
   for (const mutation of mutations) {
@@ -237,7 +272,7 @@ test("profile snapshot detects hash, URL, guest space, app IDs, and timezone mis
 });
 
 test("job inspection rejects jobId mismatch and unapproved KSQL1306 on idempotent nodes", () => {
-  const inspected = inspection();
+  const inspected = nondeterministicInspection();
   assert.throws(
     () =>
       validateJobInspections(
@@ -259,16 +294,22 @@ test("approved KSQL1306 passes and is fixed into inspection result while KSQL130
   const approved = approval();
   const result = validateJobInspections(
     [node()],
-    new Map([["aggregate", inspection()]]),
+    new Map([["aggregate", nondeterministicInspection()]]),
     [approved],
   );
   assert.deepEqual(result[0].nondeterministicCodes, ["KSQL1306"]);
   assert.deepEqual(result[0].approvedExceptions, [approved]);
 
-  const warningOnly = inspection();
-  warningOnly.diagnostics = warningOnly.diagnostics.filter(
-    (item) => item.code === "KSQL1305",
-  );
+  const warningOnly = nondeterministicInspection();
+  warningOnly.diagnostics = [
+    {
+      code: "KSQL1305",
+      severity: "warning",
+      line: 1,
+      column: 1,
+      message: "plain INSERT may not be idempotent",
+    },
+  ];
   warningOnly.nondeterministicElements = [];
   assert.doesNotThrow(() =>
     validateJobInspections([node()], new Map([["aggregate", warningOnly]])),
@@ -276,7 +317,7 @@ test("approved KSQL1306 passes and is fixed into inspection result while KSQL130
 });
 
 test("exception for an undetected code is rejected as over-approval", () => {
-  const inspected = inspection();
+  const inspected = nondeterministicInspection();
   inspected.diagnostics = inspected.diagnostics.filter(
     (item) => item.code !== "KSQL1306",
   );

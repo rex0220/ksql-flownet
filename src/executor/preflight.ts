@@ -178,7 +178,7 @@ export function validateJobInspections(
     // D-23 deliberately recognizes only the engine's public KSQL1306 code.
     // KSQL1305 remains a warning and static inspection does not prove idempotency.
     const detected = uniqueSorted(
-      inspection.diagnostics
+      inspection.nondeterministicElements
         .filter((diagnostic) =>
           NONDETERMINISTIC_CODES.includes(
             diagnostic.code as (typeof NONDETERMINISTIC_CODES)[number],
@@ -204,7 +204,7 @@ export function validateJobInspections(
     if (node.idempotent && unapproved.length > 0) {
       throw new PreflightError(
         "NONDETERMINISTIC_IDEMPOTENT_JOB",
-        `idempotent node '${node.id}' has unapproved nondeterministic diagnostics: ${unapproved.join(", ")}`,
+        `idempotent node '${node.id}' has unapproved nondeterministic elements: ${unapproved.join(", ")}`,
         [node.id, ...unapproved],
       );
     }

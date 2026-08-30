@@ -26,9 +26,9 @@ export interface ResolvedProfileSnapshot {
   timezone: string;
   apps: Record<string, number>;
   limits: {
-    max_api_calls: number;
-    max_read_rows: number;
-    batch_timeout_sec: number;
+    max_api_calls: number | null;
+    max_read_rows: number | null;
+    batch_timeout_sec: number | null;
   };
 }
 
