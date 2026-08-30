@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "contract_version": "S1/A1",
+    "hash": "SHA-256",
+    "encoding": "base64url without padding",
+    "text_encoding": "UTF-8",
+    "normalization": "Unicode NFC",
+    "canonical_input": "<version>\\0<NFC(run_id)>\\0<NFC(node_id)>[\\0<decimal attempt_no>]",
+    "generated_key_length": 46,
+    "maximum_identifier_length_after_normalization": 128
+  },
+  "valid": [
+    {
+      "id": "state_ascii",
+      "kind": "state",
+      "run_id": "run_001",
+      "node_id": "node_a",
+      "expected_key": "S1:BEFrIa66C569EYh-HUIDuaJgIxvmX622KEfWHzN9Xbo"
+    },
+    {
+      "id": "attempt_ascii",
+      "kind": "attempt",
+      "run_id": "run_001",
+      "node_id": "node_a",
+      "attempt_no": 1,
+      "expected_key": "A1:hHEySfH-2RIbk73J9iv3OBs1r9HyTk-X2EGijmAJfns"
+    },
+    {
+      "id": "state_nfc",
+      "pair": "nfc",
+      "kind": "state",
+      "run_id": "café",
+      "node_id": "集計",
+      "expected_key": "S1:Lg6mkaIfg5-wV1o0CyGpadyr3dYa92EsldUSdbngHv4"
+    },
+    {
+      "id": "state_nfd",
+      "pair": "nfc",
+      "kind": "state",
+      "run_id": "café",
+      "node_id": "集計",
+      "expected_key": "S1:Lg6mkaIfg5-wV1o0CyGpadyr3dYa92EsldUSdbngHv4"
+    },
+    {
+      "id": "attempt_max_safe_integer",
+      "kind": "attempt",
+      "run_id": "実行",
+      "node_id": "ノード",
+      "attempt_no": 9007199254740991,
+      "expected_key": "A1:PrC62KRNNDhBeycDqhDK-2u9ahpgFzce8IlWnFDkZLM"
+    },
+    {
+      "id": "state_case_upper",
+      "pair": "case",
+      "kind": "state",
+      "run_id": "Run",
+      "node_id": "Node",
+      "expected_key": "S1:NXp3lFAZslvMSHw2n9VmEOShAUyBdG-SdyzHfuDSmas"
+    },
+    {
+      "id": "state_case_lower",
+      "pair": "case",
+      "kind": "state",
+      "run_id": "run",
+      "node_id": "node",
+      "expected_key": "S1:MG437XGojqcFMpTruS_dZtfMSL9m7WJJ20e8K0LXiHc"
+    },
+    {
+      "id": "state_boundary_128",
+      "kind": "state",
+      "run_id": "r",
+      "node_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected_key": "S1:zEW7ToE3jcz93xQQxtoTUHYAJnMTc3XeJ1IyDBfTWFc"
+    }
+  ],
+  "rejected": [
+    {
+      "id": "empty_run",
+      "kind": "state",
+      "run_id": "",
+      "node_id": "node",
+      "expected_component": "runId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_EMPTY"
+    },
+    {
+      "id": "empty_node",
+      "kind": "state",
+      "run_id": "run",
+      "node_id": "",
+      "expected_component": "nodeId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_EMPTY"
+    },
+    {
+      "id": "nul_run",
+      "kind": "attempt",
+      "run_id": "run\u0000x",
+      "node_id": "node",
+      "attempt_no": 1,
+      "expected_component": "runId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_NUL"
+    },
+    {
+      "id": "colon_node",
+      "kind": "state",
+      "run_id": "run",
+      "node_id": "node:x",
+      "expected_component": "nodeId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_SEPARATOR"
+    },
+    {
+      "id": "reserved_node",
+      "kind": "state",
+      "run_id": "run",
+      "node_id": "__net__",
+      "expected_component": "nodeId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_RESERVED"
+    },
+    {
+      "id": "too_long",
+      "kind": "state",
+      "run_id": "run",
+      "node_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected_component": "nodeId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_TOO_LONG"
+    },
+    {
+      "id": "attempt_zero",
+      "kind": "attempt",
+      "run_id": "run",
+      "node_id": "node",
+      "attempt_no": 0,
+      "expected_component": "attemptNo",
+      "expected_error_code": "RECORD_KEY_ATTEMPT_NO_INVALID"
+    },
+    {
+      "id": "attempt_fraction",
+      "kind": "attempt",
+      "run_id": "run",
+      "node_id": "node",
+      "attempt_no": 1.5,
+      "expected_component": "attemptNo",
+      "expected_error_code": "RECORD_KEY_ATTEMPT_NO_INVALID"
+    },
+    {
+      "id": "attempt_unsafe",
+      "kind": "attempt",
+      "run_id": "run",
+      "node_id": "node",
+      "attempt_no": 9007199254740992,
+      "expected_component": "attemptNo",
+      "expected_error_code": "RECORD_KEY_ATTEMPT_NO_INVALID"
+    }
+  ]
+}
