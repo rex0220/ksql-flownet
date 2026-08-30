@@ -128,3 +128,19 @@ export interface AttemptResolution {
   approved_by: string;
   resolved_at: string;
 }
+
+export interface OperationAudit {
+  event_id: string;
+  event_type: "RECONCILIATION_REPAIR";
+  repair_type:
+    | "TERMINAL_ATTEMPT_APPLIED"
+    | "ATTEMPT_RESOLUTION_APPLIED"
+    | "RUN_AGGREGATE_RECOMPUTED";
+  run_id: string;
+  target_type: "NODE_STATE" | "NETWORK_RUN";
+  target_id: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  basis: string;
+  occurred_at: string;
+}
