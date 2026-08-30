@@ -1,0 +1,92 @@
+{
+  "test": "m3-canonical-key-conflict",
+  "passed": false,
+  "scope": "IT260830034442_5435",
+  "observedAt": "2026-08-30T03:44:44.354Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "error": {
+      "name": "AssertionError",
+      "code": "ERR_ASSERTION",
+      "status": null,
+      "apiCode": null,
+      "message": "repository更新の409を観測できませんでした; expected={\"status\":409,\"apiCode\":\"GAIA_CO02\"} actual=[{\"method\":\"POST\",\"path\":\"/k/v1/record.json\",\"status\":200,\"code\":null,\"apiCode\":null,\"message\":null},{\"method\":\"POST\",\"path\":\"/k/v1/record.json\",\"status\":400,\"code\":\"CB_VA01\",\"apiCode\":\"CB_VA01\",\"message\":\"Missing or invalid input.\"},{\"method\":\"GET\",\"path\":\"/k/v1/records.json\",\"status\":200,\"code\":null,\"apiCode\":null,\"message\":null},{\"method\":\"GET\",\"path\":\"/k/v1/records.json\",\"status\":200,\"code\":null,\"apiCode\":null,\"message\":null},{\"method\":\"GET\",\"path\":\"/k/v1/records.json\",\"status\":200,\"code\":null,\"apiCode\":null,\"message\":null},{\"method\":\"PUT\",\"path\":\"/k/v1/record.json\",\"status\":400,\"code\":\"GAIA_DA02\",\"apiCode\":\"GAIA_DA02\",\"message\":\"Failed to save the changes because the database could not be locked. Please wait a while and try again.\"},{\"method\":\"PUT\",\"path\":\"/k/v1/record.json\",\"status\":200,\"code\":null,\"apiCode\":null,\"message\":null},{\"method\":\"GET\",\"path\":\"/k/v1/records.json\",\"status\":200,\"code\":null,\"apiCode\":null,\"message\":null}]",
+      "actual": [
+        {
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "status": 200,
+          "code": null,
+          "apiCode": null,
+          "message": null
+        },
+        {
+          "method": "POST",
+          "path": "/k/v1/record.json",
+          "status": 400,
+          "code": "CB_VA01",
+          "apiCode": "CB_VA01",
+          "message": "Missing or invalid input."
+        },
+        {
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "status": 200,
+          "code": null,
+          "apiCode": null,
+          "message": null
+        },
+        {
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "status": 200,
+          "code": null,
+          "apiCode": null,
+          "message": null
+        },
+        {
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "status": 200,
+          "code": null,
+          "apiCode": null,
+          "message": null
+        },
+        {
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "status": 400,
+          "code": "GAIA_DA02",
+          "apiCode": "GAIA_DA02",
+          "message": "Failed to save the changes because the database could not be locked. Please wait a while and try again."
+        },
+        {
+          "method": "PUT",
+          "path": "/k/v1/record.json",
+          "status": 200,
+          "code": null,
+          "apiCode": null,
+          "message": null
+        },
+        {
+          "method": "GET",
+          "path": "/k/v1/records.json",
+          "status": 200,
+          "code": null,
+          "apiCode": null,
+          "message": null
+        }
+      ],
+      "expected": {
+        "status": 409,
+        "apiCode": "GAIA_CO02"
+      },
+      "operator": "observed"
+    }
+  },
+  "cleanup": {
+    "state": 1,
+    "audit": 0,
+    "total": 1
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "test": "m3-cleanup",
+  "passed": true,
+  "scope": "IT260830034613_3dcf",
+  "observedAt": "2026-08-30T03:46:14.209Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "prefix": "IT",
+    "removed": {
+      "state": 0,
+      "audit": 0,
+      "total": 0
+    }
+  },
+  "cleanup": null
+}

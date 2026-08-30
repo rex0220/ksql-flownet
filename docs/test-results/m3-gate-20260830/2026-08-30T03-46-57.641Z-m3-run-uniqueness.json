@@ -1,0 +1,66 @@
+{
+  "test": "m3-run-uniqueness",
+  "passed": true,
+  "scope": "IT260830034656_a7cf",
+  "observedAt": "2026-08-30T03:46:57.639Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "outcomes": [
+      {
+        "status": "rejected",
+        "error": {
+          "name": "RepositoryError",
+          "code": "DUPLICATE_RECORD",
+          "status": null,
+          "apiCode": null,
+          "message": "insert unique conflict belongs to another record",
+          "cause": {
+            "name": "KintoneApiError",
+            "code": null,
+            "status": 400,
+            "apiCode": "CB_VA01",
+            "message": "kintone API returned 400 CB_VA01"
+          }
+        }
+      },
+      {
+        "status": "fulfilled",
+        "runId": "IT260830034656_a7cf_b"
+      }
+    ],
+    "persistedRunIds": [
+      "IT260830034656_a7cf_b"
+    ],
+    "observations": [
+      {
+        "method": "POST",
+        "path": "/k/v1/record.json",
+        "status": 200,
+        "code": null,
+        "apiCode": null,
+        "message": null
+      },
+      {
+        "method": "POST",
+        "path": "/k/v1/record.json",
+        "status": 400,
+        "code": "CB_VA01",
+        "apiCode": "CB_VA01",
+        "message": "Missing or invalid input."
+      },
+      {
+        "method": "GET",
+        "path": "/k/v1/records.json",
+        "status": 200,
+        "code": null,
+        "apiCode": null,
+        "message": null
+      }
+    ]
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

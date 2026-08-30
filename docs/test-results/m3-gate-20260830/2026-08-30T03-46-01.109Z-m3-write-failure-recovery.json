@@ -1,0 +1,221 @@
+{
+  "test": "m3-write-failure-recovery",
+  "passed": true,
+  "scope": "IT260830034553_9708",
+  "observedAt": "2026-08-30T03:46:01.106Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "terminalAttemptRepair": {
+      "result": {
+        "repaired": [
+          {
+            "type": "TERMINAL_ATTEMPT_APPLIED",
+            "targetType": "NODE_STATE",
+            "targetId": "IT260830034553_9708_a_state",
+            "before": {
+              "status": "RUNNING",
+              "active_attempt_id": "IT260830034553_9708_a_attempt",
+              "revision": 2
+            },
+            "after": {
+              "status": "SUCCESS",
+              "active_attempt_id": null,
+              "revision": 3
+            },
+            "basis": "terminal attempt IT260830034553_9708_a_attempt is the unique active attempt",
+            "auditEventId": "debc4bd5-794e-4a3b-8066-0d83db6c4481"
+          },
+          {
+            "type": "RUN_AGGREGATE_RECOMPUTED",
+            "targetType": "NETWORK_RUN",
+            "targetId": "IT260830034553_9708_a",
+            "before": {
+              "status": "CREATED",
+              "revision": 1
+            },
+            "after": {
+              "status": "SUCCESS",
+              "revision": 2
+            },
+            "basis": "Network Run status recomputed from the complete Node State set using specification section 10",
+            "auditEventId": "692739fb-2919-42fa-9c81-3c6d73325b70"
+          }
+        ],
+        "inconsistencies": [],
+        "aggregateUpdated": true
+      },
+      "rereadState": {
+        "value": {
+          "node_state_id": "IT260830034553_9708_a_state",
+          "node_state_key": "S1:1BSZrSSl0mH6hsl-of4AghtHzZu_xuTqSJIui960XEk",
+          "run_id": "IT260830034553_9708_a",
+          "node_id": "IT260830034553_9708_a_node",
+          "job_id": "IT260830034553_9708_a_job",
+          "status": "SUCCESS",
+          "latest_attempt_no": 1,
+          "active_attempt_id": null,
+          "revision": 3,
+          "idempotent": true,
+          "trigger_rule": "all_success",
+          "blocked_by": [],
+          "status_reason": "reconciled from terminal active attempt",
+          "started_at": null,
+          "finished_at": "2026-08-30T03:45:00Z",
+          "updated_at": "2026-08-30T03:45:00Z"
+        },
+        "revision": 3
+      },
+      "operationAuditCount": 2
+    },
+    "terminalStateRunningAttemptStop": {
+      "error": {
+        "name": "ReconciliationRequiredError",
+        "code": "RECONCILIATION_REQUIRED",
+        "status": null,
+        "apiCode": null,
+        "message": "RECONCILIATION_REQUIRED: [{\"code\":\"STATE_TERMINAL_ATTEMPT_RUNNING\",\"nodeId\":\"IT260830034553_9708_b_node\",\"detail\":\"Node State is terminal while its active Attempt is RUNNING\",\"attemptIds\":[\"IT260830034553_9708_b_attempt\"]}]",
+        "result": {
+          "repaired": [
+            {
+              "type": "RUN_AGGREGATE_RECOMPUTED",
+              "targetType": "NETWORK_RUN",
+              "targetId": "IT260830034553_9708_b",
+              "before": {
+                "status": "CREATED",
+                "revision": 1
+              },
+              "after": {
+                "status": "SUCCESS",
+                "revision": 2
+              },
+              "basis": "Network Run status recomputed from the complete Node State set using specification section 10",
+              "auditEventId": "61e88d84-0ff3-4279-879d-632aed86f544"
+            }
+          ],
+          "inconsistencies": [
+            {
+              "code": "STATE_TERMINAL_ATTEMPT_RUNNING",
+              "nodeId": "IT260830034553_9708_b_node",
+              "detail": "Node State is terminal while its active Attempt is RUNNING",
+              "attemptIds": [
+                "IT260830034553_9708_b_attempt"
+              ]
+            }
+          ],
+          "aggregateUpdated": true
+        }
+      },
+      "rereadState": {
+        "value": {
+          "node_state_id": "IT260830034553_9708_b_state",
+          "node_state_key": "S1:9gDOTA2n0m3JnlpPLffp5pVopdPawbnhfd0MwUPkHRo",
+          "run_id": "IT260830034553_9708_b",
+          "node_id": "IT260830034553_9708_b_node",
+          "job_id": "IT260830034553_9708_b_job",
+          "status": "SUCCESS",
+          "latest_attempt_no": 1,
+          "active_attempt_id": "IT260830034553_9708_b_attempt",
+          "revision": 3,
+          "idempotent": true,
+          "trigger_rule": "all_success",
+          "blocked_by": [],
+          "status_reason": null,
+          "started_at": null,
+          "finished_at": null,
+          "updated_at": "2026-08-30T03:45:00Z"
+        },
+        "revision": 3
+      },
+      "rereadAttempt": {
+        "value": {
+          "node_attempt_id": "IT260830034553_9708_b_attempt",
+          "attempt_key": "A1:RWz6JrdXU-0uqq5n_EJ3ZB5GxS5LKU74nYQRXcZWvKA",
+          "run_id": "IT260830034553_9708_b",
+          "node_id": "IT260830034553_9708_b_node",
+          "job_id": "IT260830034553_9708_b_job",
+          "invocation_id": "IT260830034553_9708_b_invocation",
+          "attempt_no": 1,
+          "status": "RUNNING",
+          "result_code": "PENDING",
+          "execution_started_at": null,
+          "runner_execution_started_at": null,
+          "execution_id": null,
+          "finished_at": null,
+          "duration_sec": null,
+          "error_message": null,
+          "read_count": 0,
+          "written_count": 0,
+          "last_successful_chunk_no": null,
+          "last_written_key": null,
+          "state_revision_before": 1
+        },
+        "revision": 1
+      }
+    },
+    "aggregateRepair": {
+      "result": {
+        "repaired": [
+          {
+            "type": "RUN_AGGREGATE_RECOMPUTED",
+            "targetType": "NETWORK_RUN",
+            "targetId": "IT260830034553_9708_c",
+            "before": {
+              "status": "RUNNING",
+              "revision": 1
+            },
+            "after": {
+              "status": "CREATED",
+              "revision": 2
+            },
+            "basis": "Network Run status recomputed from the complete Node State set using specification section 10",
+            "auditEventId": "5dfb2918-4e9f-403c-8bf4-00c87d24d182"
+          }
+        ],
+        "inconsistencies": [],
+        "aggregateUpdated": true
+      },
+      "rereadRun": {
+        "value": {
+          "run_id": "IT260830034553_9708_c",
+          "network_id": "IT260830034553_9708_c_network",
+          "business_key": "IT260830034553_9708_c_business",
+          "max_active_runs": 1,
+          "status": "CREATED",
+          "lifecycle_status": "ACTIVE",
+          "resume_allowed": true,
+          "as_of": null,
+          "definition_schema_version": 1,
+          "definition_sha256": "sha256:itest-definition",
+          "source_bundle_sha256": "sha256:itest-bundle",
+          "source_bundle_attachment": "20260830034559A6BBFCF5A9CD4BA3A492AD6B607BF68C135",
+          "resolved_profile_snapshot": {
+            "profile": "IT260830034553_9708_c_profile",
+            "base_url": "https://itest.invalid",
+            "guest_space_id": null,
+            "timezone": "Asia/Tokyo",
+            "apps": {},
+            "limits": {
+              "max_api_calls": 100,
+              "max_read_rows": 100,
+              "batch_timeout_sec": 60
+            }
+          },
+          "resolved_profile_sha256": "sha256:itest-profile",
+          "ksql_flow_version": "itest",
+          "engine_version": "itest",
+          "dialect": 1,
+          "created_at": "2026-08-30T03:45:00Z",
+          "started_at": null,
+          "finished_at": null,
+          "updated_at": "2026-08-30T03:46:00Z"
+        },
+        "revision": 2
+      }
+    }
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "test": "m3-canonical-key-conflict",
+  "passed": true,
+  "scope": "IT260830034530_a39e",
+  "observedAt": "2026-08-30T03:45:31.452Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "recordChecks": [
+      {
+        "id": "run_ascii",
+        "actual": "R1:hQ79__q9w3IfdLNDl2KmAzNBTImp5Xnnkno4srTxNPc"
+      },
+      {
+        "id": "run_nfc",
+        "actual": "R1:cwqds96SZlldW3a17j9w1W7t0mG-YNWbkFRK5fTmI9o"
+      },
+      {
+        "id": "run_nfd",
+        "actual": "R1:cwqds96SZlldW3a17j9w1W7t0mG-YNWbkFRK5fTmI9o"
+      },
+      {
+        "id": "run_case_upper",
+        "actual": "R1:hlQpYx4NFAQcrbgi-Vp09vwsAQxnfMu5KuFhm_rg2Kk"
+      },
+      {
+        "id": "run_case_lower",
+        "actual": "R1:ZDLUjwUDtaPnI7gpkuFMwAV2GQ5GlLZV3EzqxVmEAdc"
+      },
+      {
+        "id": "run_boundary_128",
+        "actual": "R1:YhCgo6j8VFzlphqWaD9f1zcvGTdVg2wD-y9-nx1aT_Q"
+      },
+      {
+        "id": "state_ascii",
+        "actual": "S1:BEFrIa66C569EYh-HUIDuaJgIxvmX622KEfWHzN9Xbo"
+      },
+      {
+        "id": "attempt_ascii",
+        "actual": "A1:hHEySfH-2RIbk73J9iv3OBs1r9HyTk-X2EGijmAJfns"
+      },
+      {
+        "id": "state_nfc",
+        "actual": "S1:Lg6mkaIfg5-wV1o0CyGpadyr3dYa92EsldUSdbngHv4"
+      },
+      {
+        "id": "state_nfd",
+        "actual": "S1:Lg6mkaIfg5-wV1o0CyGpadyr3dYa92EsldUSdbngHv4"
+      },
+      {
+        "id": "attempt_max_safe_integer",
+        "actual": "A1:PrC62KRNNDhBeycDqhDK-2u9ahpgFzce8IlWnFDkZLM"
+      },
+      {
+        "id": "state_case_upper",
+        "actual": "S1:NXp3lFAZslvMSHw2n9VmEOShAUyBdG-SdyzHfuDSmas"
+      },
+      {
+        "id": "state_case_lower",
+        "actual": "S1:MG437XGojqcFMpTruS_dZtfMSL9m7WJJ20e8K0LXiHc"
+      },
+      {
+        "id": "state_boundary_128",
+        "actual": "S1:zEW7ToE3jcz93xQQxtoTUHYAJnMTc3XeJ1IyDBfTWFc"
+      }
+    ],
+    "lockChecks": [
+      {
+        "id": "network_ascii",
+        "actual": "N1:dmj63FYc2G5JrhGrGQl6Ybua-wtKm-b9IezI1sWgxek"
+      },
+      {
+        "id": "job_ascii",
+        "actual": "J1:BPh6UeK1BpEVlehbicyW2dKpo_yupn7stSUZgrzfK9U"
+      },
+      {
+        "id": "network_japanese_nfc",
+        "actual": "N1:QqIOXQyIVVVbDwZBoBOMQgUwbkVTfnh4PJ6SYKTyWy4"
+      },
+      {
+        "id": "network_nfc",
+        "actual": "N1:Tezl5xgsAsctR7gkuQ2vdj5cH_uVTpM11T9WgYtiIrQ"
+      },
+      {
+        "id": "network_nfd",
+        "actual": "N1:Tezl5xgsAsctR7gkuQ2vdj5cH_uVTpM11T9WgYtiIrQ"
+      },
+      {
+        "id": "network_case_upper",
+        "actual": "N1:bupnSn2F-Bs0uvaVTote0t0dSOPDZkk1U9lXJyCp3LA"
+      },
+      {
+        "id": "network_case_lower",
+        "actual": "N1:dmj63FYc2G5JrhGrGQl6Ybua-wtKm-b9IezI1sWgxek"
+      },
+      {
+        "id": "network_boundary_128",
+        "actual": "N1:pwnCnXZStSvYwfElxXEveK1e8Ck07_RqSuq-EE8pn68"
+      },
+      {
+        "id": "job_japanese_nfc",
+        "actual": "J1:QOckKqjjGZ99mMTSja3BFPBfWnmm3H6E0WJ-ai5ybPk"
+      }
+    ],
+    "insertOutcomes": [
+      {
+        "status": "fulfilled"
+      },
+      {
+        "status": "fulfilled"
+      }
+    ],
+    "durableNodeStateCount": 1,
+    "revisionOutcomes": [
+      {
+        "status": "fulfilled",
+        "revision": 2
+      },
+      {
+        "status": "rejected",
+        "error": {
+          "name": "RepositoryError",
+          "code": "REVISION_CONFLICT",
+          "status": null,
+          "apiCode": null,
+          "message": "kintone API returned 409 GAIA_CO02",
+          "cause": {
+            "name": "KintoneApiError",
+            "code": null,
+            "status": 409,
+            "apiCode": "GAIA_CO02",
+            "message": "kintone API returned 409 GAIA_CO02"
+          }
+        }
+      }
+    ],
+    "observations": [
+      {
+        "method": "POST",
+        "path": "/k/v1/record.json",
+        "status": 400,
+        "code": "CB_VA01",
+        "apiCode": "CB_VA01",
+        "message": "Missing or invalid input."
+      },
+      {
+        "method": "PUT",
+        "path": "/k/v1/record.json",
+        "status": 409,
+        "code": "GAIA_CO02",
+        "apiCode": "GAIA_CO02",
+        "message": "The revision is not the latest. Someone may update a record."
+      }
+    ]
+  },
+  "cleanup": {
+    "state": 1,
+    "audit": 0,
+    "total": 1
+  }
+}

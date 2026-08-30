@@ -1,0 +1,60 @@
+{
+  "test": "m3-attempt-numbering",
+  "passed": true,
+  "scope": "IT260830034657_724b",
+  "observedAt": "2026-08-30T03:47:04.983Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "parallel": [
+      {
+        "status": "fulfilled",
+        "attemptId": "IT260830034657_724b_attempt_1a"
+      },
+      {
+        "status": "rejected",
+        "error": {
+          "name": "RepositoryError",
+          "code": "ATTEMPT_NUMBER_CONFLICT",
+          "status": null,
+          "apiCode": null,
+          "message": "attempt number 1 cannot be uniquely confirmed",
+          "cause": {
+            "name": "RepositoryError",
+            "code": "DUPLICATE_RECORD",
+            "status": null,
+            "apiCode": null,
+            "message": "insert unique conflict belongs to another record",
+            "cause": {
+              "name": "KintoneApiError",
+              "code": null,
+              "status": 400,
+              "apiCode": "CB_VA01",
+              "message": "kintone API returned 400 CB_VA01"
+            }
+          }
+        }
+      }
+    ],
+    "attemptNumbers": [
+      1,
+      2,
+      3
+    ],
+    "finalLatestAttemptNo": 3,
+    "conflictResponses": [
+      {
+        "method": "POST",
+        "path": "/k/v1/record.json",
+        "status": 400,
+        "code": "CB_VA01",
+        "apiCode": "CB_VA01",
+        "message": "Missing or invalid input."
+      }
+    ]
+  },
+  "cleanup": {
+    "state": 1,
+    "audit": 3,
+    "total": 4
+  }
+}

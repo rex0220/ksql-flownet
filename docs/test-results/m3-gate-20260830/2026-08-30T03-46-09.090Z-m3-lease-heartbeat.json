@@ -1,0 +1,42 @@
+{
+  "test": "m3-lease-heartbeat",
+  "passed": true,
+  "scope": "IT260830034603_800d",
+  "observedAt": "2026-08-30T03:46:09.087Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "heartbeats": [
+      {
+        "revision": 2,
+        "heartbeatAt": "2026-08-30T03:46:04.962Z",
+        "leaseExpiresAt": "2026-08-30T03:46:10.962Z"
+      },
+      {
+        "revision": 3,
+        "heartbeatAt": "2026-08-30T03:46:06.481Z",
+        "leaseExpiresAt": "2026-08-30T03:46:12.481Z"
+      },
+      {
+        "revision": 4,
+        "heartbeatAt": "2026-08-30T03:46:08.001Z",
+        "leaseExpiresAt": "2026-08-30T03:46:14.001Z"
+      }
+    ],
+    "staleLeaseRejection": {
+      "name": "NetworkLockError",
+      "code": "LEASE_TOKEN_MISMATCH",
+      "status": null,
+      "apiCode": null,
+      "message": "network lease token no longer matches"
+    },
+    "firstTombstone": "LOCKDONE:7GWaIWsr0bj-nd-i361tulFBVROKkTpRMEqKHON1iMw",
+    "secondTombstone": "LOCKDONE:VJqz4fwX0f97pWxm4-Iw0HGISse4HfUXgXDxauzz3RM",
+    "liveOwnerBeforeRelease": "IT260830034603_800d_owner_b",
+    "observations": []
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

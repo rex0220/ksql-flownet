@@ -1,0 +1,33 @@
+{
+  "test": "m3-heartbeat-drain",
+  "passed": true,
+  "scope": "IT260830034325_774f",
+  "observedAt": "2026-08-30T03:43:29.421Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "successfulRecovery": {
+      "state": "FINAL_WRITE_CONFIRMED",
+      "canStartNewNode": false,
+      "canPersistResults": true,
+      "inFlightWork": {
+        "completed": true
+      },
+      "finalWriteCount": 1,
+      "lockRevisionAfterConfirmation": "2"
+    },
+    "failedRecovery": {
+      "state": "LEASE_UNCERTAIN",
+      "canStartNewNode": false,
+      "canPersistResults": false,
+      "finalWriteCount": 0,
+      "lockRevisionBefore": "1",
+      "lockRevisionAfter": "1"
+    },
+    "injectedHeartbeatFailures": 5
+  },
+  "cleanup": {
+    "state": 1,
+    "audit": 0,
+    "total": 1
+  }
+}

@@ -5,6 +5,7 @@ import { URL } from "node:url";
 import {
   attemptKey,
   nodeStateKey,
+  runKey,
 } from "../../dist/domain/canonical-record-key.js";
 import {
   jobLockKey,
@@ -42,9 +43,11 @@ await runIntegration(
     );
     const recordChecks = recordVectors.valid.map((vector) => {
       const actual =
-        vector.kind === "state"
-          ? nodeStateKey(vector.run_id, vector.node_id)
-          : attemptKey(vector.run_id, vector.node_id, vector.attempt_no);
+        vector.kind === "run"
+          ? runKey(vector.profile, vector.network_id, vector.business_key)
+          : vector.kind === "state"
+            ? nodeStateKey(vector.run_id, vector.node_id)
+            : attemptKey(vector.run_id, vector.node_id, vector.attempt_no);
       assert.equal(actual, vector.expected_key, vector.id);
       return { id: vector.id, actual };
     });
@@ -121,13 +124,17 @@ await runIntegration(
       summarizeError(revisionError),
       "stale revisionはREVISION_CONFLICTでなければなりません",
     );
+    // 並行更新の敗者コードは非決定的(実測: 409 GAIA_CO02 または 400 GAIA_DA02 =
+    // DBロック競合)。どちらでも安定code REVISION_CONFLICT へ裁定されることが契約。
     assertObserved(
       observations.some(
-        ({ status, apiCode }) => status === 409 && apiCode === "GAIA_CO02",
+        ({ status, apiCode }) =>
+          (status === 409 && apiCode === "GAIA_CO02") ||
+          (status === 400 && apiCode === "GAIA_DA02"),
       ),
-      { status: 409, apiCode: "GAIA_CO02" },
+      { conflict: "409 GAIA_CO02 または 400 GAIA_DA02" },
       observations,
-      "repository更新の409を観測できませんでした",
+      "repository更新の競合(409 CO02/400 DA02)を観測できませんでした",
     );
     return {
       recordChecks,

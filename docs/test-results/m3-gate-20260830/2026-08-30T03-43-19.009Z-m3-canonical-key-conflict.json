@@ -1,0 +1,21 @@
+{
+  "test": "m3-canonical-key-conflict",
+  "passed": false,
+  "scope": "IT260830034318_796f",
+  "observedAt": "2026-08-30T03:43:19.008Z",
+  "nodeVersion": "v24.14.0",
+  "detail": {
+    "error": {
+      "name": "CanonicalRecordKeyError",
+      "code": "RECORD_KEY_ATTEMPT_NO_INVALID",
+      "status": null,
+      "apiCode": null,
+      "message": "attemptNo must be a positive safe integer"
+    }
+  },
+  "cleanup": {
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}
