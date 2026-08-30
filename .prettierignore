@@ -4,3 +4,4 @@ docs/
 .claude/
 .env.example
 spikes/*/results/
+tests/integration/results/
