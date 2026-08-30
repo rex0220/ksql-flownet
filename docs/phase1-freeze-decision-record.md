@@ -872,6 +872,78 @@ node --env-file=.env tests/integration/m3-cleanup.mjs
 
 ただし、今回確認したのはrepository／lease fencingとreconciliationの境界である。schedulerから全Node State読取り、集約計算、Run更新までを一つのInvocation所有権の下で結ぶInvocation全体の配線検証はM5（FN-10）で完了する。この限定はD-24を`DECIDED`とする判断と分離せず、FDR本文および凍結ゲート注記に残す。仕様受入基準19は独立にカバーする。
 
+##### M5実機記録
+
+###### コマンド、環境、回数
+
+- 実施日: 2026-08-30（JST）
+- 環境: `LAPTOP5` / Windows / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- Execution Plane: 実kSQL-Flow v0.7.0
+- node経路: `node.exe` + `C:\Users\rex02\Projects\ksql-flow\dist\cli.js`
+- exe経路: 再ビルド後の`dist-bin\ksql-flow.exe`単体起動。旧版exeを検出したため再ビルドし、SHA-256照合済み。hash値自体は8件の公式JSONへ収録されていないため、本提案では値を補完しない
+- FlowNet E2Eコマンド:
+
+```powershell
+$env:KSQL_FLOW_BIN = 'node.exe'
+$env:KSQL_FLOW_BIN_ARGS = '["C:\\Users\\rex02\\Projects\\ksql-flow\\dist\\cli.js"]'
+node tests\e2e\m5-serial-success.mjs
+node tests\e2e\m5-mid-failure.mjs
+node tests\e2e\m5-resume.mjs
+node tests\e2e\m5-lock-conflict.mjs
+node tests\e2e\m5-kill-unknown.mjs --confirmed-by $env:USERNAME
+node tests\e2e\m5-cleanup.mjs
+
+$env:KSQL_FLOW_BIN = 'C:\Users\rex02\Projects\ksql-flow\dist-bin\ksql-flow.exe'
+Remove-Item Env:KSQL_FLOW_BIN_ARGS -ErrorAction SilentlyContinue
+node tests\e2e\m5-serial-success.mjs
+node tests\e2e\m5-cleanup.mjs
+```
+
+- 回数: 公式通し6件を各1回、exe経路2件を各1回、計8実行
+- 結果: 8件すべて`passed: true`。公式通しはゲート5シナリオとcleanup、exe経路は3ノード直列SUCCESSとcleanup
+- 公式証跡: `docs/test-results/m5-gate-20260830/*.json`の時系列8件
+- cleanup: 公式・exeの最終cleanupはいずれも残存state/audit/ローカル作業ディレクトリ0。kSQL-Flow所有のJOBログapp 4249は`NOT_DELETED`
+
+結果は上記検証環境での実測であり、kintoneまたはWindowsの公式保証を意味しない。
+
+###### 公式証跡8件
+
+| 経路                 | 証跡                                              | 主な結果                                                                                                                                                                |
+| -------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| node + `dist/cli.js` | `2026-08-30T10-09-55.220Z-m5-serial-success.json` | exit 0。Run/Invocationと3 Node/Attemptが`SUCCESS`。JOBログ3件のcorrelation/attempt/execution/job IDが一致                                                               |
+| node + `dist/cli.js` | `2026-08-30T10-10-17.922Z-m5-mid-failure.json`    | exit 1。n1 `SUCCESS`、n2 `FAILED / ASSERT_FAILED`、n3 `BLOCKED`、Run `FAILED`                                                                                           |
+| node + `dist/cli.js` | `2026-08-30T10-10-33.406Z-m5-resume.json`         | NEW/RESUMEともexit 1。同一Runでn1 Attempt 1を保持し、n2だけattempt 2へ進み再度`ASSERT_FAILED`、n3 `BLOCKED`                                                             |
+| node + `dist/cli.js` | `2026-08-30T10-10-58.561Z-m5-lock-conflict.json`  | standaloneを先行。n1 Attempt 1を`CANCELLED / PREPARE_FAILED`としてStateを`WAITING`へ戻し、独立n2は`SUCCESS`。standaloneはexit 0、読取810件、API 65回                    |
+| node + `dist/cli.js` | `2026-08-30T10-11-11.338Z-m5-kill-unknown.json`   | 耐久RUNNINGログ確認後にPID 15716をkill。n1 Attempt/State `UNKNOWN / NO_EXECUTION_RESULT`、独立n2 `SUCCESS`、n3 `BLOCKED`、Run `UNKNOWN`。残留Job lockは照会後`RELEASED` |
+| node + `dist/cli.js` | `2026-08-30T10-11-28.398Z-m5-cleanup.json`        | 残存0、ローカル作業ディレクトリ0、JOBログapp 4249は非削除                                                                                                               |
+| exe単体              | `2026-08-30T10-11-29.379Z-m5-serial-success.json` | exit 0。Run/Invocationと3 Node/Attemptが`SUCCESS`。JOBログ3件の相関IDが一致                                                                                             |
+| exe単体              | `2026-08-30T10-11-49.349Z-m5-cleanup.json`        | 残存0、ローカル作業ディレクトリ0、JOBログapp 4249は非削除                                                                                                               |
+
+##### 実装計画 §4 M5完了ゲートとの対応
+
+`docs/implementation-plan.md`自体は変更しない。同節のLOCK_CONFLICT状態契約と単体競合E2Eは同一シナリオで検証するため、以下では一つのゲートへまとめ、4項目として判定する。
+
+| M5完了ゲート                                                | 実装・実機証跡との対応                                                                                                                                                                                                                                               | 判定・残余                                                                                                                                |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 3ノード成功、中央失敗、複数開始点・分岐合流が仕様どおり終了 | `serial-success`で3ノードSUCCESS、`mid-failure`で中央ASSERT失敗と下流BLOCKED。diamond形状は`lock-conflict`で、n1競合後も独立開始点n2がSUCCESS、合流n3がWAITING、単体holderが完走する範囲を確認。FN-10ユニットテストは完全SUCCESSの複数開始点・分岐合流を安定順で確認 | **限定付き合格。** 完全SUCCESSパスのdiamond単独実機証跡は8件にない。M7受入へdiamond全Node/Attempt、Invocation、RunのSUCCESS確認を追加する |
+| Phase 1で同時Node実行なし                                   | FN-10ユニットテストで最大同時Attempt 1、安定順を確認。直列SUCCESS実機ではAttempt/JOBログがn1→n2→n3の`$id`順で作成され、両起動経路とも完走                                                                                                                            | **合格。** 永続DATETIMEは同一分で同値のため、時刻比較自体は直列性の証拠にしない。M7では`$id`または明示的連番も保存して判定する            |
+| LOCK_CONFLICT状態契約と、単体kSQL-Flowの同一`job_id`競合E2E | standalone RUNNING確認後にnetworkを開始。n1 Attempt番号1を保持して`CANCELLED / PREPARE_FAILED`、State `WAITING`、runner開始時刻なし。独立n2はSUCCESS、standaloneもexit 0で完走                                                                                       | **合格。** diamond全体はRun `RUNNING / NODES_DEFERRED`であり、完全成功試験の代用にはしない                                                |
+| 不正または欠損Execution Resultを`UNKNOWN`へ分類             | kill後に結果JSON欠損を発生させ、n1 Attempt/State `UNKNOWN / NO_EXECUTION_RESULT`、Run/Invocation `UNKNOWN`、独立n2継続、n3 BLOCKEDを確認                                                                                                                             | **合格。** 実測はkillによる欠損経路。不正JSONの個別形状はFN-09ユニットテストの範囲                                                        |
+
+以上から、M5は実装・実機境界について**限定付き合格**とする。限定はdiamond完全SUCCESSの実機証跡だけであり、競合時diamondを完全成功パスとして読み替えない。M7受入で補完後、限定を解除する。
+
+##### Invocation配線の限定解除
+
+2026-08-30のM5（FN-10）で、schedulerから全Node State読取り、決定表による集約計算、revision付きRun更新、Invocation終端までをNetwork lock保持Invocationへ配線した。旧token相当のfencing拒否ではRun集約とInvocationを書かない受入19相当ユニットテストに合格し、実kSQL-Flow v0.7.0を用いたM5実機E2Eでは正常、ASSERT失敗、LOCK_CONFLICT、結果欠損の各分岐で自Invocationによる集約更新が成立した。これにより「集約単一主体のInvocation全体配線はM5で検証する」という限定条件を解除する。実運用スケールの長時間Run、複数ホスト、Ctrl+Break等の既存限定条件は変更しない。Supersededはない。
+
+##### DATETIME順序判定の運用ノート
+
+M5 E2Eで、同一Invocationの複数Node/Attemptについて`execution_started_at`、`runner_execution_started_at`、`started_at`、`finished_at`が同一分の値として永続化される事例を実際に踏んだ。たとえば公式node経路の直列SUCCESSはAttempt record ID 159、160、161の3件すべてが`2026-08-30T10:10:00Z`、exe経路は177、178、179の3件すべてが`2026-08-30T10:11:00Z`である。
+
+kintone DATETIMEは分精度で永続化されるため、同一分内イベントの順序を`started_at`、`execution_started_at`、`runner_execution_started_at`、`finished_at`等のDATETIME値で判定してはならない。順序判定にはkintoneの`$id`または仕様で定めた単調増加の業務連番を使う。時刻は相関・表示用とし、同値を同時実行の証拠にも直列実行の証拠にも読み替えない。M5 E2Eハーネスで直列3 Attemptの永続時刻が同一分へ丸められる事例を確認した。
+
+E2Eの監査レコード読取りは`order by $id asc`を用い、Attemptは`attempt_no`、同番号内は`$id`、Invocationは`$id`で整列する。M7受入では時刻比較による順序assertを廃止し、`$id`または業務連番で判定する。
+
 ---
 
 ## 9. 棄却する案
