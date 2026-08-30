@@ -4,6 +4,7 @@ import { RepositoryError } from "../../dist/persistence/repository.js";
 import {
   createObservedFetch,
   createRepository,
+  assertObserved,
   getRecords,
   makeRun,
   runIntegration,
@@ -60,15 +61,19 @@ await runIntegration(
       1,
       "2件目のcreateRunはfail-closedでなければなりません",
     );
-    assert.ok(
-      rejected[0].reason instanceof RepositoryError &&
+    assertObserved(
+      rejected[0]?.reason instanceof RepositoryError &&
         rejected[0].reason.code === "DUPLICATE_RECORD",
+      { name: "RepositoryError", code: "DUPLICATE_RECORD" },
+      summarizeError(rejected[0]?.reason),
       "2件目はDUPLICATE_RECORDへ裁定されなければなりません",
     );
-    assert.ok(
+    assertObserved(
       observations.some(
         ({ status, apiCode }) => status === 400 && apiCode === "CB_VA01",
       ),
+      { status: 400, apiCode: "CB_VA01" },
+      observations,
       "kintoneのCB_VA01最終裁定を観測できませんでした",
     );
     assert.equal(

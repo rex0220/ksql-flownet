@@ -7,6 +7,7 @@ import {
 } from "../../dist/orchestration/reconciliation.js";
 import {
   attemptFinalization,
+  assertObserved,
   createRepository,
   getRecords,
   makeRun,
@@ -70,15 +71,24 @@ await runIntegration(
     );
     assert.equal(stateA.value.status, "SUCCESS");
     assert.equal(stateA.value.active_attempt_id, null);
-    assert.ok(
+    assertObserved(
       repairedA.repaired.some(
         ({ type }) => type === "TERMINAL_ATTEMPT_APPLIED",
       ),
+      { repairedType: "TERMINAL_ATTEMPT_APPLIED" },
+      repairedA,
+      "terminal Attemptの修復結果が不正です",
     );
-    assert.ok(
+    assertObserved(
       auditsA.some(
         (record) => record.result_code.value === "TERMINAL_ATTEMPT_APPLIED",
       ),
+      { auditResultCode: "TERMINAL_ATTEMPT_APPLIED" },
+      auditsA.map((record) => ({
+        resultCode: record.result_code?.value ?? null,
+        recordKey: record.record_key?.value ?? null,
+      })),
+      "terminal Attempt修復の監査記録を観測できませんでした",
     );
 
     const caseB = await setup("b");
@@ -87,19 +97,25 @@ await runIntegration(
       value: { ...startedB.running.value, status: "SUCCESS" },
       expected_revision: startedB.running.revision,
     });
-    let stoppedB;
+    let stoppedCauseB;
     try {
       await reconcileRun(repository, caseB.runId);
-      assert.fail("terminal State + RUNNING Attemptで停止しませんでした");
     } catch (error) {
-      assert.ok(error instanceof ReconciliationRequiredError);
-      assert.ok(
-        error.result.inconsistencies.some(
+      stoppedCauseB = error;
+    }
+    const stoppedB = summarizeError(stoppedCauseB);
+    assertObserved(
+      stoppedCauseB instanceof ReconciliationRequiredError &&
+        stoppedCauseB.result.inconsistencies.some(
           ({ code }) => code === "STATE_TERMINAL_ATTEMPT_RUNNING",
         ),
-      );
-      stoppedB = summarizeError(error);
-    }
+      {
+        name: "ReconciliationRequiredError",
+        inconsistencyCode: "STATE_TERMINAL_ATTEMPT_RUNNING",
+      },
+      stoppedB,
+      "terminal State + RUNNING Attemptの停止結果が不正です",
+    );
     const stateB = (await repository.getNodeStates(caseB.runId))[0];
     const attemptB = (await repository.getAttempts(caseB.runId))[0];
     assert.equal(stateB.value.status, "SUCCESS");
@@ -109,10 +125,13 @@ await runIntegration(
     const repairedC = await reconcileRun(repository, caseC.runId);
     const runC = await repository.getRun(caseC.runId);
     assert.equal(runC.value.status, "CREATED");
-    assert.ok(
+    assertObserved(
       repairedC.repaired.some(
         ({ type }) => type === "RUN_AGGREGATE_RECOMPUTED",
       ),
+      { repairedType: "RUN_AGGREGATE_RECOMPUTED" },
+      repairedC,
+      "Run aggregateの修復結果が不正です",
     );
 
     return {

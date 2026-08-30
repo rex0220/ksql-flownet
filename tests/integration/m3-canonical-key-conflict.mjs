@@ -12,6 +12,7 @@ import {
 } from "../../dist/domain/canonical-lock-key.js";
 import { RepositoryError } from "../../dist/persistence/repository.js";
 import {
+  assertObserved,
   createObservedFetch,
   createRepository,
   getRecords,
@@ -77,14 +78,25 @@ await runIntegration(
       `record_type in ("NODE_STATE") and node_state_key in ("${canonical}")`,
     );
     assert.equal(stored.length, 1, "同一node_state_keyが複数永続化されました");
-    assert.ok(
+    assertObserved(
       observations.some(
         ({ status, apiCode }) => status === 400 && apiCode === "CB_VA01",
       ),
+      { status: 400, apiCode: "CB_VA01" },
+      observations,
       "node_state_keyの重複禁止CB_VA01を観測できませんでした",
     );
     const current = inserts.find(({ status }) => status === "fulfilled")?.value;
-    assert.ok(current);
+    assertObserved(
+      Boolean(current),
+      { fulfilledCount: 1 },
+      inserts.map((outcome) =>
+        outcome.status === "fulfilled"
+          ? { status: "fulfilled" }
+          : { status: "rejected", error: summarizeError(outcome.reason) },
+      ),
+      "同一node_state_keyへの並行insertの片方が成功しませんでした",
+    );
     const revisions = await Promise.allSettled([
       repository.upsertNodeState({
         value: { ...current.value, status_reason: `${scope}_revision_a` },
@@ -102,15 +114,19 @@ await runIntegration(
     const revisionError = revisions.find(
       ({ status }) => status === "rejected",
     )?.reason;
-    assert.ok(
+    assertObserved(
       revisionError instanceof RepositoryError &&
         revisionError.code === "REVISION_CONFLICT",
+      { name: "RepositoryError", code: "REVISION_CONFLICT" },
+      summarizeError(revisionError),
       "stale revisionはREVISION_CONFLICTでなければなりません",
     );
-    assert.ok(
+    assertObserved(
       observations.some(
         ({ status, apiCode }) => status === 409 && apiCode === "GAIA_CO02",
       ),
+      { status: 409, apiCode: "GAIA_CO02" },
+      observations,
       "repository更新の409を観測できませんでした",
     );
     return {

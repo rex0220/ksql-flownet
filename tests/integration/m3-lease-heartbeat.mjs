@@ -5,6 +5,7 @@ import {
   NetworkLockManager,
 } from "../../dist/persistence/network-lock.js";
 import {
+  assertObserved,
   createObservedFetch,
   getRecordByKey,
   runIntegration,
@@ -58,15 +59,20 @@ await runIntegration(
       ownerInstanceId: `${scope}_instance_b`,
     });
     const secondReference = await secondManager.acquire();
-    let staleError;
+    let staleCause;
     try {
       await firstManager.heartbeat(staleReference);
-      assert.fail("旧lease_tokenのheartbeatが拒否されませんでした");
     } catch (error) {
-      assert.ok(error instanceof NetworkLockError);
-      assert.equal(error.code, "LEASE_TOKEN_MISMATCH");
-      staleError = summarizeError(error);
+      staleCause = error;
     }
+    const staleError = summarizeError(staleCause);
+    assertObserved(
+      staleCause instanceof NetworkLockError &&
+        staleCause.code === "LEASE_TOKEN_MISMATCH",
+      { name: "NetworkLockError", code: "LEASE_TOKEN_MISMATCH" },
+      staleError,
+      "旧lease_tokenのheartbeat拒否結果が不正です",
+    );
     const liveRecord = await getRecordByKey(
       config,
       "state",
@@ -79,8 +85,21 @@ await runIntegration(
       "SUCCESS",
       scope,
     );
-    assert.ok(firstRelease.recordKey.length <= 64);
-    assert.ok(secondRelease.recordKey.length <= 64);
+    assertObserved(
+      firstRelease.recordKey.length <= 64,
+      { maxLength: 64 },
+      { value: firstRelease.recordKey, length: firstRelease.recordKey.length },
+      "1回目のrelease record_keyが長すぎます",
+    );
+    assertObserved(
+      secondRelease.recordKey.length <= 64,
+      { maxLength: 64 },
+      {
+        value: secondRelease.recordKey,
+        length: secondRelease.recordKey.length,
+      },
+      "2回目のrelease record_keyが長すぎます",
+    );
     return {
       heartbeats,
       staleLeaseRejection: staleError,

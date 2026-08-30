@@ -4,6 +4,7 @@ import { nodeStateKey } from "../../dist/domain/canonical-record-key.js";
 import { RepositoryError } from "../../dist/persistence/repository.js";
 import {
   attemptFinalization,
+  assertObserved,
   createObservedFetch,
   createRepository,
   makeState,
@@ -41,10 +42,21 @@ await runIntegration(
     const conflict = parallel.find(
       ({ status }) => status === "rejected",
     )?.reason;
-    assert.ok(first, "並行createAttemptの片方が成功しませんでした");
-    assert.ok(
+    assertObserved(
+      Boolean(first),
+      { fulfilledCount: 1 },
+      parallel.map((outcome) =>
+        outcome.status === "fulfilled"
+          ? { status: "fulfilled" }
+          : { status: "rejected", error: summarizeError(outcome.reason) },
+      ),
+      "並行createAttemptの片方が成功しませんでした",
+    );
+    assertObserved(
       conflict instanceof RepositoryError &&
         conflict.code === "ATTEMPT_NUMBER_CONFLICT",
+      { name: "RepositoryError", code: "ATTEMPT_NUMBER_CONFLICT" },
+      summarizeError(conflict),
       "並行createAttemptの片方はATTEMPT_NUMBER_CONFLICTでなければなりません",
     );
     state = await repository.upsertNodeState({
@@ -101,9 +113,10 @@ await runIntegration(
       .map(({ value }) => value.attempt_no)
       .sort((a, b) => a - b);
     assert.deepEqual(numbers, [1, 2, 3]);
-    assert.equal(
-      new Set(numbers).size,
-      numbers.length,
+    assertObserved(
+      new Set(numbers).size === numbers.length,
+      { unique: true },
+      { attemptNumbers: numbers },
       "attempt_noが重複しています",
     );
     return {
