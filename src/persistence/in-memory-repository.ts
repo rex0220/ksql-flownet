@@ -19,7 +19,10 @@ import type {
   Versioned,
 } from "./repository.js";
 import { RepositoryError } from "./repository.js";
-import { isAllowedNodeStateTransition } from "./state-transition.js";
+import {
+  isAllowedNodeStateTransition,
+  isAllowedResolutionTransition,
+} from "./state-transition.js";
 
 interface Stored<T> {
   value: T;
@@ -209,7 +212,27 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     }
     assertRevision(stored, write.expected_revision);
     if (
-      !isAllowedNodeStateTransition(stored.value.status, write.value.status)
+      write.resolution_event !== undefined &&
+      !this.resolutions.some(
+        ({ value }) =>
+          value.event_type === write.resolution_event?.event_type &&
+          value.attempt_id === write.resolution_event?.attempt_id &&
+          value.resolved_outcome === write.resolution_event?.resolved_outcome &&
+          value.resolved_at === write.resolution_event?.resolved_at,
+      )
+    ) {
+      throw new RepositoryError(
+        "RECORD_NOT_FOUND",
+        "the correlated Attempt Resolution is not durable",
+      );
+    }
+    const resolutionTransition =
+      write.resolution_event !== undefined &&
+      write.resolution_event.resolved_outcome === write.value.status &&
+      isAllowedResolutionTransition(stored.value.status, write.value.status);
+    if (
+      !isAllowedNodeStateTransition(stored.value.status, write.value.status) &&
+      !resolutionTransition
     ) {
       throw new RepositoryError(
         "INVALID_STATE_TRANSITION",
@@ -314,10 +337,13 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     resolution: AttemptResolution,
   ): Promise<Versioned<AttemptResolution>> {
     const attempt = this.attemptById(resolution.attempt_id);
-    if (attempt.value.status !== "UNKNOWN") {
+    if (
+      attempt.value.status !== "UNKNOWN" &&
+      attempt.value.status !== "FAILED"
+    ) {
       throw new RepositoryError(
         "ATTEMPT_LIFECYCLE_VIOLATION",
-        "only UNKNOWN attempts can be resolved",
+        "only UNKNOWN or FAILED attempts can be resolved",
       );
     }
     const stored = { value: structuredClone(resolution), revision: 1 };

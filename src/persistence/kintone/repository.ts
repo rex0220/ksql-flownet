@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { attemptKey, runKey } from "../../domain/canonical-record-key.js";
 import { MAX_KINTONE_UNIQUE_KEY_LENGTH } from "../../domain/canonical-lock-key.js";
 import type {
@@ -20,7 +22,10 @@ import type {
   Versioned,
 } from "../repository.js";
 import { RepositoryError } from "../repository.js";
-import { isAllowedNodeStateTransition } from "../state-transition.js";
+import {
+  isAllowedNodeStateTransition,
+  isAllowedResolutionTransition,
+} from "../state-transition.js";
 import {
   KintoneApiError,
   KintoneClient,
@@ -66,6 +71,32 @@ function inQuery(fieldCode: string, value: string): string {
   return `${fieldCode} in (${quote(value)})`;
 }
 
+function resolutionDetails(
+  record: KintoneRecord,
+): Pick<
+  AttemptResolution,
+  "resolution_type" | "reason" | "stop_confirmed_by" | "stop_evidence_ref"
+> {
+  const raw = text(record, "reason");
+  try {
+    const value = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      resolution_type:
+        value.resolution_type as AttemptResolution["resolution_type"],
+      reason: String(value.reason ?? ""),
+      stop_confirmed_by: String(value.stop_confirmed_by ?? ""),
+      stop_evidence_ref: String(value.stop_evidence_ref ?? ""),
+    };
+  } catch {
+    return {
+      resolution_type: "OUTCOME_CONFIRMED",
+      reason: raw,
+      stop_confirmed_by: "",
+      stop_evidence_ref: "",
+    };
+  }
+}
+
 function uniqueKey(value: string): string {
   if (value.length > MAX_KINTONE_UNIQUE_KEY_LENGTH) {
     throw new RepositoryError(
@@ -74,6 +105,30 @@ function uniqueKey(value: string): string {
     );
   }
   return value;
+}
+
+function resolutionRecordKey(attemptId: string, resolvedAt: string): string {
+  const digest = createHash("sha256")
+    .update(`${attemptId}\0${resolvedAt}`)
+    .digest("hex");
+  return `RES:${digest.slice(0, MAX_KINTONE_UNIQUE_KEY_LENGTH - 4)}`;
+}
+
+function decodeResolution(value: KintoneRecord): AttemptResolution {
+  return {
+    event_type: text(value, "event_type") as AttemptResolution["event_type"],
+    ...resolutionDetails(value),
+    attempt_id: text(value, "attempt_id"),
+    resolved_outcome: text(
+      value,
+      "resolved_outcome",
+    ) as AttemptResolution["resolved_outcome"],
+    evidence_ref: text(value, "evidence_ref"),
+    service_principal: text(value, "service_principal"),
+    requested_by: text(value, "requested_by"),
+    approved_by: text(value, "approved_by"),
+    resolved_at: text(value, "resolved_at"),
+  };
 }
 
 function mapError(error: unknown): never {
@@ -538,24 +593,7 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     );
     return records
       .filter((record) => attemptIds.has(text(record, "attempt_id")))
-      .map((record) =>
-        versioned(record, (value) => ({
-          event_type: text(
-            value,
-            "event_type",
-          ) as AttemptResolution["event_type"],
-          attempt_id: text(value, "attempt_id"),
-          resolved_outcome: text(
-            value,
-            "resolved_outcome",
-          ) as AttemptResolution["resolved_outcome"],
-          evidence_ref: text(value, "evidence_ref"),
-          service_principal: text(value, "service_principal"),
-          requested_by: text(value, "requested_by"),
-          approved_by: text(value, "approved_by"),
-          resolved_at: text(value, "resolved_at"),
-        })),
-      );
+      .map((record) => versioned(record, decodeResolution));
   }
 
   async upsertNodeState(write: NodeStateWrite): Promise<Versioned<NodeState>> {
@@ -580,8 +618,35 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       key,
       decodeState,
     );
+    if (write.resolution_event !== undefined) {
+      const resolution = await this.requiredByRecordKey(
+        this.audit,
+        resolutionRecordKey(
+          write.resolution_event.attempt_id,
+          write.resolution_event.resolved_at,
+        ),
+        decodeResolution,
+      );
+      if (
+        resolution.value.event_type !== write.resolution_event.event_type ||
+        resolution.value.attempt_id !== write.resolution_event.attempt_id ||
+        resolution.value.resolved_outcome !==
+          write.resolution_event.resolved_outcome ||
+        resolution.value.resolved_at !== write.resolution_event.resolved_at
+      ) {
+        throw new RepositoryError(
+          "RECORD_NOT_FOUND",
+          "the correlated Attempt Resolution does not match",
+        );
+      }
+    }
+    const resolutionTransition =
+      write.resolution_event !== undefined &&
+      write.resolution_event.resolved_outcome === write.value.status &&
+      isAllowedResolutionTransition(current.value.status, write.value.status);
     if (
-      !isAllowedNodeStateTransition(current.value.status, write.value.status)
+      !isAllowedNodeStateTransition(current.value.status, write.value.status) &&
+      !resolutionTransition
     ) {
       throw new RepositoryError(
         "INVALID_STATE_TRANSITION",
@@ -722,12 +787,12 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       `ATT:${value.attempt_id}`,
       decodeAttempt,
     );
-    if (attempt.value.status !== "UNKNOWN")
+    if (attempt.value.status !== "UNKNOWN" && attempt.value.status !== "FAILED")
       throw new RepositoryError(
         "ATTEMPT_LIFECYCLE_VIOLATION",
-        "only UNKNOWN attempts can be resolved",
+        "only UNKNOWN or FAILED attempts can be resolved",
       );
-    const key = uniqueKey(`RES:${value.attempt_id}:${value.resolved_at}`);
+    const key = resolutionRecordKey(value.attempt_id, value.resolved_at);
     const record: KintoneRecord = {
       record_key: field(key),
       record_type: field("ATTEMPT_RESOLUTION"),
@@ -738,6 +803,14 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       service_principal: field(value.service_principal),
       requested_by: field(value.requested_by),
       approved_by: field(value.approved_by),
+      reason: field(
+        JSON.stringify({
+          resolution_type: value.resolution_type,
+          reason: value.reason,
+          stop_confirmed_by: value.stop_confirmed_by,
+          stop_evidence_ref: value.stop_evidence_ref,
+        }),
+      ),
       resolved_at: field(value.resolved_at),
     };
     return this.createWithAdjudication(
@@ -757,9 +830,17 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       record_key: field(key),
       record_type: field("OPERATION_AUDIT"),
       run_id: field(value.run_id),
-      result_code: field(value.repair_type),
+      result_code: field(
+        value.event_type === "RECONCILIATION_REPAIR"
+          ? value.repair_type
+          : value.lock_recovery_result.outcome,
+      ),
       reason: field(JSON.stringify(value)),
-      resolved_at: field(value.occurred_at),
+      resolved_at: field(
+        value.event_type === "RECONCILIATION_REPAIR"
+          ? value.occurred_at
+          : value.recorded_at,
+      ),
     };
     return this.createWithAdjudication(
       this.audit,

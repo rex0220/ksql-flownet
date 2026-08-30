@@ -121,6 +121,15 @@ Commands:
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
+  resolve-node --run-id <run_id> --node-id <node_id> --to <status>
+               --reason-file <path> --evidence-ref <ref>
+               --stop-confirmed-by <subject> --stop-evidence-ref <ref>
+               [--manual-completion | --compensation] [--approved-by <subject>]
+                      resolve an UNKNOWN or non-idempotent FAILED node
+  record-job-unlock --result-file <path> --run-id <run_id> --node-id <node_id>
+                    --reason-file <path> --evidence-ref <ref>
+                    --stop-confirmed-by <subject>
+                      associate a kSQL-Flow LOCK_RECOVERY_RESULT with audit
 `,
   );
 });

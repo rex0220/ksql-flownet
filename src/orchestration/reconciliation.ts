@@ -5,11 +5,12 @@ import type {
   AttemptResolution,
   NodeAttempt,
   NodeState,
-  OperationAudit,
+  ReconciliationOperationAudit,
 } from "../domain/persistence-model.js";
 import type {
   PersistenceRepository,
   Versioned,
+  NodeStateWrite,
 } from "../persistence/repository.js";
 
 const TERMINAL_ATTEMPTS = new Set([
@@ -28,8 +29,8 @@ const TERMINAL_STATES = new Set([
 ]);
 
 export interface ReconciliationRepair {
-  type: OperationAudit["repair_type"];
-  targetType: OperationAudit["target_type"];
+  type: ReconciliationOperationAudit["repair_type"];
+  targetType: ReconciliationOperationAudit["target_type"];
   targetId: string;
   before: Record<string, unknown>;
   after: Record<string, unknown>;
@@ -126,6 +127,7 @@ async function repairState(
   status: NodeState["status"],
   finishedAt: string | null,
   reason: string,
+  resolutionEvent?: NodeStateWrite["resolution_event"],
 ): Promise<Versioned<NodeState>> {
   const now = new Date().toISOString();
   return repository.upsertNodeState({
@@ -138,6 +140,9 @@ async function repairState(
       updated_at: now,
     },
     expected_revision: current.revision,
+    ...(resolutionEvent === undefined
+      ? {}
+      : { resolution_event: resolutionEvent }),
   });
 }
 
@@ -357,7 +362,10 @@ export async function reconcileRun(
       });
       continue;
     }
-    if (attempt.value.status !== "UNKNOWN") {
+    if (
+      attempt.value.status !== "UNKNOWN" &&
+      attempt.value.status !== "FAILED"
+    ) {
       inconsistencies.push({
         code: "RESOLUTION_ATTEMPT_NOT_UNKNOWN",
         nodeId: attempt.value.node_id,
@@ -382,7 +390,12 @@ export async function reconcileRun(
     }
     const outcome = grouped[0]!.value.resolved_outcome;
     if (state.value.status === outcome) continue;
-    if (state.value.status !== "UNKNOWN") {
+    const resolvableState =
+      state.value.status === "UNKNOWN" ||
+      (state.value.status === "FAILED" &&
+        attempt.value.status === "FAILED" &&
+        !state.value.idempotent);
+    if (!resolvableState) {
       inconsistencies.push({
         code: "RESOLUTION_STATE_NOT_UNKNOWN",
         nodeId: state.value.node_id,
@@ -404,6 +417,12 @@ export async function reconcileRun(
       outcome,
       resolution.value.resolved_at,
       "reconciled from Attempt Resolution",
+      {
+        event_type: "ATTEMPT_RESOLVED",
+        attempt_id: attemptId,
+        resolved_outcome: outcome,
+        resolved_at: resolution.value.resolved_at,
+      },
     );
     states.set(updated.value.node_id, updated);
     await recordRepair(

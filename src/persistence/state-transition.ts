@@ -26,3 +26,13 @@ export function isAllowedNodeStateTransition(
 ): boolean {
   return ALLOWED_TRANSITIONS[from].has(to);
 }
+
+export function isAllowedResolutionTransition(
+  from: NodeStateStatus,
+  to: NodeStateStatus,
+): boolean {
+  return (
+    from === "FAILED" &&
+    (to === "SUCCESS" || to === "FAILED" || to === "CANCELLED")
+  );
+}
