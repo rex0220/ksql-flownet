@@ -556,10 +556,11 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       key,
       decodeInvocation,
     );
-    if (current.value.status !== "RUNNING") {
+    const currentStatus: string = current.value.status;
+    if (currentStatus !== "RUNNING" && currentStatus !== "CREATED") {
       throw new RepositoryError(
         "INVALID_STATE_TRANSITION",
-        "only a running invocation can be finalized",
+        "only an unterminated invocation can be finalized",
       );
     }
     await this.put(this.audit, key, expectedRevision, {

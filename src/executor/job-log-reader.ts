@@ -1,3 +1,8 @@
+import {
+  KintoneApiError,
+  KintoneTransportError,
+} from "../persistence/kintone/client.js";
+
 export interface JobLogLookup {
   readonly attemptId: string;
   readonly executionId?: string;
@@ -73,13 +78,21 @@ export class KintoneJobLogReader implements JobLogReader {
     );
     url.searchParams.set("app", String(this.options.appId));
     url.searchParams.set("query", query);
-    const response = await this.fetchImpl(url, {
-      method: "GET",
-      headers: { "X-Cybozu-API-Token": this.options.apiToken },
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: "GET",
+        headers: { "X-Cybozu-API-Token": this.options.apiToken },
+      });
+    } catch (error) {
+      throw new KintoneTransportError(error);
+    }
     const body: unknown = await response.json().catch(() => null);
-    if (!response.ok)
-      throw new Error(`job log GET failed with ${response.status}`);
+    if (!response.ok) {
+      const apiCode =
+        isRecord(body) && typeof body.code === "string" ? body.code : null;
+      throw new KintoneApiError(response.status, apiCode, body);
+    }
     if (!isRecord(body) || !Array.isArray(body.records))
       throw new Error("job log GET returned an invalid response");
     const records = body.records as unknown[];
