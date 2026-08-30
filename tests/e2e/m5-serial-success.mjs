@@ -42,7 +42,7 @@ await runM5(import.meta.url, "serial-success", async ({ settings, scope }) => {
 
     const logRecords = await getJobLogs(
       settings,
-      `correlation_id = "${graph.run.runId}" order by runner_execution_started_at asc`,
+      `correlation_id = "${graph.run.runId}" order by $id asc`,
     );
     assert.equal(logRecords.length, 3);
     const logs = logRecords.map(summarizeJobLog);

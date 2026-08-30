@@ -194,6 +194,7 @@ function decodeState(record) {
 
 function decodeAttempt(record) {
   return {
+    recordId: numberField(record, "$id"),
     attemptId: field(record, "node_attempt_id"),
     nodeId: field(record, "node_id"),
     jobId: field(record, "job_id"),
@@ -212,6 +213,7 @@ function decodeAttempt(record) {
 
 function decodeInvocation(record) {
   return {
+    recordId: numberField(record, "$id"),
     invocationId: field(record, "invocation_id"),
     mode: field(record, "mode"),
     status: field(record, "status"),
@@ -244,17 +246,22 @@ export async function loadRunGraph(settings, businessKey) {
   const auditRecords = await getPersistenceRecords(
     settings,
     "audit",
-    `run_id = ${quote(run.runId)} order by started_at asc`,
+    `run_id = ${quote(run.runId)} order by $id asc`,
   );
   return {
     run,
     states: stateRecords.map(decodeState),
     attempts: auditRecords
       .filter((record) => field(record, "record_type") === "NODE_ATTEMPT")
-      .map(decodeAttempt),
+      .map(decodeAttempt)
+      .toSorted(
+        (left, right) =>
+          left.attemptNo - right.attemptNo || left.recordId - right.recordId,
+      ),
     invocations: auditRecords
       .filter((record) => field(record, "record_type") === "RUN_INVOCATION")
-      .map(decodeInvocation),
+      .map(decodeInvocation)
+      .toSorted((left, right) => left.recordId - right.recordId),
   };
 }
 
@@ -449,7 +456,7 @@ export async function waitForRunningJobLog(
   return waitFor(async () => {
     const records = await getJobLogs(
       settings,
-      `attempt_id = ${quote(attemptId)} and job_id = ${quote(expectedJobId)} and status in ("RUNNING") order by runner_execution_started_at desc`,
+      `attempt_id = ${quote(attemptId)} and job_id = ${quote(expectedJobId)} and status in ("RUNNING") order by $id asc`,
     );
     return records[0] ?? null;
   }, `JOBログ RUNNING (${expectedJobId}, ${attemptId})`);
@@ -463,7 +470,7 @@ export async function requireRunningJobLog(
 ) {
   const records = await getJobLogs(
     settings,
-    `attempt_id = ${quote(attemptId)} and job_id = ${quote(expectedJobId)} order by runner_execution_started_at desc`,
+    `attempt_id = ${quote(attemptId)} and job_id = ${quote(expectedJobId)} order by $id asc`,
   );
   const running = records.find(
     (record) => field(record, "status") === "RUNNING",
@@ -608,7 +615,7 @@ async function findKsqlFlowScopeProcesses(scope, ksqlFlowCliPath, attemptId) {
     `$cliPath = '${escapedCliPath}'`,
     `$attemptId = '${escapedAttemptId}'`,
     `$target = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($cliPath, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine.IndexOf($scope, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and ($attemptId.Length -eq 0 -or $_.CommandLine -like ('*--attempt-id*' + $attemptId + '*')) -and $_.ProcessId -ne $PID })`,
-    `$items = @($target | ForEach-Object { [pscustomobject]@{ processId = $_.ProcessId; commandLine = $_.CommandLine } })`,
+    `$items = @($target | ForEach-Object { [pscustomobject]@{ processId = $_.ProcessId; parentProcessId = $_.ParentProcessId; commandLine = $_.CommandLine } })`,
     `ConvertTo-Json -InputObject $items -Compress`,
   ].join("; ");
   const result = await startProcess(
@@ -630,30 +637,40 @@ export async function assertNoKsqlFlowScopeProcess(scope, ksqlFlowCliPath) {
   );
 }
 
+export function resolveProcessTreeRootId(matches, description = "processes") {
+  assert.ok(
+    matches.length >= 1,
+    `expected one process tree for ${description}, found ${matches.length}; matches=${JSON.stringify(matches)}`,
+  );
+  const processIds = new Set(matches.map(({ processId }) => Number(processId)));
+  const roots = matches.filter(
+    ({ parentProcessId }) => !processIds.has(Number(parentProcessId)),
+  );
+  assert.equal(
+    roots.length,
+    1,
+    `expected matches for ${description} to form one process tree, found ${roots.length} roots; matches=${JSON.stringify(matches)}`,
+  );
+  return Number(roots[0].processId);
+}
+
 export async function killKsqlFlowAttempt(attemptId, ksqlFlowCliPath, scope) {
   const matches = await findKsqlFlowScopeProcesses(
     scope,
     ksqlFlowCliPath,
     attemptId,
   );
-  assert.equal(
-    matches.length,
-    1,
-    `expected one kSQL-Flow child containing cliPath=${resolve(ksqlFlowCliPath)} and scope=${scope}, found ${matches.length}; matches=${JSON.stringify(matches)}`,
+  const rootProcessId = resolveProcessTreeRootId(
+    matches,
+    `kSQL-Flow cliPath=${resolve(ksqlFlowCliPath)} and scope=${scope}`,
   );
-  const target = matches[0];
   const result = await startProcess(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-Command",
-      `Stop-Process -Id ${Number(target.processId)} -Force`,
-    ],
+    "taskkill.exe",
+    ["/PID", String(rootProcessId), "/T", "/F"],
     { env: process.env },
   ).completion;
   assert.equal(result.exitCode, 0, result.stderr || result.stdout);
-  return Number(target.processId);
+  return rootProcessId;
 }
 
 function chunks(values, size) {
