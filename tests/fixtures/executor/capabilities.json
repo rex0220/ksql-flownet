@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "kind": "CAPABILITIES",
+  "ksqlFlowVersion": "0.1.0",
+  "engineVersion": "3.74.0",
+  "executionContracts": ["ksql-flow.execution/v1"],
+  "resultSchema": {
+    "$id": "https://github.com/rex0220/ksql-flow/blob/main/schema/execution-result-v1.schema.json",
+    "contract": "ksql-flow.execution/v1"
+  },
+  "features": {
+    "resultJson": true,
+    "correlationIds": true,
+    "describeProfile": true,
+    "inspectJob": true,
+    "durableExecutionStarted": true,
+    "gracefulCancel": true,
+    "jobLockProtocol": "profile-job-v0"
+  }
+}
