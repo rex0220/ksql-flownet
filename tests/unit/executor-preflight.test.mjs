@@ -56,7 +56,8 @@ test("CLI invoker injects command/profile/config and validates all M1 output kin
   const calls = [];
   const outputs = [capabilities(), profile(), inspection()];
   const cli = new KsqlFlowCli({
-    command: "C:/tools/ksql-flow.cmd",
+    command: "node.exe",
+    binArgs: ["C:/tools/ksql flow/dist/cli.js"],
     profile: "prod",
     configPath: "C:/secure/ksql.config.json",
     spawn: async (request) => {
@@ -77,12 +78,13 @@ test("CLI invoker injects command/profile/config and validates all M1 output kin
   );
   assert.deepEqual(calls, [
     {
-      command: "C:/tools/ksql-flow.cmd",
-      args: ["capabilities", "--json"],
+      command: "node.exe",
+      args: ["C:/tools/ksql flow/dist/cli.js", "capabilities", "--json"],
     },
     {
-      command: "C:/tools/ksql-flow.cmd",
+      command: "node.exe",
       args: [
+        "C:/tools/ksql flow/dist/cli.js",
         "describe-profile",
         "--profile",
         "prod",
@@ -92,8 +94,9 @@ test("CLI invoker injects command/profile/config and validates all M1 output kin
       ],
     },
     {
-      command: "C:/tools/ksql-flow.cmd",
+      command: "node.exe",
       args: [
+        "C:/tools/ksql flow/dist/cli.js",
         "inspect-job",
         "-f",
         "snapshot/jobs/aggregate_customer.sql",

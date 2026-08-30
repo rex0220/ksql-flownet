@@ -37,6 +37,19 @@ ksql-flownet validate path/to/network.yaml
 without changing external state. `plan` is reserved for FN-03 and currently
 fails explicitly as not implemented.
 
+To run `run-network` against a source build of kSQL-Flow on Windows, set the
+executable and its leading CLI-script argument separately. Use the JSON array
+form when an argument contains spaces:
+
+```powershell
+$env:KSQL_FLOW_BIN = 'node.exe'
+$env:KSQL_FLOW_BIN_ARGS = '["C:\\Users\\rex02\\Projects\\ksql-flow\\dist\\cli.js"]'
+```
+
+`KSQL_FLOW_BIN_ARGS` also accepts whitespace-separated arguments. After the
+standalone executable is rebuilt, `KSQL_FLOW_BIN` can point to the executable
+and `KSQL_FLOW_BIN_ARGS` can be unset.
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).

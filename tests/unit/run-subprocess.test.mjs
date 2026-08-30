@@ -17,6 +17,7 @@ test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/
   const calls = [];
   const runner = new RunSubprocess({
     command: "ksql-flow",
+    binArgs: ["C:\\Program Files\\ksql-flow\\dist\\cli.js"],
     executionDirectory: "C:\\exec",
     timeoutMs: 100,
     gracePeriodMs: 10,
@@ -37,6 +38,7 @@ test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/
   assert.equal(outcome.stdout, "human output");
   assert.equal(outcome.stderr, "diagnostic");
   assert.deepEqual(calls[0].args, [
+    "C:\\Program Files\\ksql-flow\\dist\\cli.js",
     "run",
     "-f",
     request.sqlPath,

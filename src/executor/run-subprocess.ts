@@ -35,6 +35,7 @@ export type RunSpawn = (request: SpawnRunRequest) => SpawnHandle;
 
 export interface RunSubprocessOptions {
   readonly command: string;
+  readonly binArgs?: readonly string[];
   readonly executionDirectory: string;
   readonly timeoutMs: number;
   readonly gracePeriodMs: number;
@@ -85,7 +86,7 @@ export class RunSubprocess {
       resolve(this.options.executionDirectory),
       `${safeSegment(request.attemptId)}-${safeSegment(this.uniqueId())}.json`,
     );
-    const args = [
+    const contractArgs = [
       "run",
       "-f",
       request.sqlPath,
@@ -104,6 +105,7 @@ export class RunSubprocess {
       "--expected-job-id",
       request.expectedJobId,
     ];
+    const args = [...(this.options.binArgs ?? []), ...contractArgs];
     let stdout = "";
     let stderr = "";
     let handle: SpawnHandle;

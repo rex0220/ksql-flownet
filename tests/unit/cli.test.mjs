@@ -14,7 +14,10 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 
-import { runRunNetworkCommand } from "../../dist/cli/run-network-command.js";
+import {
+  ksqlFlowBinArgsEnvironment,
+  runRunNetworkCommand,
+} from "../../dist/cli/run-network-command.js";
 import { EnsureRunError } from "../../dist/orchestration/ensure-run.js";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -61,6 +64,27 @@ nodes:
   );
   return directory;
 }
+
+test("KSQL_FLOW_BIN_ARGS accepts whitespace, JSON string arrays, and omission", () => {
+  assert.deepEqual(
+    ksqlFlowBinArgsEnvironment({
+      KSQL_FLOW_BIN_ARGS: "dist/cli.js --trace-warnings",
+    }),
+    ["dist/cli.js", "--trace-warnings"],
+  );
+  assert.deepEqual(
+    ksqlFlowBinArgsEnvironment({
+      KSQL_FLOW_BIN_ARGS:
+        '["C:\\\\Program Files\\\\ksql-flow\\\\dist\\\\cli.js"]',
+    }),
+    ["C:\\Program Files\\ksql-flow\\dist\\cli.js"],
+  );
+  assert.deepEqual(ksqlFlowBinArgsEnvironment({}), []);
+  assert.deepEqual(
+    ksqlFlowBinArgsEnvironment({ KSQL_FLOW_BIN_ARGS: "   " }),
+    [],
+  );
+});
 
 test("--version prints the package.json version", () => {
   const packageJson = JSON.parse(
