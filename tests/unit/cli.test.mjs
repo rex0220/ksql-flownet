@@ -130,6 +130,12 @@ Commands:
                     --reason-file <path> --evidence-ref <ref>
                     --stop-confirmed-by <subject>
                       associate a kSQL-Flow LOCK_RECOVERY_RESULT with audit
+  force-unlock-network <network_id> --profile <profile>
+                    --expected-owner-invocation-id <invocation_id>
+                    --reason-file <path> --evidence-ref <ref>
+                    --stop-confirmed-by <subject> --stop-evidence-ref <ref>
+                    --stop-method <method>
+                      force-release a stale Network lock with an audit record
 `,
   );
 });

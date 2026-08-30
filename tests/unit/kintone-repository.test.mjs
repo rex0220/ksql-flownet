@@ -397,6 +397,46 @@ test("kintone: reconciliation監査をOPERATION_AUDIT形状で監査appへ書く
   ]);
 });
 
+test("kintone: Network lock強制回収監査をJSON reason方式で追記する", async () => {
+  const fake = createKintoneFake();
+  const repo = repository(fake);
+  const audit = {
+    event_id: "net_unlock_event-13",
+    event_type: "NETWORK_LOCK_FORCE_RELEASED",
+    network_id: "monthly",
+    profile: "prod",
+    lock_key: "N1:lock-key",
+    record_id: "1001",
+    previous_owner_invocation_id: "invoke-old",
+    previous_lease_token: "lease-old",
+    previous_heartbeat_at: "2026-08-30T00:58:00Z",
+    previous_lease_expires_at: "2026-08-30T00:59:00Z",
+    service_principal: "svc",
+    requested_by: "requester",
+    stop_confirmed_by: "operator",
+    stop_method: "manual",
+    stop_evidence_ref: "stop://1",
+    reason: "confirmed stopped",
+    evidence_ref: "incident://1",
+    released_at: "2026-08-30T01:00:00Z",
+    post_release_revision: 8,
+  };
+  await repo.appendOperationAudit(audit);
+  const call = fake.calls.find(
+    ({ method, body }) =>
+      method === "POST" &&
+      body.record.record_key.value === "OP:net_unlock_event-13",
+  );
+  assert.equal(call.body.app, 200);
+  assert.equal(call.body.record.run_id.value, "");
+  assert.equal(
+    call.body.record.result_code.value,
+    "NETWORK_LOCK_FORCE_RELEASED",
+  );
+  assert.equal(call.body.record.resolved_at.value, audit.released_at);
+  assert.deepEqual(JSON.parse(call.body.record.reason.value), audit);
+});
+
 test("kintone: Attempt ResolutionのD-13必須記録を監査appで往復する", async () => {
   const fake = createKintoneFake();
   const repo = repository(fake);

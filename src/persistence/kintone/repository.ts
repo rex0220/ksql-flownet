@@ -826,20 +826,26 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     value: OperationAudit,
   ): Promise<Versioned<OperationAudit>> {
     const key = uniqueKey(`OP:${value.event_id}`);
+    const networkForceRelease =
+      value.event_type === "NETWORK_LOCK_FORCE_RELEASED";
     const record: KintoneRecord = {
       record_key: field(key),
       record_type: field("OPERATION_AUDIT"),
-      run_id: field(value.run_id),
+      run_id: field(networkForceRelease ? "" : value.run_id),
       result_code: field(
         value.event_type === "RECONCILIATION_REPAIR"
           ? value.repair_type
-          : value.lock_recovery_result.outcome,
+          : value.event_type === "JOB_LOCK_FORCE_UNLOCK_RECORDED"
+            ? value.lock_recovery_result.outcome
+            : value.event_type,
       ),
       reason: field(JSON.stringify(value)),
       resolved_at: field(
         value.event_type === "RECONCILIATION_REPAIR"
           ? value.occurred_at
-          : value.recorded_at,
+          : value.event_type === "JOB_LOCK_FORCE_UNLOCK_RECORDED"
+            ? value.recorded_at
+            : value.released_at,
       ),
     };
     return this.createWithAdjudication(
