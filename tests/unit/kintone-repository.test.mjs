@@ -397,6 +397,91 @@ test("kintone: reconciliation監査をOPERATION_AUDIT形状で監査appへ書く
   ]);
 });
 
+test("kintone: Attempt ResolutionのD-13必須記録を監査appで往復する", async () => {
+  const fake = createKintoneFake();
+  const repo = repository(fake);
+  const state = await repo.upsertNodeState({
+    value: makeState(),
+    expected_revision: null,
+  });
+  const attempt = await repo.createAttempt({
+    node_state: state,
+    node_attempt_id: "attempt_resolution_1",
+    invocation_id: "invoke_1",
+  });
+  const running = await repo.upsertNodeState({
+    value: {
+      ...state.value,
+      status: "RUNNING",
+      latest_attempt_no: 1,
+      active_attempt_id: "attempt_resolution_1",
+    },
+    expected_revision: state.revision,
+  });
+  await repo.finalizeAttempt("attempt_resolution_1", attempt.revision, {
+    status: "UNKNOWN",
+    result_code: "RESULT_UNKNOWN",
+    runner_execution_started_at: "2026-08-30T00:00:00Z",
+    execution_id: "exec_1",
+    finished_at: "2026-08-30T00:01:00Z",
+    duration_sec: 60,
+    error_message: null,
+    read_count: 1,
+    written_count: 1,
+    last_successful_chunk_no: 1,
+    last_written_key: "key",
+  });
+  const unknown = await repo.upsertNodeState({
+    value: {
+      ...running.value,
+      status: "UNKNOWN",
+      active_attempt_id: null,
+      finished_at: "2026-08-30T00:01:00Z",
+    },
+    expected_revision: running.revision,
+  });
+  const resolution = {
+    event_type: "ATTEMPT_RESOLVED",
+    resolution_type: "NODE_MANUAL_COMPLETION_CONFIRMED",
+    attempt_id: "attempt_resolution_1",
+    resolved_outcome: "SUCCESS",
+    reason: "manual completion",
+    evidence_ref: "evidence://1",
+    service_principal: "svc",
+    requested_by: "operator",
+    approved_by: "supervisor",
+    stop_confirmed_by: "operator",
+    stop_evidence_ref: "stop://1",
+    resolved_at: "2026-08-30T00:02:00Z",
+  };
+  await repo.appendResolution(resolution);
+  const resolved = await repo.upsertNodeState({
+    value: { ...unknown.value, status: "SUCCESS" },
+    expected_revision: unknown.revision,
+    resolution_event: {
+      event_type: "ATTEMPT_RESOLVED",
+      attempt_id: resolution.attempt_id,
+      resolved_outcome: resolution.resolved_outcome,
+      resolved_at: resolution.resolved_at,
+    },
+  });
+
+  const call = fake.calls.find(
+    ({ method, body }) =>
+      method === "POST" &&
+      body.record.record_type.value === "ATTEMPT_RESOLUTION",
+  );
+  assert.equal(call.body.record.record_key.value.length, 64);
+  assert.deepEqual(JSON.parse(call.body.record.reason.value), {
+    resolution_type: "NODE_MANUAL_COMPLETION_CONFIRMED",
+    reason: "manual completion",
+    stop_confirmed_by: "operator",
+    stop_evidence_ref: "stop://1",
+  });
+  assert.deepEqual((await repo.getResolutions("run_1"))[0].value, resolution);
+  assert.equal(resolved.value.status, "SUCCESS");
+});
+
 test("kintone: attempt_key競合は再GET後も別identityならfail-closed", async () => {
   const fake = createKintoneFake();
   const repo = repository(fake);

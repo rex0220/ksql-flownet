@@ -63,6 +63,12 @@ export interface InvocationFinalization {
 export interface NodeStateWrite {
   value: NodeState;
   expected_revision: number | null;
+  resolution_event?: {
+    event_type: "ATTEMPT_RESOLVED";
+    attempt_id: string;
+    resolved_outcome: "SUCCESS" | "FAILED" | "CANCELLED";
+    resolved_at: string;
+  };
 }
 
 export interface CreateAttemptInput {

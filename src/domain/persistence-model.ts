@@ -116,20 +116,24 @@ export interface NodeAttempt {
 }
 
 export interface AttemptResolution {
-  event_type:
-    | "ATTEMPT_RESOLVED"
+  event_type: "ATTEMPT_RESOLVED";
+  resolution_type:
+    | "OUTCOME_CONFIRMED"
     | "NODE_MANUAL_COMPLETION_CONFIRMED"
     | "NODE_COMPENSATION_COMPLETED";
   attempt_id: string;
   resolved_outcome: "SUCCESS" | "FAILED" | "CANCELLED";
+  reason: string;
   evidence_ref: string;
   service_principal: string;
   requested_by: string;
   approved_by: string;
+  stop_confirmed_by: string;
+  stop_evidence_ref: string;
   resolved_at: string;
 }
 
-export interface OperationAudit {
+export interface ReconciliationOperationAudit {
   event_id: string;
   event_type: "RECONCILIATION_REPAIR";
   repair_type:
@@ -144,3 +148,39 @@ export interface OperationAudit {
   basis: string;
   occurred_at: string;
 }
+
+export type LockRecoveryOutcome =
+  "RELEASED" | "NOT_FOUND" | "NOT_RUNNING" | "CONFLICT" | "UNCONFIRMED";
+
+export interface LockRecoveryResult {
+  kind: "LOCK_RECOVERY_RESULT";
+  formatVersion: 1;
+  jobKey: string;
+  recordId: string | null;
+  outcome: LockRecoveryOutcome;
+  before: {
+    batchId: string;
+    startedAt: string;
+    host: string;
+  } | null;
+  executedAt: string;
+  nextAction?: string;
+}
+
+export interface JobLockRecoveryOperationAudit {
+  event_id: string;
+  event_type: "JOB_LOCK_FORCE_UNLOCK_RECORDED";
+  run_id: string;
+  node_id: string;
+  job_id: string;
+  service_principal: string;
+  requested_by: string;
+  stop_confirmed_by: string;
+  reason: string;
+  evidence_ref: string;
+  recorded_at: string;
+  lock_recovery_result: LockRecoveryResult;
+}
+
+export type OperationAudit =
+  ReconciliationOperationAudit | JobLockRecoveryOperationAudit;
