@@ -1,10 +1,17 @@
 # kSQL-Flow Execution Contract v1
 
-- 状態: **PROPOSED**
+- 状態: **ACCEPTED**(2026-08-30)
 - contract ID: `ksql-flow.execution/v1`
 - 作成日: 2026-08-29
 - 対象: kSQL-FlowNetから`ksql-flow`のrun・検査コマンドを呼び出すCLI境界
 - 変更記録: 2026-08-30: `SQL_ERROR`のExit対応を3→1へ修正（kSQL-Flow公開仕様7.1との整合。kSQL-Flowからの疑義文書による再審議）
+
+承認記録（2026-08-30）:
+
+- kSQL-Flow側M1完了報告 §2に記載された§13の全15項目を決定した。
+- contract testは22 suites／287 testsに合格し、kSQL-FlowNet側でも独立再実行して同数の合格を確認した。
+- devenxyfiの実行ログapp 4249、Windows実コンソール、Linux VPSで実機検証した。記録はkSQL-Flowの`docs/internal/m1_verification_record_20260830.md`を参照する。
+- Execution Result v1の正本schemaはkSQL-Flow同梱の`schema/execution-result-v1.schema.json`（`$id`付き）とする。
 
 ---
 
@@ -324,6 +331,8 @@ SQLの最初の文を開始
 
 JOBログ更新の成功を確認できない場合はSQLを開始せず`LOCK_UNAVAILABLE`または`INTERNAL_ERROR`としてfail-closedにする。orchestrator経由では`--lock local-only`を禁止する。
 
+kintoneのDATETIMEが分精度であることを2026-08-30の実機検証で確認した。`EXECUTION_STARTED`更新の応答が消失した場合は、同一record IDを再GETし、送信値と`runner_execution_started_at`を双方とも分単位へ正規化して一致を照合する。一致した場合だけSQLを開始し、不一致または照会不能ならSQLを開始しない。Execution Resultの`startedAt`とJSONL時刻は秒精度を維持する。
+
 Node Attemptの`execution_started_at`は「orchestratorが実行開始を許可した」マーカーであり、JOBログの`runner_execution_started_at`は「kSQL-FlowがSQL開始直前まで到達した」マーカーである。結果JSONが欠損した場合:
 
 | Node Attempt | JOB `EXECUTION_STARTED` | 判定 |
@@ -501,17 +510,19 @@ snapshotは外部データ、権限、kintone設定、外部API応答を固定�
 
 ## 13. v1確定前の未決事項
 
-- `--result-json <path>`の既存ファイル上書き規則
-- `executionId`の発行時点と形式
-- graceful cancelのExit 3内での既存互換性
-- JOB `EXECUTION_STARTED`のrevision更新、応答消失、照会手順の詳細
-- error codeの最小安定集合
-- capability commandの配置とExit Code
-- WindowsでのCtrl+C／CTRL_BREAK処理
-- JSON Schemaの配布場所とpackage化
-- kSQL-Flow JOBログアプリへcorrelation fieldを追加する移行方法
-- Job lock force-unlockのCLI、停止確認入力、結果schema、Exit Code、応答消失時の照会方法
-- `describe-profile` canonical JSONの正規化規則
-- `inspect-job`の検査codeと承認済み例外schema
+- `--result-json <path>`の既存ファイル上書き規則 — **決定済み**（既存拒否、same-directory temp・fsync・atomic rename）。
+- `executionId`の発行時点と形式 — **決定済み**（batchIdと同値のUUID v4をプロセス起動時・ロック取得前に発行）。
+- graceful cancelのExit 3内での既存互換性 — **決定済み**（1回目は安全境界、2回目は即時終了、いずれもExit 3）。
+- JOB `EXECUTION_STARTED`のrevision更新、応答消失、照会手順の詳細 — **決定済み**（expected revision 1、同一record ID再GET、分単位正規化照合）。
+- error codeの最小安定集合 — **決定済み**。
+- capability commandの配置とExit Code — **決定済み**（トップレベル`capabilities --json`、正常Exit 0、引数不備1）。
+- WindowsでのCtrl+C／CTRL_BREAK処理 — **決定済み**（SIGINT／SIGBREAK。SIGTERM handlerも登録）。
+- JSON Schemaの配布場所とpackage化 — **決定済み**（kSQL-Flow同梱の`schema/execution-result-v1.schema.json`が正本）。
+- kSQL-Flow JOBログアプリへcorrelation fieldを追加する移行方法 — **決定済み**（template v0.4と移行・ACL Consoleスクリプト）。
+- Job lock force-unlockのCLI、停止確認入力、結果schema、Exit Code、応答消失時の照会方法 — **決定済み**（`inspect-lock`／`force-unlock-job`契約）。
+- `describe-profile` canonical JSONの正規化規則 — **決定済み**（全階層キー辞書順、余分な空白なし、UTF-8、JS標準数値表現）。
+- `inspect-job`の検査codeと承認済み例外schema — **決定済み**（非決定要素は`KSQL1306`のみ。例外manifestはFlowNet責務）。
 
-これらを決定しcontract testを通過した時点で、本書を`ACCEPTED`へ変更する。
+決定内容の詳細は、kSQL-Flowの`docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §2を参照する。producer側の正本schemaが契約本文より厳格な安全制約（`lastSuccessfulChunkNo`／`lastWrittenKey`のrequired化、`executionStarted=false`時のcount類0、`LOCK_UNAVAILABLE`時の`executionStarted=false`、既知resultCodeごとのcategory固定、`SQL_ERROR`時の`executionStarted=true`かつcategory `SQL`など）を持つことは、additive互換性を保つ限り契約上許容する。
+
+これらの決定とcontract test通過を2026-08-30に確認し、本書を`ACCEPTED`へ変更した。

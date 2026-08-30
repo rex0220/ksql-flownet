@@ -5,6 +5,7 @@
 - 基準バージョン: kSQL-Flow 0.6.0
 - 詳細契約: [kSQL-Flow Execution Contract v1](./execution-contract-v1.md)
 - 変更記録: 2026-08-30: `SQL_ERROR`のExit対応を3→1へ修正（kSQL-Flow公開仕様7.1との整合。kSQL-Flowからの疑義文書による再審議）
+- 実装状況: kSQL-Flow側実装完了（2026-08-30、ksql-flow main `28f3991`）。§9受入基準のkSQL-Flow担当項目は全て充足した。FlowNet責務（7／8／12等）はFN-09／FN-12実装時に担保する。文書状態自体はFlowNet側実装完了時に昇格する。
 
 ---
 
@@ -280,21 +281,21 @@ Phase 0の初期段階では、現行の次の形式を維持する。
 
 ## 9. Phase 0受入基準
 
-- [ ] `--result-json -`のstdoutにJSON以外が混入しない。
-- [ ] path出力で途中JSONが完成結果として観測されない。
-- [ ] JSONのExit Codeと実プロセスExit Codeが一致する。
-- [ ] `correlationId`と`attemptId`が入力値と一致する。
-- [ ] JOBログ／JSONLからNode Attemptを追跡できる。
-- [ ] `SUCCESS`、`NO_DATA`、ASSERT、timeout、API失敗、ロック競合を安定分類できる。
-- [ ] JSONなし、破損、ID不一致、Exit不一致をorchestratorが`UNKNOWN`にする。
-- [ ] capability不一致ではSQLを実行しない。
-- [ ] `describe-profile`不一致、`expected-job-id`不一致、未承認の非決定要素を実行前に拒否する。
-- [ ] `node_id != job_id`でも単体runとorchestrator経由実行が同じJobロックで競合する。
-- [ ] JOB `EXECUTION_STARTED`更新を確認できない場合にSQLを開始しない。
-- [ ] `executionStarted`とresultCodeの矛盾を不正結果として拒否する。
-- [ ] 既存`run-all`のExit Codeとresume動作が退行しない。
-- [ ] WindowsとUnixでsignal／forced kill試験を実施する。
-- [ ] JOBログアプリの相関フィールド追加が旧schema・既存レコードと共存し、rollbackできる。
-- [ ] force-unlockが旧保持者停止確認なしでは拒否され、結果を機械可読に照合できる。
+- [x] `--result-json -`のstdoutにJSON以外が混入しない。（kSQL-Flow担当完了: 1 object＋LF、BOM／ANSI／人間向け出力なしを試験）
+- [x] path出力で途中JSONが完成結果として観測されない。（kSQL-Flow担当完了: same-directory temp、fsync、atomic rename、既存拒否、EPIPE非干渉を試験）
+- [x] JSONのExit Codeと実プロセスExit Codeが一致する。（kSQL-Flow担当完了: controlled failureと出力失敗時の本来Exit維持を試験）
+- [x] `correlationId`と`attemptId`が入力値と一致する。（kSQL-Flow担当完了: 128文字値のechoと実ログアプリでの保存・再GETを確認）
+- [x] JOBログ／JSONLからNode Attemptを追跡できる。（kSQL-Flow担当完了: 相関5フィールド、`job_key_done`退避、ACLを実機確認）
+- [x] `SUCCESS`、`NO_DATA`、ASSERT、timeout、API失敗、ロック競合を安定分類できる。（kSQL-Flow担当完了: controlled failure全経路とschema整合を試験）
+- [ ] JSONなし、破損、ID不一致、Exit不一致をorchestratorが`UNKNOWN`にする。（FlowNet責務: FN-09）
+- [ ] capability不一致ではSQLを実行しない。（FlowNet責務: FN-09。kSQL-Flowのcapabilities出力は確認済み）
+- [ ] `describe-profile`不一致、`expected-job-id`不一致、未承認の非決定要素を実行前に拒否する。（分担: kSQL-Flowの`expected-job-id`拒否は完了。FlowNetのprofile照合・例外承認はFN-07／FN-09）
+- [ ] `node_id != job_id`でも単体runとorchestrator経由実行が同じJobロックで競合する。（分担: kSQL-Flowの照合済み`job_id`による既存lock生成は完了。FlowNetのnode／job結合は未実装）
+- [x] JOB `EXECUTION_STARTED`更新を確認できない場合にSQLを開始しない。（kSQL-Flow担当完了: 失敗・応答消失分岐と分精度照合を試験・実機確認）
+- [ ] `executionStarted`とresultCodeの矛盾を不正結果として拒否する。（FlowNet責務: FN-09。kSQL-Flow正本schemaは矛盾拒否済み）
+- [x] 既存`run-all`のExit Codeとresume動作が退行しない。（kSQL-Flow担当完了: Exit 0〜5、優先順位、resume試験を維持）
+- [x] WindowsとUnixでsignal／forced kill試験を実施する。（kSQL-Flow担当完了: Windows実コンソールとLinux VPSで実signal確認。境界はsignal模擬試験）
+- [x] JOBログアプリの相関フィールド追加が旧schema・既存レコードと共存し、rollbackできる。（kSQL-Flow担当完了: template v0.4適用、既存record共存、128文字IDを実機確認。実削除試行は任意）
+- [ ] force-unlockが旧保持者停止確認なしでは拒否され、結果を機械可読に照合できる。（分担: kSQL-Flow側は完了。FlowNet監査関連付けはFN-12）
 
-本受入基準を満たすまでは、Execution Contract v1を`ACCEPTED`または実装済みとして扱わない。
+2026-08-30時点でkSQL-Flow担当項目は全て充足した。Execution Contract v1は独立検証と承認により`ACCEPTED`とするが、本書の状態は残るFlowNet責務を実装・検証するまで`PROPOSED`を維持する。
