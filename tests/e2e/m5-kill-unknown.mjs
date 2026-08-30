@@ -6,6 +6,7 @@ import {
   m5ConfirmedBy,
   prepareNetwork,
   recoverM5JobLock,
+  resolveKsqlFlowCliPath,
   runM5,
   startFlowNetNetwork,
   summarizeJobLog,
@@ -21,11 +22,20 @@ await runM5(
     const fixture = await prepareNetwork(scope, "network-diamond.yaml", {
       longReadNodeId: "n1_customers",
     });
+    const networkStartedAt = new Date().toISOString();
     const network = await startFlowNetNetwork(
       settings,
       fixture.networkPath,
       scope,
     );
+    const timingDiagnostics = {
+      standaloneStartedAt: null,
+      runningConfirmedAt: null,
+      networkStartedAt,
+      targetAttemptStartedAt: null,
+      targetAttemptObservedAt: null,
+      killedAt: null,
+    };
     let killed = false;
     let detail;
     let testError;
@@ -40,11 +50,19 @@ await runM5(
       const attempt = running.attempts.find(
         ({ nodeId }) => nodeId === "n1_customers",
       );
+      timingDiagnostics.targetAttemptObservedAt = new Date().toISOString();
+      timingDiagnostics.targetAttemptStartedAt = attempt.executionStartedAt;
       const runningLog = await waitForRunningJobLog(
         settings,
         attempt.attemptId,
       );
-      const killedPid = await killKsqlFlowAttempt(attempt.attemptId);
+      timingDiagnostics.runningConfirmedAt = new Date().toISOString();
+      const ksqlFlowCliPath = resolveKsqlFlowCliPath(settings.ksqlFlowBinArgs);
+      const killedPid = await killKsqlFlowAttempt(
+        attempt.attemptId,
+        ksqlFlowCliPath,
+      );
+      timingDiagnostics.killedAt = new Date().toISOString();
       killed = true;
       const networkProcess = await network.completion;
       assert.equal(networkProcess.exitCode, 1);
@@ -74,8 +92,11 @@ await runM5(
         networkProcess,
         graph,
         networkId: fixture.networkId,
+        ksqlFlowCliPath,
+        timingDiagnostics,
       };
     } catch (error) {
+      error.timingDiagnostics = timingDiagnostics;
       testError = error;
     } finally {
       if (network.child.exitCode === null) network.child.kill("SIGKILL");

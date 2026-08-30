@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertDistinctProcessCwds, m5ConfirmedBy } from "../e2e/support.mjs";
+import {
+  assertDistinctProcessCwds,
+  m5ConfirmedBy,
+  resolveKsqlFlowCliPath,
+} from "../e2e/support.mjs";
 
 test("M5 lock conflict rejects an identical standalone cwd", () => {
   assert.throws(
@@ -32,4 +36,19 @@ test("kill cleanup confirmed-by accepts argument then environment", () => {
     "environment-user",
   );
   assert.throws(() => m5ConfirmedBy({}, []), /confirmed-by/u);
+});
+
+test("kill target resolves only the kSQL-Flow dist cli script", () => {
+  assert.equal(
+    resolveKsqlFlowCliPath([
+      "C:\\Users\\tester\\Projects\\ksql-flow\\dist\\cli.js",
+      "--trace-warnings",
+    ]),
+    "C:\\Users\\tester\\Projects\\ksql-flow\\dist\\cli.js",
+  );
+  assert.throws(
+    () =>
+      resolveKsqlFlowCliPath(["C:\\work\\ksql-flownet\\dist\\cli\\index.js"]),
+    /matches=\[\]/u,
+  );
 });

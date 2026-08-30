@@ -440,6 +440,29 @@ export async function waitForRunningJobLog(
   }, `JOBログ RUNNING (${expectedJobId}, ${attemptId})`);
 }
 
+export async function requireRunningJobLog(
+  settings,
+  attemptId,
+  phase,
+  expectedJobId = M5_JOB_ID,
+) {
+  const records = await getJobLogs(
+    settings,
+    `attempt_id = ${quote(attemptId)} and job_id = ${quote(expectedJobId)} order by runner_execution_started_at desc`,
+  );
+  const running = records.find(
+    (record) => field(record, "status") === "RUNNING",
+  );
+  if (running) return running;
+  const matches = records.map(summarizeJobLog);
+  const error = new Error(
+    `競合窓不足: ${phase}にstandalone JOBのRUNNING継続を確認できませんでした (${expectedJobId}, ${attemptId}); matches=${JSON.stringify(matches)}`,
+  );
+  error.code = "M5_LOCK_WINDOW_INSUFFICIENT";
+  error.jobLogMatches = matches;
+  throw error;
+}
+
 function parseMachineJson(stdout, expectedKind) {
   const lines = stdout.trim().split(/\r?\n/u).filter(Boolean).reverse();
   for (const line of lines) {
@@ -543,13 +566,30 @@ export async function waitForRunGraph(settings, businessKey, predicate) {
   }, `FlowNet Run状態 (${businessKey})`);
 }
 
-export async function killKsqlFlowAttempt(attemptId) {
+export function resolveKsqlFlowCliPath(binArgs) {
+  const matches = binArgs
+    .filter((argument) => /(?:^|[\\/])dist[\\/]cli\.js$/iu.test(argument))
+    .map((argument) => resolve(argument));
+  assert.equal(
+    matches.length,
+    1,
+    `KSQL_FLOW_BIN_ARGSからkSQL-Flowのdist\\cli.jsフルパスを1件特定できません: matches=${JSON.stringify(matches)}`,
+  );
+  return matches[0];
+}
+
+export async function killKsqlFlowAttempt(attemptId, ksqlFlowCliPath) {
   if (process.platform !== "win32")
     throw new Error("m5-kill-unknown is currently a Windows real-device test");
-  const escaped = attemptId.replaceAll("'", "''");
+  const escapedAttemptId = attemptId.replaceAll("'", "''");
+  const escapedCliPath = resolve(ksqlFlowCliPath).replaceAll("'", "''");
   const command = [
-    `$target = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*--attempt-id*${escaped}*' -and $_.ProcessId -ne $PID }`,
-    `if (@($target).Count -ne 1) { throw "expected one kSQL-Flow child, found $(@($target).Count)" }`,
+    `$attemptId = '${escapedAttemptId}'`,
+    `$cliPath = '${escapedCliPath}'`,
+    `$target = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($cliPath, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine -like ('*--attempt-id*' + $attemptId + '*') -and $_.ProcessId -ne $PID })`,
+    `$actualItems = @($target | ForEach-Object { [pscustomobject]@{ ProcessId = $_.ProcessId; CommandLine = $_.CommandLine } | ConvertTo-Json -Compress })`,
+    `$actual = '[' + ($actualItems -join ',') + ']'`,
+    `if ($target.Count -ne 1) { throw "expected one kSQL-Flow child containing cliPath=$cliPath, found $($target.Count); matches=$actual" }`,
     `$pidToStop = [int]$target.ProcessId`,
     `Stop-Process -Id $pidToStop -Force`,
     `$pidToStop`,
@@ -689,6 +729,12 @@ function summarizeError(error) {
     message: error?.message ?? String(error),
     ...(error?.actual === undefined ? {} : { actual: error.actual }),
     ...(error?.expected === undefined ? {} : { expected: error.expected }),
+    ...(error?.jobLogMatches === undefined
+      ? {}
+      : { jobLogMatches: error.jobLogMatches }),
+    ...(error?.timingDiagnostics === undefined
+      ? {}
+      : { timingDiagnostics: error.timingDiagnostics }),
     ...(error?.lockRecovery === undefined
       ? {}
       : { lockRecovery: error.lockRecovery }),
