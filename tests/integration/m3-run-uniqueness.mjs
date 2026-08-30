@@ -21,18 +21,21 @@ await runIntegration(
       config,
       createObservedFetch(observations),
     );
-    const bundle = await uploadBundle(config, scope);
+    const bundles = await Promise.all([
+      uploadBundle(config, `${scope}_a`),
+      uploadBundle(config, `${scope}_b`),
+    ]);
     const shared = {
       network_id: `${scope}_network`,
       business_key: `${scope}_business`,
       resolved_profile_snapshot: {
-        ...makeRun(scope, bundle).resolved_profile_snapshot,
+        ...makeRun(scope, bundles[0]).resolved_profile_snapshot,
         profile: `${scope}_profile`,
       },
     };
     const candidates = [
-      makeRun(`${scope}_a`, bundle, shared),
-      makeRun(`${scope}_b`, bundle, shared),
+      makeRun(`${scope}_a`, bundles[0], shared),
+      makeRun(`${scope}_b`, bundles[1], shared),
     ];
     const outcomes = await Promise.allSettled(
       candidates.map((candidate) => repository.createRun(candidate)),

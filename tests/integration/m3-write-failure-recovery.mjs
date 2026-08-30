@@ -22,11 +22,11 @@ await runIntegration(
   "m3-write-failure-recovery",
   async ({ config, scope }) => {
     const repository = createRepository(config);
-    const bundle = await uploadBundle(config, scope);
 
     async function setup(suffix, runOverrides = {}) {
       const runId = `${scope}_${suffix}`;
       const nodeId = `${runId}_node`;
+      const bundle = await uploadBundle(config, runId);
       await repository.createRun(makeRun(runId, bundle, runOverrides));
       const state = await repository.upsertNodeState({
         value: makeState(runId, nodeStateKey(runId, nodeId), {

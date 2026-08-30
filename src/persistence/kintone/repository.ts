@@ -799,6 +799,28 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       delete update.record_key;
       await client.putRecord(recordKey, revision, update);
     } catch (error) {
+      if (
+        error instanceof KintoneApiError &&
+        error.status === 400 &&
+        error.apiCode === "GAIA_DA02"
+      ) {
+        // A concurrent updateKey PUT loser can be reported as GAIA_DA02 rather
+        // than GAIA_CO02. Only reclassify it when a re-GET proves that the
+        // expected revision lost its target; otherwise retain fail-closed
+        // REMOTE_ERROR behavior for unrelated GAIA_DA02 responses.
+        let records: KintoneRecord[];
+        try {
+          records = await client.getRecords(inQuery("record_key", recordKey));
+        } catch {
+          mapError(error);
+        }
+        if (
+          records.length === 0 ||
+          (records.length === 1 && revisionOf(records[0]!) > revision)
+        ) {
+          throw new RepositoryError("REVISION_CONFLICT", error.message, error);
+        }
+      }
       mapError(error);
     }
   }
