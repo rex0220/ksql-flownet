@@ -19,6 +19,9 @@ Commands:
   validate <network>  validate a network definition and its SQL files
   plan <network> [--scheduled-for <timestamp>] [--business-key <key>]
                       display the business key and stable execution plan (read-only)
+  run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
+                        [--resume] [--resume-run <run_id>]
+                      ensure a Network Run (node execution starts in M5)
 `;
 
 function getVersion(): string {
@@ -72,6 +75,12 @@ async function main(args: readonly string[]): Promise<void> {
   if (command === "plan") {
     const { runPlanCommand } = await import("./plan-command.js");
     process.exitCode = runPlanCommand(commandArgs);
+    return;
+  }
+
+  if (command === "run-network") {
+    const { runRunNetworkCommand } = await import("./run-network-command.js");
+    process.exitCode = await runRunNetworkCommand(commandArgs);
     return;
   }
 

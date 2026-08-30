@@ -14,6 +14,9 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 
+import { runRunNetworkCommand } from "../../dist/cli/run-network-command.js";
+import { EnsureRunError } from "../../dist/orchestration/ensure-run.js";
+
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const cliPath = fileURLToPath(
   new URL("../../dist/cli/index.js", import.meta.url),
@@ -89,8 +92,126 @@ Commands:
   validate <network>  validate a network definition and its SQL files
   plan <network> [--scheduled-for <timestamp>] [--business-key <key>]
                       display the business key and stable execution plan (read-only)
+  run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
+                        [--resume] [--resume-run <run_id>]
+                      ensure a Network Run (node execution starts in M5)
 `,
   );
+});
+
+test("run-network passes the §9 options to ensure-run and honestly stops before M5", async (context) => {
+  const calls = [];
+  const output = [];
+  context.mock.method(process.stdout, "write", (value) => {
+    output.push(String(value));
+    return true;
+  });
+  const exitCode = await runRunNetworkCommand(
+    ["network.yaml", "--resume", "--scheduled-for", "2026-08-01T00:00:00Z"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke(value) {
+        calls.push(value);
+        return {
+          outcome: "RESUME",
+          run: { value: { run_id: "run-1" } },
+          invocation: { value: { invocation_id: "invoke-1" } },
+          blockedBy: [],
+          businessKey: "net@2026-08",
+          bundleBytes: Buffer.from("bundle"),
+          async close(finalization) {
+            calls.push(finalization);
+          },
+        };
+      },
+    },
+  );
+  assert.equal(exitCode, 0);
+  assert.equal(calls[0].resume, true);
+  assert.equal(calls[0].scheduledFor, "2026-08-01T00:00:00Z");
+  assert.deepEqual(calls[1], {
+    status: "CANCELLED",
+    resultCode: "NODE_EXECUTION_NOT_IMPLEMENTED",
+  });
+  assert.match(output.join(""), /Node execution is not implemented until M5/);
+  assert.match(output.join(""), /Releasing the Network lock/);
+});
+
+test("run-network --resume-run is exclusive and NO-OP exits 0", async (context) => {
+  const stderr = [];
+  context.mock.method(process.stderr, "write", (value) => {
+    stderr.push(String(value));
+    return true;
+  });
+  assert.equal(
+    await runRunNetworkCommand(
+      ["network.yaml", "--resume-run", "run-1", "--resume"],
+      {
+        profile: "prod",
+        requestedBy: "tester",
+        host: "host",
+        async invoke() {
+          throw new Error("must not be called");
+        },
+      },
+    ),
+    1,
+  );
+  assert.match(stderr.join(""), /must not be combined/);
+
+  const stdout = [];
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  let received;
+  assert.equal(
+    await runRunNetworkCommand(["network.yaml", "--resume-run", "run-1"], {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke(value) {
+        received = value;
+        return {
+          outcome: "NOOP",
+          run: { value: { run_id: "run-1" } },
+          invocation: null,
+          blockedBy: [],
+          businessKey: "net@one",
+        };
+      },
+    }),
+    0,
+  );
+  assert.equal(received.resumeRunId, "run-1");
+  assert.match(stdout.join(""), /already SUCCESS/);
+});
+
+test("run-network reports max_active_runs blockers and exits 1", async (context) => {
+  const stderr = [];
+  context.mock.method(process.stderr, "write", (value) => {
+    stderr.push(String(value));
+    return true;
+  });
+  const exitCode = await runRunNetworkCommand(
+    ["network.yaml", "--business-key", "net@new"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        throw new EnsureRunError("MAX_ACTIVE_RUNS", "limit reached", [
+          "run-a",
+          "run-b",
+        ]);
+      },
+    },
+  );
+  assert.equal(exitCode, 1);
+  assert.match(stderr.join(""), /MAX_ACTIVE_RUNS/);
+  assert.match(stderr.join(""), /run-a, run-b/);
 });
 
 test("plan prints a generated business key and stable topological plan", (context) => {

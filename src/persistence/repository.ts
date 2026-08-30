@@ -107,6 +107,10 @@ export interface PersistenceRepository {
     networkId: string,
     businessKey: string,
   ): Promise<Versioned<NetworkRun> | null>;
+  listRuns(
+    profile: string,
+    networkId: string,
+  ): Promise<Versioned<NetworkRun>[]>;
   updateRunAggregate(
     runId: string,
     expectedRevision: number,

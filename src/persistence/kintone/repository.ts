@@ -377,6 +377,28 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     return this.requiredRunById(runId);
   }
 
+  async listRuns(
+    profile: string,
+    networkId: string,
+  ): Promise<Versioned<NetworkRun>[]> {
+    let records: KintoneRecord[];
+    try {
+      records = await this.state.getRecords(
+        `${inQuery("record_type", "NETWORK_RUN")} and ${inQuery("network_id", networkId)}`,
+      );
+    } catch (error) {
+      mapError(error);
+    }
+    return records
+      .map((record) => versioned(record, decodeRun))
+      .filter(
+        ({ value }) => value.resolved_profile_snapshot.profile === profile,
+      )
+      .sort((left, right) =>
+        left.value.run_id.localeCompare(right.value.run_id),
+      );
+  }
+
   async updateRunAggregate(
     runId: string,
     expectedRevision: number,
