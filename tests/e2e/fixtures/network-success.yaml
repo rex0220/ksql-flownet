@@ -1,0 +1,28 @@
+schema_version: 1
+network_id: m5_success
+description: M5 real-device E2E serial success fixture
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 60
+  heartbeat_interval_sec: 15
+nodes:
+  - id: n1_extract
+    job_id: m5_shared_read
+    sql: jobs/success-n1-extract.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n2_aggregate
+    job_id: m5_success_aggregate
+    sql: jobs/success-n2-aggregate.sql
+    depends_on: [n1_extract]
+    trigger_rule: all_success
+    idempotent: true
+  - id: n3_finalize
+    job_id: m5_success_finalize
+    sql: jobs/success-n3-finalize.sql
+    depends_on: [n2_aggregate]
+    trigger_rule: all_success
+    idempotent: true

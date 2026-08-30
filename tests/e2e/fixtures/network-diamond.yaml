@@ -1,0 +1,28 @@
+schema_version: 1
+network_id: m5_diamond
+description: M5 real-device E2E two-roots and join fixture
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 60
+  heartbeat_interval_sec: 15
+nodes:
+  - id: n1_customers
+    job_id: m5_shared_read
+    sql: jobs/diamond-n1-customers.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n2_deals
+    job_id: m5_diamond_deals
+    sql: jobs/diamond-n2-deals.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n3_join
+    job_id: m5_diamond_join
+    sql: jobs/diamond-n3-join.sql
+    depends_on: [n1_customers, n2_deals]
+    trigger_rule: all_success
+    idempotent: true

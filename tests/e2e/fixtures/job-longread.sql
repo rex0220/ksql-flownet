@@ -1,0 +1,48 @@
+-- @ksql name: m5_shared_read
+-- @ksql timeout: 300
+-- @ksql dialect: 1
+
+CREATE TEMP TABLE m5_customers_1 AS
+SELECT $id FROM LAPP_顧客管理;
+
+CREATE TEMP TABLE m5_deals_1 AS
+SELECT $id FROM LAPP_案件管理;
+
+CREATE TEMP TABLE m5_customers_2 AS
+SELECT $id FROM LAPP_顧客管理;
+
+CREATE TEMP TABLE m5_deals_2 AS
+SELECT $id FROM LAPP_案件管理;
+
+CREATE TEMP TABLE m5_customers_3 AS
+SELECT $id FROM LAPP_顧客管理;
+
+CREATE TEMP TABLE m5_deals_3 AS
+SELECT $id FROM LAPP_案件管理;
+
+CREATE TEMP TABLE m5_customers_4 AS
+SELECT $id FROM LAPP_顧客管理;
+
+CREATE TEMP TABLE m5_deals_4 AS
+SELECT $id FROM LAPP_案件管理;
+
+CREATE TEMP TABLE m5_customers_5 AS
+SELECT $id FROM LAPP_顧客管理;
+
+CREATE TEMP TABLE m5_deals_5 AS
+SELECT $id FROM LAPP_案件管理;
+
+CREATE TEMP TABLE m5_customers_6 AS
+SELECT $id FROM LAPP_顧客管理;
+
+CREATE TEMP TABLE m5_deals_6 AS
+SELECT $id FROM LAPP_案件管理;
+
+SELECT COUNT(*) AS source_count FROM m5_customers_1
+UNION ALL
+SELECT COUNT(*) AS source_count FROM m5_deals_1;
+
+ASSERT (SELECT COUNT(*) FROM m5_customers_1) >= 0,
+  'M5 long-read customer count must be non-negative';
+ASSERT (SELECT COUNT(*) FROM m5_deals_1) >= 0,
+  'M5 long-read deal count must be non-negative';
