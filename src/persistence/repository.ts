@@ -5,6 +5,7 @@ import type {
   NodeAttempt,
   NodeAttemptStatus,
   NodeState,
+  OperationAudit,
   RunInvocation,
   RunInvocationStatus,
 } from "../domain/persistence-model.js";
@@ -100,6 +101,7 @@ export type Inconsistency =
 
 export interface PersistenceRepository {
   createRun(run: NetworkRun): Promise<Versioned<NetworkRun>>;
+  getRun(runId: string): Promise<Versioned<NetworkRun>>;
   getRunByBusinessKey(
     profile: string,
     networkId: string,
@@ -119,6 +121,8 @@ export interface PersistenceRepository {
     finalization: InvocationFinalization,
   ): Promise<Versioned<RunInvocation>>;
   getNodeStates(runId: string): Promise<Versioned<NodeState>[]>;
+  getAttempts(runId: string): Promise<Versioned<NodeAttempt>[]>;
+  getResolutions(runId: string): Promise<Versioned<AttemptResolution>[]>;
   upsertNodeState(write: NodeStateWrite): Promise<Versioned<NodeState>>;
   createAttempt(input: CreateAttemptInput): Promise<Versioned<NodeAttempt>>;
   setAttemptExecutionStarted(
@@ -134,5 +138,8 @@ export interface PersistenceRepository {
   appendResolution(
     resolution: AttemptResolution,
   ): Promise<Versioned<AttemptResolution>>;
+  appendOperationAudit(
+    audit: OperationAudit,
+  ): Promise<Versioned<OperationAudit>>;
   listInconsistencies(runId: string): Promise<Inconsistency[]>;
 }

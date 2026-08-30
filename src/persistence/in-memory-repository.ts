@@ -4,6 +4,7 @@ import type {
   NetworkRun,
   NodeAttempt,
   NodeState,
+  OperationAudit,
   RunInvocation,
 } from "../domain/persistence-model.js";
 import type {
@@ -52,6 +53,7 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
   private readonly attempts = new Map<string, Stored<NodeAttempt>>();
   private readonly attemptIds = new Map<string, string>();
   private readonly resolutions: Stored<AttemptResolution>[] = [];
+  private readonly operationAudits: Stored<OperationAudit>[] = [];
 
   async createRun(run: NetworkRun): Promise<Versioned<NetworkRun>> {
     if (this.runs.has(run.run_id)) {
@@ -91,6 +93,10 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     }
     const match = matches[0];
     return match ? copy(match) : null;
+  }
+
+  async getRun(runId: string): Promise<Versioned<NetworkRun>> {
+    return copy(this.required(this.runs, runId, "run"));
   }
 
   async updateRunAggregate(
@@ -135,6 +141,22 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
       .filter(({ value }) => value.run_id === runId)
       .map(copy)
       .sort((a, b) => a.value.node_id.localeCompare(b.value.node_id));
+  }
+
+  async getAttempts(runId: string): Promise<Versioned<NodeAttempt>[]> {
+    return [...this.attempts.values()]
+      .filter(({ value }) => value.run_id === runId)
+      .map(copy)
+      .sort((a, b) => a.value.attempt_no - b.value.attempt_no);
+  }
+
+  async getResolutions(runId: string): Promise<Versioned<AttemptResolution>[]> {
+    const attemptIds = new Set(
+      (await this.getAttempts(runId)).map(({ value }) => value.node_attempt_id),
+    );
+    return this.resolutions
+      .filter(({ value }) => attemptIds.has(value.attempt_id))
+      .map(copy);
   }
 
   async upsertNodeState(write: NodeStateWrite): Promise<Versioned<NodeState>> {
@@ -275,6 +297,20 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     }
     const stored = { value: structuredClone(resolution), revision: 1 };
     this.resolutions.push(stored);
+    return copy(stored);
+  }
+
+  async appendOperationAudit(
+    audit: OperationAudit,
+  ): Promise<Versioned<OperationAudit>> {
+    if (
+      this.operationAudits.some(
+        ({ value }) => value.event_id === audit.event_id,
+      )
+    )
+      throw new RepositoryError("DUPLICATE_RECORD", "operation audit exists");
+    const stored = { value: structuredClone(audit), revision: 1 };
+    this.operationAudits.push(stored);
     return copy(stored);
   }
 

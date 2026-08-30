@@ -272,6 +272,51 @@ test("kintone: Attempt INSERT成功応答消失は再GETで同一性を裁定す
   );
 });
 
+test("kintone: reconciliation監査をOPERATION_AUDIT形状で監査appへ書く", async () => {
+  const fake = createKintoneFake();
+  const repo = repository(fake);
+  await repo.appendOperationAudit({
+    event_id: "audit-event-1",
+    event_type: "RECONCILIATION_REPAIR",
+    repair_type: "TERMINAL_ATTEMPT_APPLIED",
+    run_id: "run_1",
+    target_type: "NODE_STATE",
+    target_id: "state_1",
+    before: { status: "RUNNING", revision: 2 },
+    after: { status: "SUCCESS", revision: 3 },
+    basis: "terminal attempt attempt_1 is the unique active attempt",
+    occurred_at: "2026-08-30T00:01:00Z",
+  });
+  const call = fake.calls.find(
+    ({ method, body }) =>
+      method === "POST" && body.record.record_type.value === "OPERATION_AUDIT",
+  );
+  assert.equal(call.body.app, 200);
+  assert.equal(call.body.record.record_key.value, "OP:audit-event-1");
+  assert.equal(call.body.record.result_code.value, "TERMINAL_ATTEMPT_APPLIED");
+  assert.deepEqual(JSON.parse(call.body.record.reason.value), {
+    event_id: "audit-event-1",
+    event_type: "RECONCILIATION_REPAIR",
+    repair_type: "TERMINAL_ATTEMPT_APPLIED",
+    run_id: "run_1",
+    target_type: "NODE_STATE",
+    target_id: "state_1",
+    before: { status: "RUNNING", revision: 2 },
+    after: { status: "SUCCESS", revision: 3 },
+    basis: "terminal attempt attempt_1 is the unique active attempt",
+    occurred_at: "2026-08-30T00:01:00Z",
+  });
+  assert.equal(call.body.record.resolved_at.value, "2026-08-30T00:01:00Z");
+  assert.deepEqual(Object.keys(call.body.record).sort(), [
+    "reason",
+    "record_key",
+    "record_type",
+    "resolved_at",
+    "result_code",
+    "run_id",
+  ]);
+});
+
 test("kintone: attempt_key競合は再GET後も別identityならfail-closed", async () => {
   const fake = createKintoneFake();
   const repo = repository(fake);
