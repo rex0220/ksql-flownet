@@ -39,6 +39,9 @@ Commands:
                     --stop-confirmed-by <subject> --stop-evidence-ref <ref>
                     --stop-method <method>
                       force-release a stale Network lock with an audit record
+  status <network_id> --profile <profile>
+         [--run-id <run_id> | --business-key <key>] [--json]
+                      inspect lock and Run recovery state (read-only)
 `;
 
 function getVersion(): string {
@@ -118,6 +121,12 @@ async function main(args: readonly string[]): Promise<void> {
     const { runForceUnlockNetworkCommand } =
       await import("./force-unlock-network-command.js");
     process.exitCode = await runForceUnlockNetworkCommand(commandArgs);
+    return;
+  }
+
+  if (command === "status") {
+    const { runStatusCommand } = await import("./status-command.js");
+    process.exitCode = await runStatusCommand(commandArgs);
     return;
   }
 
