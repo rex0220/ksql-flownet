@@ -240,6 +240,7 @@ function productionDependencies(
   const requestedBy =
     process.env.KSQL_FLOWNET_REQUESTED_BY ?? process.env.USERNAME ?? "unknown";
   const host = process.env.KSQL_FLOWNET_HOST ?? hostname();
+  const ownerInstanceId = resolveOwnerInstanceId(host);
   let resources:
     | {
         repository: KintonePersistenceRepository;
@@ -271,7 +272,7 @@ function productionDependencies(
         profile,
         networkId: loaded.definition.network_id,
         ownerInvocationId: invocationId,
-        ownerInstanceId: host,
+        ownerInstanceId,
         leaseDurationSec: loaded.definition.network_lock.lease_duration_sec,
       });
       const executor = new KsqlFlowCli({
@@ -350,6 +351,14 @@ function productionDependencies(
       });
     },
   };
+}
+
+export function resolveOwnerInstanceId(
+  host: string,
+  configured = process.env.KSQL_FLOWNET_OWNER_INSTANCE_ID,
+  pid = process.pid,
+): string {
+  return configured ?? `local-pid://${host}/${pid}`;
 }
 
 export function ksqlFlowBinArgsEnvironment(

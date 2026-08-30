@@ -16,6 +16,7 @@ import { fileURLToPath, URL } from "node:url";
 
 import {
   ksqlFlowBinArgsEnvironment,
+  resolveOwnerInstanceId,
   runRunNetworkCommand,
 } from "../../dist/cli/run-network-command.js";
 import { EnsureRunError } from "../../dist/orchestration/ensure-run.js";
@@ -24,6 +25,20 @@ const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const cliPath = fileURLToPath(
   new URL("../../dist/cli/index.js", import.meta.url),
 );
+
+test("run-network ownerInstanceIdはlocal PID既定値とenv上書きを使う", () => {
+  assert.equal(
+    resolveOwnerInstanceId("host-a", undefined, 321),
+    "local-pid://host-a/321",
+  );
+  assert.equal(
+    resolveOwnerInstanceId("host-a", executionName, 321),
+    executionName,
+  );
+});
+
+const executionName =
+  "projects/project-a/locations/asia-northeast1/jobs/monthly/executions/run-1";
 
 function runCli(...args) {
   return spawnSync(process.execPath, [cliPath, ...args], {

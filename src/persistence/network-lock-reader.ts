@@ -28,6 +28,12 @@ export interface KintoneNetworkLockStatusReaderConfig {
 const text = (record: KintoneRecord, code: string): string =>
   String(record[code]?.value ?? "");
 
+export function ownerInstanceIdFromStatusReason(statusReason: string): string {
+  return statusReason.startsWith("owner_instance_id=")
+    ? statusReason.slice("owner_instance_id=".length)
+    : "";
+}
+
 function quote(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
@@ -60,10 +66,9 @@ export class KintoneNetworkLockStatusReader implements NetworkLockStatusReader {
       );
     }
     const record = records[0]!;
-    const statusReason = text(record, "status_reason");
-    const ownerInstanceId = statusReason.startsWith("owner_instance_id=")
-      ? statusReason.slice("owner_instance_id=".length)
-      : "";
+    const ownerInstanceId = ownerInstanceIdFromStatusReason(
+      text(record, "status_reason"),
+    );
     return {
       record_id: text(record, "$id"),
       owner_invocation_id: text(record, "owner_invocation_id"),
