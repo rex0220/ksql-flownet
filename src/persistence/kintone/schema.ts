@@ -97,6 +97,14 @@ export const KINTONE_FIELD_MAP = {
     approved_by: "approved_by",
     resolved_at: "resolved_at",
   },
+  OPERATION_AUDIT: {
+    record_key: "record_key",
+    record_type: "record_type",
+    run_id: "run_id",
+    result_code: "result_code",
+    reason: "reason",
+    resolved_at: "resolved_at",
+  },
 } as const;
 
 export type KintoneRecordType = keyof typeof KINTONE_FIELD_MAP;

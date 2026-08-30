@@ -5,6 +5,7 @@ import type {
   NetworkRun,
   NodeAttempt,
   NodeState,
+  OperationAudit,
   RunInvocation,
 } from "../../domain/persistence-model.js";
 import type {
@@ -360,6 +361,10 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     return matches[0] ?? null;
   }
 
+  async getRun(runId: string): Promise<Versioned<NetworkRun>> {
+    return this.requiredByRecordKey(this.state, `RUN:${runId}`, decodeRun);
+  }
+
   async updateRunAggregate(
     runId: string,
     expectedRevision: number,
@@ -425,6 +430,42 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       `${inQuery("record_type", "NODE_STATE")} and ${inQuery("run_id", runId)}`,
     );
     return records.map((record) => versioned(record, decodeState));
+  }
+
+  async getAttempts(runId: string): Promise<Versioned<NodeAttempt>[]> {
+    const records = await this.audit.getRecords(
+      `${inQuery("record_type", "NODE_ATTEMPT")} and ${inQuery("run_id", runId)}`,
+    );
+    return records.map((record) => versioned(record, decodeAttempt));
+  }
+
+  async getResolutions(runId: string): Promise<Versioned<AttemptResolution>[]> {
+    const attemptIds = new Set(
+      (await this.getAttempts(runId)).map(({ value }) => value.node_attempt_id),
+    );
+    const records = await this.audit.getRecords(
+      inQuery("record_type", "ATTEMPT_RESOLUTION"),
+    );
+    return records
+      .filter((record) => attemptIds.has(text(record, "attempt_id")))
+      .map((record) =>
+        versioned(record, (value) => ({
+          event_type: text(
+            value,
+            "event_type",
+          ) as AttemptResolution["event_type"],
+          attempt_id: text(value, "attempt_id"),
+          resolved_outcome: text(
+            value,
+            "resolved_outcome",
+          ) as AttemptResolution["resolved_outcome"],
+          evidence_ref: text(value, "evidence_ref"),
+          service_principal: text(value, "service_principal"),
+          requested_by: text(value, "requested_by"),
+          approved_by: text(value, "approved_by"),
+          resolved_at: text(value, "resolved_at"),
+        })),
+      );
   }
 
   async upsertNodeState(write: NodeStateWrite): Promise<Versioned<NodeState>> {
@@ -615,6 +656,27 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       record,
       () => value,
       () => true,
+    );
+  }
+
+  async appendOperationAudit(
+    value: OperationAudit,
+  ): Promise<Versioned<OperationAudit>> {
+    const key = uniqueKey(`OP:${value.event_id}`);
+    const record: KintoneRecord = {
+      record_key: field(key),
+      record_type: field("OPERATION_AUDIT"),
+      run_id: field(value.run_id),
+      result_code: field(value.repair_type),
+      reason: field(JSON.stringify(value)),
+      resolved_at: field(value.occurred_at),
+    };
+    return this.createWithAdjudication(
+      this.audit,
+      key,
+      record,
+      () => value,
+      (found) => found.event_id === value.event_id,
     );
   }
 
