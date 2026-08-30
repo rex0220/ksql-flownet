@@ -49,11 +49,11 @@
 | D-19 | `DECIDED` | 終端Run再実行 | 終端SUCCESS Runの`--rerun-from`を禁止し、correction Runを作る |
 | D-20 | `DECIDED` | business key | scheduled periodから決定的に生成し、`max_active_runs`既定1 |
 | D-21 | `DECIDED` | 停止スコープ | UNKNOWN／非冪等失敗の子孫だけを停止し、独立系統は継続 |
-| D-22 | `PROPOSED` | SQL開始証跡 | kSQL-Flowの耐久`EXECUTION_STARTED`と最終`executionStarted`を分離 |
-| D-23 | `PROPOSED` | idempotent検査 | `inspect-job --json`でjob IDと検出可能な非決定要素をbundle作成時に検査 |
+| D-22 | `DECIDED` | SQL開始証跡 | kSQL-Flowの耐久`EXECUTION_STARTED`と最終`executionStarted`を分離 |
+| D-23 | `DECIDED` | idempotent検査 | `inspect-job --json`でjob IDと検出可能な非決定要素をbundle作成時に検査 |
 | D-24 | `PROPOSED` | 採番と集約更新 | Node State revision採番、canonical key、単一Invocation集約更新 |
 | D-25 | `DECIDED` | 製品命名と概念名 | 製品表示名をkSQL-FlowNet、repo／CLIを`ksql-flownet`、npmを`@rex0220/ksql-flownet`とし、Network／Node等の概念名は維持 |
-| D-26 | `PROPOSED` | force-unlock所有境界 | Job lockはkSQL-Flowが回復し、FlowNetは直接変更せず停止確認と結果を監査する |
+| D-26 | `DECIDED` | force-unlock所有境界 | Job lockはkSQL-Flowが回復し、FlowNetは直接変更せず停止確認と結果を監査する |
 | D-27 | `DECIDED` | 旧run-all移行 | `batch_id`を`run_id`へ変換せず、必要時だけ`legacy_batch_id`付き監査参照として取り込む |
 | D-28 | `DECIDED` | read-only CLI | `validate`、`plan`、`status`を外部状態を変更しないControl Planeコマンドとして提供する |
 | D-29 | `DECIDED` | Network lock recovery | FlowNet所有のrenewable leaseとし、heartbeat、lease token、停止確認、監査付き`force-unlock-network`を定義 |
@@ -86,6 +86,14 @@ Job lockの所有者はkSQL-Flowのままとし、FlowNetがlockレコードを�
 現行kSQL-FlowのJob lock通常解放は、レコードDELETEではなく、終端status更新、`job_key`の空文字クリア、元キーの`job_key_done`への退避を単一UPDATEで行う。実装根拠は `ksql-flow/src/logapp.ts` の `finishRecord()` である。したがって、本番サービストークンへレコード削除権限を付与しない構成を可能にし、Job lockを含む監査アプリには削除権限を付与しないことを推奨する。
 
 これは通常解放方式の追記であり、D-26のforce-unlock所有境界、旧保持者停止確認、監査、応答消失時のfail-closedを置き換えない。`PROPOSED` を維持する。
+
+#### 2026-08-30決定記録
+
+参照: kSQL-Flow `docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §3、§4 D-26、`docs/internal/m1_verification_record_20260830.md`。
+
+回復契約を`inspect-lock`と`force-unlock-job`の2コマンドに固定する。後者は`--reason`、`--confirmed-by`、`--evidence-ref`の停止確認3入力をAPI呼出前に必須検査し、検索時identityを同一record IDのGETで再確認して、そのrevisionを指定した単一UPDATEだけで解放・監査記録する。machine-readableな安定outcome／Exitは、`RELEASED`／`NOT_FOUND`／`NOT_RUNNING`をExit 0、入力不備を1、`UNCONFIRMED`を3、`CONFLICT`を5とする。応答消失後は同一record IDの`job_key_done`と`log_detail`が今回の監査内容に一致する場合だけ`RELEASED`とし、409後に他者が解放して監査内容が一致しない場合は`NOT_RUNNING`とする。以上をもって所有境界とkSQL-Flow側回復契約を確定し、D-26を`DECIDED`とする。Supersededはない。
+
+残るFlowNet監査関連付けはFN-12で実装する。RUNNING実recordに対する`RELEASED`／`CONFLICT`の実機再現も残るため、§12のD-26ゲートは未チェックを維持する。
 
 ### D-27: 旧run-allからの移行境界
 
@@ -768,6 +776,16 @@ ksql-flownet resolve-node \
 - attempt番号はNode Stateの`latest_attempt_no + 1`から候補を作り、canonicalな`attempt_key`の重複禁止制約で裁定する。履歴のmax検索へ依存しない。
 - Network Run集約状態はNetworkロックを保持するInvocationだけが全Node Stateから計算し、revision付きで更新する。
 
+#### D-22: 2026-08-30決定記録
+
+参照: kSQL-Flow `docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §4 D-22、`docs/internal/m1_verification_record_20260830.md`。revision 1付きJOB更新成功、JSONL `execution_started`、最初のSQL文の順序をrequest列で試験した。kintone DATETIMEが分精度である実機事実を確認し、応答消失時の再GETは送信値と保存値を分単位へ正規化して照合する。UPDATE失敗分岐はデータAPI 0件、`LOCK_UNAVAILABLE`／Exit 3／`executionStarted=false`／lock解放を確認し、応答消失分岐は再GET一致時のみ続行、不一致・照会不能時はSQL未実行でfail-closedとなることを確認した。devenxyfi app 4249で実E2Eを行い、Windows実コンソールとLinux VPSの双方で実signalも確認した。耐久`EXECUTION_STARTED`と最終結果の`executionStarted`を別の証跡とする判断を確定し、D-22を`DECIDED`とする。Supersededはない。
+
+#### D-23: 2026-08-30決定記録
+
+参照: kSQL-Flow `docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §4 D-23。エンジンv3.74.0の公開診断code集合は`KSQL1001`〜`KSQL1006`、`KSQL1101`、`KSQL1201`〜`KSQL1203`、`KSQL1301`〜`KSQL1306`とする。非決定要素は`KSQL1306`のみで、`KSQL1305`は冪等性警告としてdiagnosticsへ含めるが非決定要素には分類しない。app schema依存の`KSQL1302`／`KSQL1303`は通信なしの静的検査では検出不能であり、実clientを使う`validate`の責務とする。乱数・外部状態参照に対応する公開診断codeはなく、未検出を検出済みとして扱わず、静的検査だけで冪等性を証明しない。以上を`inspect-job --json`の検査境界として確定し、D-23を`DECIDED`とする。Supersededはない。
+
+承認済み`KSQL1306`例外manifestのFlowNet運用はFN-07／M4に残るため、§12のD-23ゲートは未チェックを維持する。
+
 ---
 
 ## 9. 棄却する案
@@ -896,7 +914,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [ ] D-19: 終端SUCCESS Runへの`--rerun-from`拒否試験に合格
 - [ ] D-20: 月跨ぎ・年跨ぎ・timezone境界と`max_active_runs`試験に合格
 - [ ] D-21: UNKNOWN経路停止、独立系統継続、集約UNKNOWNの試験に合格
-- [ ] D-22: 耐久`EXECUTION_STARTED`の障害注入試験に合格
+- [x] D-22: 耐久`EXECUTION_STARTED`の障害注入試験に合格 (2026-08-30、順序・失敗・応答消失の全分岐、実kintone E2E、Windows／Linux実signalを確認。詳細はD-22決定記録)
 - [ ] D-23: `inspect-job`のjob ID・非決定要素検査と例外manifestを確定
 - [ ] D-24: revision採番、canonical key、集約状態の単一更新主体を障害注入試験で確認
 - [ ] D-26: kSQL-Flowのforce-unlock回復契約、旧保持者停止確認、FlowNet監査、応答消失時のfail-closed試験に合格
