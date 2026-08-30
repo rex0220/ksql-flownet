@@ -11,6 +11,7 @@ import {
   type KintoneFieldValue,
   type KintoneRecord,
 } from "./kintone/client.js";
+import { KINTONE_DATETIME_TRUNCATION_MS } from "./kintone/design-notes.js";
 import { releaseTombstoneRecordKey } from "./network-lock.js";
 import { ownerInstanceIdFromStatusReason } from "./network-lock-reader.js";
 
@@ -441,8 +442,8 @@ function releaseConfirmed(
   record: KintoneRecord,
   initial: LockSnapshot,
   tombstone: string,
-  releasedAt: string,
 ): boolean {
+  // finished_at is DATETIME with minute precision, so do not use it for round-trip comparison.
   return (
     text(record, "$id") === initial.recordId &&
     text(record, "record_key") === tombstone &&
@@ -451,7 +452,6 @@ function releaseConfirmed(
     text(record, "lease_token") === "" &&
     text(record, "status") === "CANCELLED" &&
     text(record, "status_reason") === "NETWORK_LOCK_FORCE_RELEASED" &&
-    text(record, "finished_at") === releasedAt &&
     revisionOf(record) === initial.revision + 1
   );
 }
@@ -483,7 +483,11 @@ export async function forceUnlockNetwork(
       "network lock owner does not match the expected invocation",
     );
   }
-  if (Date.parse(initial.leaseExpiresAt) > now().getTime()) {
+  // The persisted lease expiry may be truncated by up to 59 seconds, so add the upper bound before allowing recovery.
+  if (
+    Date.parse(initial.leaseExpiresAt) + KINTONE_DATETIME_TRUNCATION_MS >
+    now().getTime()
+  ) {
     throw new NetworkLockRecoveryError(
       "LEASE_STILL_ACTIVE",
       "network lock lease has not expired",
@@ -595,7 +599,7 @@ export async function forceUnlockNetwork(
     }
     if (
       records.length !== 1 ||
-      !releaseConfirmed(records[0]!, initial, tombstone, releasedAt)
+      !releaseConfirmed(records[0]!, initial, tombstone)
     ) {
       throw new NetworkLockRecoveryError(
         "RELEASE_UNCONFIRMED",

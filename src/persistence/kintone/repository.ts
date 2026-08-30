@@ -99,7 +99,7 @@ function resolutionDetails(
 ): Pick<
   AttemptResolution,
   "resolution_type" | "reason" | "stop_confirmed_by" | "stop_evidence_ref"
-> {
+> & { resolved_at?: string | undefined } {
   const raw = text(record, "reason");
   try {
     const value = JSON.parse(raw) as Record<string, unknown>;
@@ -109,6 +109,8 @@ function resolutionDetails(
       reason: String(value.reason ?? ""),
       stop_confirmed_by: String(value.stop_confirmed_by ?? ""),
       stop_evidence_ref: String(value.stop_evidence_ref ?? ""),
+      resolved_at:
+        typeof value.resolved_at === "string" ? value.resolved_at : undefined,
     };
   } catch {
     return {
@@ -138,9 +140,10 @@ function resolutionRecordKey(attemptId: string, resolvedAt: string): string {
 }
 
 function decodeResolution(value: KintoneRecord): AttemptResolution {
+  const details = resolutionDetails(value);
   return {
     event_type: text(value, "event_type") as AttemptResolution["event_type"],
-    ...resolutionDetails(value),
+    ...details,
     attempt_id: text(value, "attempt_id"),
     resolved_outcome: text(
       value,
@@ -150,7 +153,7 @@ function decodeResolution(value: KintoneRecord): AttemptResolution {
     service_principal: text(value, "service_principal"),
     requested_by: text(value, "requested_by"),
     approved_by: text(value, "approved_by"),
-    resolved_at: text(value, "resolved_at"),
+    resolved_at: details.resolved_at ?? text(value, "resolved_at"),
   };
 }
 
@@ -584,6 +587,9 @@ export class KintonePersistenceRepository implements PersistenceRepository {
               JSON.stringify(finalization.blocked_node_ids),
             ),
           }),
+      ...(finalization.reason === undefined
+        ? {}
+        : { reason: field(finalization.reason) }),
     });
     return {
       value: {
@@ -603,6 +609,7 @@ export class KintonePersistenceRepository implements PersistenceRepository {
           finalization.blocked_node_ids === undefined
             ? current.value.blocked_node_ids
             : [...finalization.blocked_node_ids],
+        reason: finalization.reason ?? current.value.reason,
       },
       revision: expectedRevision + 1,
     };
@@ -847,6 +854,7 @@ export class KintonePersistenceRepository implements PersistenceRepository {
           reason: value.reason,
           stop_confirmed_by: value.stop_confirmed_by,
           stop_evidence_ref: value.stop_evidence_ref,
+          resolved_at: value.resolved_at,
         }),
       ),
       resolved_at: field(value.resolved_at),

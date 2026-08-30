@@ -120,6 +120,7 @@ export interface EnsureRunCloseInput {
   readonly selectedNodeIds?: readonly string[];
   readonly preservedNodeIds?: readonly string[];
   readonly blockedNodeIds?: readonly string[];
+  readonly reason?: string;
   /** D-29 unrecovered drain releases only if possible and leaves Invocation untouched. */
   readonly persistInvocation?: boolean;
 }
@@ -330,6 +331,11 @@ export async function ensureRun(
                 ...(finalization.blockedNodeIds === undefined
                   ? {}
                   : { blocked_node_ids: finalization.blockedNodeIds }),
+                ...(finalization.reason === undefined
+                  ? {}
+                  : {
+                      reason: `${activeInvocation.value.reason}; ${finalization.reason}`,
+                    }),
               },
             );
           } catch (error) {

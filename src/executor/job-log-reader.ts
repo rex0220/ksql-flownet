@@ -8,8 +8,14 @@ export interface JobLogMarker {
   readonly executionId: string | null;
 }
 
+export interface JobLogAttemptResult extends JobLogMarker {
+  readonly status: string;
+  readonly finishedAt: string | null;
+}
+
 export interface JobLogReader {
   findExecutionStarted(lookup: JobLogLookup): Promise<JobLogMarker | null>;
+  findAttemptResult(attemptId: string): Promise<JobLogAttemptResult | null>;
 }
 
 export interface KintoneJobLogReaderOptions {
@@ -29,6 +35,35 @@ export class KintoneJobLogReader implements JobLogReader {
   async findExecutionStarted(
     lookup: JobLogLookup,
   ): Promise<JobLogMarker | null> {
+    const record = await this.findRecord(lookup);
+    return record === null
+      ? null
+      : {
+          runnerExecutionStartedAt: fieldString(
+            record.runner_execution_started_at,
+          ),
+          executionId: fieldString(record.execution_id),
+        };
+  }
+
+  async findAttemptResult(
+    attemptId: string,
+  ): Promise<JobLogAttemptResult | null> {
+    const record = await this.findRecord({ attemptId });
+    if (record === null) return null;
+    const status = fieldString(record.status);
+    if (status === null) throw new Error("job log status is missing");
+    return {
+      status,
+      runnerExecutionStartedAt: fieldString(record.runner_execution_started_at),
+      executionId: fieldString(record.execution_id),
+      finishedAt: fieldString(record.finished_at),
+    };
+  }
+
+  private async findRecord(
+    lookup: JobLogLookup,
+  ): Promise<Record<string, unknown> | null> {
     const clauses = [`attempt_id = "${escapeQuery(lookup.attemptId)}"`];
     if (lookup.executionId)
       clauses.push(`execution_id = "${escapeQuery(lookup.executionId)}"`);
@@ -52,10 +87,7 @@ export class KintoneJobLogReader implements JobLogReader {
     if (records.length > 1) throw new Error("job log lookup is ambiguous");
     const record = records[0];
     if (!isRecord(record)) throw new Error("job log record is invalid");
-    return {
-      runnerExecutionStartedAt: fieldString(record.runner_execution_started_at),
-      executionId: fieldString(record.execution_id),
-    };
+    return record;
   }
 }
 

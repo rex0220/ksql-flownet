@@ -222,6 +222,32 @@ async function seed(nodes, options = {}) {
         });
       }
     }
+    const runningOwner = options.runningAttempts?.[node.id];
+    if (runningOwner) {
+      const currentState = (await repository.getNodeStates("run_1")).find(
+        ({ value }) => value.node_id === node.id,
+      );
+      const attempt = await repository.createAttempt({
+        node_state: currentState,
+        node_attempt_id: `running_attempt_${node.id}`,
+        invocation_id: runningOwner,
+      });
+      await repository.upsertNodeState({
+        expected_revision: currentState.revision,
+        value: {
+          ...currentState.value,
+          status: "RUNNING",
+          latest_attempt_no: attempt.value.attempt_no,
+          active_attempt_id: attempt.value.node_attempt_id,
+          started_at: T0,
+        },
+      });
+      await repository.setAttemptExecutionStarted(
+        attempt.value.node_attempt_id,
+        attempt.revision,
+        { execution_started_at: T0 },
+      );
+    }
   }
   return { repository, seededRun, seededInvocation };
 }
@@ -322,6 +348,9 @@ async function execute(nodes, options = {}) {
     invocation: seeded.seededInvocation,
     bundleBytes: bundle(nodes),
     repository: seeded.repository,
+    ...(options.jobLogReader === undefined
+      ? {}
+      : { jobLogReader: options.jobLogReader }),
     attemptExecutor: fakeExecutor(
       seeded.repository,
       options.outcomes ?? {},
@@ -332,6 +361,7 @@ async function execute(nodes, options = {}) {
     profile: "prod",
     configPath: "C:\\secure\\config.json",
     close: async (value) => {
+      options.onClose?.();
       closeCalls.push(value);
       if (value.persistInvocation !== false)
         await seeded.repository.finalizeInvocation(
@@ -344,6 +374,7 @@ async function execute(nodes, options = {}) {
             selected_node_ids: value.selectedNodeIds,
             preserved_node_ids: value.preservedNodeIds,
             blocked_node_ids: value.blockedNodeIds,
+            ...(value.reason === undefined ? {} : { reason: value.reason }),
           },
         );
     },
@@ -402,6 +433,159 @@ test("resumeはUNKNOWN子孫だけBLOCKEDにし独立系統を継続、集約UNK
   assert.equal(result.summary.nodeResults[1].status, "BLOCKED");
   assert.equal(result.summary.aggregateStatus, "UNKNOWN");
   assert.deepEqual(result.summary.preservedNodeIds, []);
+});
+
+test("孤児RUNNING+ログRUNNINGはUNKNOWNになり、下流だけBLOCKEDで独立系統は継続する（受入25）", async () => {
+  const nodes = [
+    { id: "orphan", dependsOn: [] },
+    { id: "child", dependsOn: ["orphan"] },
+    { id: "independent", dependsOn: [] },
+  ];
+  const result = await execute(nodes, {
+    mode: "RESUME",
+    runStatus: "RUNNING",
+    runningAttempts: { orphan: "invoke_old" },
+    jobLogReader: {
+      async findAttemptResult() {
+        return {
+          status: "RUNNING",
+          runnerExecutionStartedAt: T0,
+          executionId: "exec_orphan",
+          finishedAt: null,
+        };
+      },
+    },
+  });
+  assert.deepEqual(result.calls, ["independent"]);
+  const states = new Map(
+    (await result.repository.getNodeStates("run_1")).map(({ value }) => [
+      value.node_id,
+      value,
+    ]),
+  );
+  assert.equal(states.get("orphan").status, "UNKNOWN");
+  assert.equal(states.get("child").status, "BLOCKED");
+  const orphanAttempt = (await result.repository.getAttempts("run_1")).find(
+    ({ value }) => value.node_id === "orphan",
+  ).value;
+  assert.equal(orphanAttempt.status, "UNKNOWN");
+  assert.equal(orphanAttempt.result_code, "NO_EXECUTION_RESULT");
+  assert.equal(orphanAttempt.runner_execution_started_at, null);
+  assert.match(result.closeCalls[0].reason, /running_attempt_orphan=UNKNOWN/);
+});
+
+test("孤児RUNNING+ログSUCCESSはSUCCESSへ裁定して下流を継続する（受入25）", async () => {
+  const nodes = [
+    { id: "orphan", dependsOn: [] },
+    { id: "child", dependsOn: ["orphan"] },
+  ];
+  const result = await execute(nodes, {
+    mode: "RESUME",
+    runStatus: "RUNNING",
+    runningAttempts: { orphan: "invoke_old" },
+    jobLogReader: {
+      async findAttemptResult() {
+        return {
+          status: "SUCCESS",
+          runnerExecutionStartedAt: T0,
+          executionId: "exec_orphan",
+          finishedAt: T0,
+        };
+      },
+    },
+  });
+  assert.deepEqual(result.calls, ["child"]);
+  const attempts = await result.repository.getAttempts("run_1");
+  assert.equal(
+    attempts.find(({ value }) => value.node_id === "orphan").value.status,
+    "SUCCESS",
+  );
+  assert.equal(result.summary.aggregateStatus, "SUCCESS");
+});
+
+test("孤児RUNNING+ログ不在はUNKNOWNへ裁定する（受入25）", async () => {
+  const result = await execute([{ id: "orphan", dependsOn: [] }], {
+    mode: "RESUME",
+    runStatus: "RUNNING",
+    runningAttempts: { orphan: "invoke_old" },
+    jobLogReader: {
+      async findAttemptResult() {
+        return null;
+      },
+    },
+  });
+  const attempt = (await result.repository.getAttempts("run_1"))[0].value;
+  assert.equal(attempt.status, "UNKNOWN");
+  assert.equal(attempt.result_code, "NO_EXECUTION_RESULT");
+});
+
+test("孤児RUNNINGのログ読取エラーは裁定せずfail-closedで停止する（受入25）", async () => {
+  const nodes = [{ id: "orphan", dependsOn: [] }];
+  const seeded = await seed(nodes, {
+    mode: "RESUME",
+    runStatus: "RUNNING",
+    runningAttempts: { orphan: "invoke_old" },
+  });
+  const closeCalls = [];
+  await assert.rejects(
+    runSequentialScheduler({
+      run: seeded.seededRun,
+      invocation: seeded.seededInvocation,
+      bundleBytes: bundle(nodes),
+      repository: seeded.repository,
+      attemptExecutor: {
+        async execute() {
+          throw new Error("unexpected");
+        },
+      },
+      jobLogReader: {
+        async findAttemptResult() {
+          throw new Error("job log unavailable");
+        },
+      },
+      leaseMonitor: heldMonitor(),
+      profile: "prod",
+      configPath: "C:\\secure\\config.json",
+      close: async (value) => closeCalls.push(value),
+    }),
+    /job log unavailable/,
+  );
+  assert.equal(
+    (await seeded.repository.getAttempts("run_1"))[0].value.status,
+    "RUNNING",
+  );
+  assert.equal(
+    (await seeded.repository.getNodeStates("run_1"))[0].value.status,
+    "RUNNING",
+  );
+  assert.equal(closeCalls[0].status, "FAILED");
+});
+
+test("現Invocation自身のRUNNING Attemptは孤児裁定の対象外（受入25）", async () => {
+  let reads = 0;
+  const result = await execute(
+    [
+      { id: "active", dependsOn: [] },
+      { id: "independent", dependsOn: [] },
+    ],
+    {
+      mode: "RESUME",
+      runStatus: "RUNNING",
+      runningAttempts: { active: "invoke_1" },
+      jobLogReader: {
+        async findAttemptResult() {
+          reads += 1;
+          throw new Error("unexpected");
+        },
+      },
+    },
+  );
+  assert.equal(reads, 0);
+  assert.equal(
+    (await result.repository.getAttempts("run_1"))[0].value.status,
+    "RUNNING",
+  );
+  assert.deepEqual(result.calls, ["independent"]);
 });
 
 test("CANCELLEDはall_successを満たさず下流BLOCKED、独立系統は継続する（受入7）", async () => {
@@ -583,6 +767,7 @@ test("旧token相当のfencing拒否ではRun集約とInvocationを書かない�
 test("scheduler例外でもInvocation終端とlock closeを必ず呼ぶ", async () => {
   const seeded = await seed([{ id: "a", dependsOn: [] }]);
   const closeCalls = [];
+  const order = [];
   await assert.rejects(
     runSequentialScheduler({
       run: seeded.seededRun,
@@ -594,14 +779,27 @@ test("scheduler例外でもInvocation終端とlock closeを必ず呼ぶ", async 
           throw new Error("boom");
         },
       },
-      leaseMonitor: heldMonitor(),
+      leaseMonitor: heldMonitor({ stop: () => order.push("stop") }),
       profile: "prod",
       configPath: "C:\\secure\\config.json",
-      close: async (value) => closeCalls.push(value),
+      close: async (value) => {
+        order.push("close");
+        closeCalls.push(value);
+      },
     }),
     /boom/,
   );
   assert.equal(closeCalls.length, 1);
   assert.equal(closeCalls[0].status, "FAILED");
   assert.equal(closeCalls[0].resultCode, "SCHEDULER_FAILED");
+  assert.deepEqual(order, ["stop", "close", "stop"]);
+});
+
+test("scheduler正常終了でもheartbeatを止めてからcloseする", async () => {
+  const order = [];
+  await execute([{ id: "a", dependsOn: [] }], {
+    monitor: heldMonitor({ stop: () => order.push("stop") }),
+    onClose: () => order.push("close"),
+  });
+  assert.deepEqual(order, ["stop", "close", "stop"]);
 });

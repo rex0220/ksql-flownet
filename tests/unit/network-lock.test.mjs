@@ -21,6 +21,7 @@ function createLockFake({
   const records = [];
   const calls = [];
   let forceConflict = false;
+  let beforeNextPut = null;
   let acquireResponseLost = false;
   let releaseResponseLost = false;
   const response = (body, status = 200) =>
@@ -61,6 +62,11 @@ function createLockFake({
       });
     }
     if (init.method === "PUT") {
+      if (beforeNextPut !== null) {
+        const mutate = beforeNextPut;
+        beforeNextPut = null;
+        mutate(records);
+      }
       if (forceConflict) {
         forceConflict = false;
         return response({ code: "GAIA_CO02" }, 409);
@@ -98,6 +104,9 @@ function createLockFake({
     calls,
     conflictNextPut() {
       forceConflict = true;
+    },
+    beforeNextPut(mutate) {
+      beforeNextPut = mutate;
     },
   };
 }
@@ -215,6 +224,55 @@ test("network lock: release成功応答消失は$id更新後のtombstone再GET�
         method === "GET" &&
         url.searchParams.get("query")?.includes(released.recordKey),
     ),
+  );
+});
+
+test("network lock: release直前の自heartbeatによるrevision競合は再GETして一度だけ再試行する", async () => {
+  const fake = createLockFake();
+  const lockManager = manager(fake);
+  const reference = await lockManager.acquire();
+  fake.beforeNextPut(([record]) => {
+    record.$revision.value = "2";
+    record.revision.value = 2;
+  });
+
+  const released = await lockManager.release(reference);
+
+  assert.equal(released.released, true);
+  assert.equal(reference.revision, 3);
+  assert.equal(reference.businessRevision, 3);
+  assert.equal(
+    fake.calls.filter(
+      ({ method, body }) =>
+        method === "PUT" && body.id && body.record.record_key,
+    ).length,
+    2,
+  );
+});
+
+test("network lock: release競合後にtokenが他者へ変わっていればfail-closedにする", async () => {
+  const fake = createLockFake();
+  const lockManager = manager(fake);
+  const reference = await lockManager.acquire();
+  fake.beforeNextPut(([record]) => {
+    record.$revision.value = "2";
+    record.revision.value = 2;
+    record.lease_token.value = "reclaimed-token";
+  });
+
+  await assert.rejects(
+    lockManager.release(reference),
+    (error) =>
+      error instanceof NetworkLockError &&
+      error.code === "LEASE_REVISION_CONFLICT",
+  );
+  assert.equal(fake.records[0].record_key.value, reference.originalRecordKey);
+  assert.equal(
+    fake.calls.filter(
+      ({ method, body }) =>
+        method === "PUT" && body.id && body.record.record_key,
+    ).length,
+    1,
   );
 });
 

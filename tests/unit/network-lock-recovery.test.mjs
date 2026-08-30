@@ -31,7 +31,7 @@ function lockRecord(overrides = {}) {
     status_reason: field("owner_instance_id=local-pid://recovery-host/4242"),
     lease_token: field("lease-token-old"),
     heartbeat_at: field("2026-08-30T00:58:00.000Z"),
-    lease_expires_at: field("2026-08-30T00:59:00.000Z"),
+    lease_expires_at: field("2026-08-30T00:58:59.000Z"),
     status: field("RUNNING"),
     revision: field(4),
     ...overrides,
@@ -43,6 +43,7 @@ function createRecoveryFake({
   putConflict = false,
   losePutResponse = false,
   applyLostPut = true,
+  truncateDateTimesOnRead = false,
 } = {}) {
   const records = record === null ? [] : [record];
   const calls = [];
@@ -60,9 +61,22 @@ function createRecoveryFake({
         url.searchParams.get("query"),
       )?.[1];
       return response({
-        records: records.filter(
-          (candidate) => candidate.record_key.value === key,
-        ),
+        records: records
+          .filter((candidate) => candidate.record_key.value === key)
+          .map((candidate) => {
+            const result = globalThis.structuredClone(candidate);
+            if (truncateDateTimesOnRead) {
+              for (const [code, value] of Object.entries(result)) {
+                if (code.endsWith("_at") && typeof value.value === "string") {
+                  value.value = value.value.replace(
+                    /:\d{2}(?:\.\d{3})?Z$/,
+                    ":00Z",
+                  );
+                }
+              }
+            }
+            return result;
+          }),
       });
     }
     if (init.method === "PUT") {
@@ -191,6 +205,18 @@ test("force unlock: 生存中leaseはLEASE_STILL_ACTIVE", async () => {
   );
 });
 
+test("force unlock: 保存上は過去でも切り捨て上限内のleaseはLEASE_STILL_ACTIVE", async () => {
+  const fake = createRecoveryFake({
+    record: lockRecord({
+      lease_expires_at: field("2026-08-30T00:59:01.000Z"),
+    }),
+  });
+  await rejectsWithCode(
+    forceUnlockNetwork(input(), dependencies(fake)),
+    "LEASE_STILL_ACTIVE",
+  );
+});
+
 test("force unlock: adapterが否定した停止証拠はSTOP_NOT_CONFIRMED", async () => {
   const fake = createRecoveryFake();
   const stopConfirmations = new Map([
@@ -267,12 +293,16 @@ test("force unlock: release PUTのGAIA_CO02はREVISION_CONFLICT", async () => {
 });
 
 test("force unlock: PUT応答消失後にtombstoneを再GETできれば成功", async () => {
-  const fake = createRecoveryFake({ losePutResponse: true });
+  const fake = createRecoveryFake({
+    losePutResponse: true,
+    truncateDateTimesOnRead: true,
+  });
   const repo = repository();
   const result = await forceUnlockNetwork(input(), dependencies(fake, repo));
   assert.equal(result.postReleaseRevision, 8);
   assert.equal(repo.audits.length, 1);
   assert.equal(fake.calls.filter(({ method }) => method === "GET").length, 3);
+  assert.equal(fake.records[0].finished_at.value, NOW);
 });
 
 test("force unlock: PUT応答消失後にtombstoneを確認できなければRELEASE_UNCONFIRMED", async () => {

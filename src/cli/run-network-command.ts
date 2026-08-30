@@ -329,19 +329,21 @@ function productionDependencies(
                 .batch_timeout_sec * 1000,
         gracePeriodMs,
       });
+      const jobLogReader = new KintoneJobLogReader({
+        baseUrl,
+        appId: jobLogAppId,
+        apiToken: jobLogApiToken,
+      });
       return runSequentialScheduler({
         run: result.run,
         invocation: result.invocation,
         bundleBytes: result.bundleBytes,
         repository: resources.repository,
+        jobLogReader,
         attemptExecutor: new AttemptExecutor({
           repository: resources.repository,
           runner,
-          jobLogReader: new KintoneJobLogReader({
-            baseUrl,
-            appId: jobLogAppId,
-            apiToken: jobLogApiToken,
-          }),
+          jobLogReader,
         }),
         leaseMonitor: monitor,
         profile,

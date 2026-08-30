@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 
+export const NO_EXECUTION_RESULT = "NO_EXECUTION_RESULT" as const;
+
 export type AttemptOutcome =
   "SUCCESS" | "FAILED" | "CANCELLED" | "UNKNOWN" | "LOCK_CONFLICT";
 
@@ -291,6 +293,6 @@ function noResult(detail: string): ResultClassification {
     resultCode: null,
     details: [detail],
     result: null,
-    invocationResultCode: "NO_EXECUTION_RESULT",
+    invocationResultCode: NO_EXECUTION_RESULT,
   };
 }

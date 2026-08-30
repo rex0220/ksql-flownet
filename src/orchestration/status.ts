@@ -8,6 +8,7 @@ import type {
   NetworkLockStatus,
   NetworkLockStatusReader,
 } from "../persistence/network-lock-reader.js";
+import { KINTONE_DATETIME_TRUNCATION_MS } from "../persistence/kintone/design-notes.js";
 import { RepositoryError } from "../persistence/repository.js";
 import type {
   StatusReadRepository,
@@ -220,7 +221,11 @@ export async function inspectStatus(
           owner_instance_id: lockValue.owner_instance_id,
           heartbeat_at: lockValue.heartbeat_at,
           lease_expires_at: lockValue.lease_expires_at,
-          stale_candidate: Date.parse(lockValue.lease_expires_at) < currentTime,
+          // The persisted lease expiry may be truncated by up to 59 seconds, so add the upper bound before marking it stale.
+          stale_candidate:
+            currentTime >
+            Date.parse(lockValue.lease_expires_at) +
+              KINTONE_DATETIME_TRUNCATION_MS,
           revision: lockValue.revision,
         };
 

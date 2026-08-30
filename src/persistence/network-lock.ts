@@ -284,52 +284,96 @@ export class NetworkLockManager {
     const tombstone = releaseTombstoneRecordKey(
       `${reference.lockKey}:${reference.leaseToken}`,
     );
-    try {
-      const revision = await this.client.putRecordById(
-        reference.recordId,
-        reference.revision,
-        {
-          record_key: field(tombstone),
-          lock_key: field(""),
-          owner_invocation_id: field(""),
-          lease_token: field(""),
-          status: field(status),
-          status_reason: field(resultCode),
-          finished_at: field(this.now().toISOString()),
-          revision: field(reference.businessRevision + 1),
-        },
+    const releaseRecord = () =>
+      this.client.putRecordById(reference.recordId, reference.revision, {
+        record_key: field(tombstone),
+        lock_key: field(""),
+        owner_invocation_id: field(""),
+        lease_token: field(""),
+        status: field(status),
+        status_reason: field(resultCode),
+        finished_at: field(this.now().toISOString()),
+        revision: field(reference.businessRevision + 1),
+      });
+    const adjudicateLostResponse = async (
+      cause: KintoneTransportError,
+    ): Promise<{ released: true; recordKey: string }> => {
+      try {
+        const adjudicated = await this.getUnique(tombstone);
+        if (
+          text(adjudicated, "lock_key") === "" &&
+          text(adjudicated, "lease_token") === "" &&
+          text(adjudicated, "status") === status
+        ) {
+          reference.revision = revisionOf(adjudicated);
+          reference.businessRevision = Number(adjudicated.revision?.value);
+          return { released: true, recordKey: tombstone };
+        }
+      } catch {
+        // The stable error below intentionally hides ambiguous remote details.
+      }
+      throw new NetworkLockError(
+        "LOCK_UNAVAILABLE",
+        "network lock release outcome could not be confirmed",
+        cause,
       );
+    };
+    try {
+      const revision = await releaseRecord();
       reference.revision = revision;
       reference.businessRevision += 1;
       return { released: true, recordKey: tombstone };
     } catch (error) {
       if (error instanceof KintoneApiError && error.status === 409) {
-        throw new NetworkLockError(
-          "LEASE_REVISION_CONFLICT",
-          "network lock release revision conflicted",
-          error,
-        );
+        let latest: KintoneRecord;
+        try {
+          latest = await this.getUnique(reference.originalRecordKey);
+        } catch (retryError) {
+          throw new NetworkLockError(
+            "LEASE_REVISION_CONFLICT",
+            "network lock release revision conflicted",
+            retryError,
+          );
+        }
+        if (
+          text(latest, "record_key") !== reference.originalRecordKey ||
+          text(latest, "lease_token") !== reference.leaseToken
+        ) {
+          throw new NetworkLockError(
+            "LEASE_REVISION_CONFLICT",
+            "network lock release revision conflicted",
+            error,
+          );
+        }
+        // A revision advanced by our own heartbeat is safe to release once.
+        reference.revision = revisionOf(latest);
+        reference.businessRevision = Number(latest.revision?.value);
+        try {
+          const revision = await releaseRecord();
+          reference.revision = revision;
+          reference.businessRevision += 1;
+          return { released: true, recordKey: tombstone };
+        } catch (retryError) {
+          if (
+            retryError instanceof KintoneApiError &&
+            retryError.status === 409
+          )
+            throw new NetworkLockError(
+              "LEASE_REVISION_CONFLICT",
+              "network lock release revision conflicted",
+              retryError,
+            );
+          if (retryError instanceof KintoneTransportError)
+            return adjudicateLostResponse(retryError);
+          throw new NetworkLockError(
+            "LOCK_UNAVAILABLE",
+            "network lock release failed",
+            retryError,
+          );
+        }
       }
       if (error instanceof KintoneTransportError) {
-        try {
-          const adjudicated = await this.getUnique(tombstone);
-          if (
-            text(adjudicated, "lock_key") === "" &&
-            text(adjudicated, "lease_token") === "" &&
-            text(adjudicated, "status") === status
-          ) {
-            reference.revision = revisionOf(adjudicated);
-            reference.businessRevision += 1;
-            return { released: true, recordKey: tombstone };
-          }
-        } catch {
-          // The stable error below intentionally hides ambiguous remote details.
-        }
-        throw new NetworkLockError(
-          "LOCK_UNAVAILABLE",
-          "network lock release outcome could not be confirmed",
-          error,
-        );
+        return adjudicateLostResponse(error);
       }
       throw new NetworkLockError(
         "LOCK_UNAVAILABLE",
