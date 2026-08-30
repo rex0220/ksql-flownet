@@ -11,6 +11,13 @@ export interface UploadBundleOptions {
   readonly headers?: Readonly<Record<string, string>>;
 }
 
+export interface DownloadBundleOptions {
+  readonly endpoint: string;
+  readonly fileKey: string;
+  readonly fetch: BundleFetch;
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
 export class BundleUploadError extends Error {
   readonly code = "BUNDLE_UPLOAD_FAILED";
 
@@ -71,4 +78,28 @@ export async function uploadBundle(
     throw new BundleUploadError("bundle upload response has no fileKey");
   }
   return value.fileKey;
+}
+
+export async function downloadBundle(
+  options: DownloadBundleOptions,
+): Promise<Buffer> {
+  const url = new URL(options.endpoint);
+  url.searchParams.set("fileKey", options.fileKey);
+  let response: Response;
+  try {
+    response = await options.fetch(url, {
+      method: "GET",
+      ...(options.headers === undefined ? {} : { headers: options.headers }),
+    });
+  } catch (error) {
+    throw new BundleUploadError("bundle download request failed", {
+      cause: error,
+    });
+  }
+  if (!response.ok) {
+    throw new BundleUploadError(
+      `bundle download returned HTTP ${response.status}`,
+    );
+  }
+  return Buffer.from(await response.arrayBuffer());
 }

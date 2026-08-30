@@ -90,6 +90,22 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     return copy(this.required(this.runs, runId, "run"));
   }
 
+  async listRuns(
+    profile: string,
+    networkId: string,
+  ): Promise<Versioned<NetworkRun>[]> {
+    return [...this.runs.values()]
+      .filter(
+        ({ value }) =>
+          value.resolved_profile_snapshot.profile === profile &&
+          value.network_id === networkId,
+      )
+      .map(copy)
+      .sort((left, right) =>
+        left.value.run_id.localeCompare(right.value.run_id),
+      );
+  }
+
   async updateRunAggregate(
     runId: string,
     expectedRevision: number,

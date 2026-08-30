@@ -24,6 +24,10 @@ export function loadNetworkDefinition(path: string): ValidationResult {
     };
   }
 
+  return loadNetworkDefinitionSource(source);
+}
+
+export function loadNetworkDefinitionSource(source: string): ValidationResult {
   const document = parseDocument(source, { uniqueKeys: true });
   if (document.errors.length > 0) {
     const errors: ValidationError[] = document.errors.map((error) => ({
