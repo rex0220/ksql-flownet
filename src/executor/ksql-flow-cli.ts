@@ -80,6 +80,7 @@ export type SpawnInvoker = (request: SpawnRequest) => Promise<SpawnResult>;
 
 export interface KsqlFlowCliOptions {
   readonly command: string;
+  readonly binArgs?: readonly string[];
   readonly profile: string;
   readonly configPath: string;
   readonly spawn?: SpawnInvoker;
@@ -139,7 +140,10 @@ export class KsqlFlowCli {
   ): Promise<T> {
     let result: SpawnResult;
     try {
-      result = await this.invokeSpawn({ command: this.options.command, args });
+      result = await this.invokeSpawn({
+        command: this.options.command,
+        args: [...(this.options.binArgs ?? []), ...args],
+      });
     } catch (error) {
       throw new KsqlFlowCliError(
         "KSQL_FLOW_PROCESS_FAILED",

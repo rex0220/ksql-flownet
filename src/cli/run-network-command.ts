@@ -209,6 +209,7 @@ function productionDependencies(
   const stateApiToken = requiredEnvironment("KSQL_FLOWNET_STATE_API_TOKEN");
   const auditApiToken = requiredEnvironment("KSQL_FLOWNET_AUDIT_API_TOKEN");
   const command = parsed.ksqlFlowBin ?? requiredEnvironment("KSQL_FLOW_BIN");
+  const binArgs = ksqlFlowBinArgsEnvironment();
   const configPath = resolve(
     parsed.ksqlFlowConfig ?? requiredEnvironment("KSQL_FLOW_CONFIG"),
   );
@@ -259,7 +260,12 @@ function productionDependencies(
         ownerInstanceId: host,
         leaseDurationSec: loaded.definition.network_lock.lease_duration_sec,
       });
-      const executor = new KsqlFlowCli({ command, profile, configPath });
+      const executor = new KsqlFlowCli({
+        command,
+        binArgs,
+        profile,
+        configPath,
+      });
       const endpoint = `${baseUrl}/k/v1/file.json`;
       const headers = { "X-Cybozu-API-Token": stateApiToken };
       const ensured = await ensureRun({
@@ -298,6 +304,7 @@ function productionDependencies(
       });
       const runner = new RunSubprocess({
         command,
+        binArgs,
         executionDirectory,
         timeoutMs:
           result.run.value.resolved_profile_snapshot.limits.batch_timeout_sec *
@@ -326,6 +333,30 @@ function productionDependencies(
       });
     },
   };
+}
+
+export function ksqlFlowBinArgsEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const raw = environment.KSQL_FLOW_BIN_ARGS?.trim();
+  if (!raw) return [];
+  if (!raw.startsWith("[")) return raw.split(/\s+/u);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error("KSQL_FLOW_BIN_ARGS must be a valid JSON string array", {
+      cause: error,
+    });
+  }
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((value) => typeof value === "string")
+  ) {
+    throw new Error("KSQL_FLOW_BIN_ARGS must be a JSON string array");
+  }
+  return parsed;
 }
 
 function requiredEnvironment(name: string): string {

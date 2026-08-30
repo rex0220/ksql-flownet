@@ -41,7 +41,8 @@ M5完了ゲートの実機確認用fixtureと実行スクリプトです。ス�
 | `KSQL_TOKEN_LOGS`        | kSQL-FlowがJOBログ4249へ書くOS環境変数                  |
 | `KSQL_TOKEN_LOGS_RO`     | FlowNet/E2Eが4249の開始マーカー・相関を読むトークン     |
 | `KSQL_FLOW_LOG_APP_ID`   | `4249`（省略時も4249。別IDは拒否）                      |
-| `KSQL_FLOW_BIN`          | 引数なしで起動できるkSQL-Flow実行ファイル（下記参照）   |
+| `KSQL_FLOW_BIN`          | kSQL-Flowを起動する実行ファイル（既定例は`node.exe`）   |
+| `KSQL_FLOW_BIN_ARGS`     | kSQL-Flow契約引数より前へ渡す引数（下記参照）           |
 
 任意環境変数です。
 
@@ -52,28 +53,22 @@ M5完了ゲートの実機確認用fixtureと実行スクリプトです。ス�
 | `KSQL_FLOW_WORKDIR`            | `%TEMP%\ksql-flownet-m5-work`（この下に試験scope別ディレクトリを作成） |
 | `M5_FORCE_UNLOCK_CONFIRMED_BY` | kill後のforce-unlockを確認した実行者（`--confirmed-by`指定時は省略可） |
 
-### KSQL_FLOW_BINの設定
+### kSQL-Flow起動設定
 
-配布exeを使う実機E2Eの設定値は次です。
-
-```powershell
-$env:KSQL_FLOW_BIN = 'C:\Users\rex02\Projects\ksql-flow\dist-bin\ksql-flow.exe'
-```
-
-Node版CLIそのものの起動コマンドは次です。
+現在の既定例は、ソース配置からNode版CLIを起動する次の設定です。パスにスペースが含まれても保持できるよう、`KSQL_FLOW_BIN_ARGS`はJSON配列形式にします。
 
 ```powershell
-node C:\Users\rex02\Projects\ksql-flow\dist\cli.js
+$env:KSQL_FLOW_BIN = 'node.exe'
+$env:KSQL_FLOW_BIN_ARGS = '["C:\\Users\\rex02\\Projects\\ksql-flow\\dist\\cli.js"]'
 ```
 
-ただし、現行FlowNetの`KSQL_FLOW_BIN`契約は「実行ファイルパス1個」で、prefix引数を保持しません。そのため、次の値はそのままでは使用できません。
+スペースを含まない複数引数は、空白区切りでも指定できます。どちらの形式でも、これらの引数は`capabilities`、`describe-profile`、`inspect-job`、`run`などのkSQL-Flow契約引数より前へ渡されます。
 
 ```powershell
-# 現行FlowNetでは使用不可（nodeとCLIパスを1変数へ入れても1実行ファイル名として扱われる）
-$env:KSQL_FLOW_BIN = 'node C:\Users\rex02\Projects\ksql-flow\dist\cli.js'
+$env:KSQL_FLOW_BIN_ARGS = 'C:\ksql-flow\dist\cli.js --trace-warnings'
 ```
 
-Node版を使う場合も、引数を透過するネイティブ実行形式のlauncherを用意し、そのlauncherの絶対パスを`KSQL_FLOW_BIN`へ設定する必要があります。Windowsの`.cmd`はFlowNetが`spawn(..., { shell: false })`で起動するため使用できません。本E2Eでは確定済みの`dist-bin\ksql-flow.exe`案を使用してください。
+`dist-bin\ksql-flow.exe`が再ビルドされた後は、`KSQL_FLOW_BIN`へそのexeを指定し、`KSQL_FLOW_BIN_ARGS`を未設定にすればexe単体起動へ戻せます。
 
 ## fixture
 
@@ -99,7 +94,7 @@ node dist\cli\index.js validate tests\e2e\fixtures\network-diamond.yaml
 SQLの実機`validate`は実行担当者が、上記環境変数を設定後に次の形で各SQLへ実施してください（準備実装では実機接続を行いません）。
 
 ```powershell
-& $env:KSQL_FLOW_BIN validate -f tests\e2e\fixtures\jobs\success-n1-extract.sql --profile prod --config C:\Users\rex02\Projects\my-ksql-jobs\ksql.config.json
+node C:\Users\rex02\Projects\ksql-flow\dist\cli.js validate -f tests\e2e\fixtures\jobs\success-n1-extract.sql --profile prod --config C:\Users\rex02\Projects\my-ksql-jobs\ksql.config.json
 ```
 
 E2Eは競合を避けるため必ず直列に実行します。kill試験だけは実行者確認値を渡します。

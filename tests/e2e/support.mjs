@@ -15,6 +15,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { networkLockKey } from "../../dist/domain/canonical-lock-key.js";
+import { ksqlFlowBinArgsEnvironment } from "../../dist/cli/run-network-command.js";
 import { sanitize } from "../../spikes/lib/runtime.mjs";
 
 export const M5_PREFIX = "M5";
@@ -51,11 +52,7 @@ export function requireM5Environment(environment = process.env) {
   const logAppId = positiveInteger(environment, "KSQL_FLOW_LOG_APP_ID", "4249");
   assert.equal(logAppId, 4249, "M5 E2EのJOBログ読取先は4249に固定です");
   const ksqlFlowBin = required(environment, "KSQL_FLOW_BIN");
-  if (/^node(?:\.exe)?\s/iu.test(ksqlFlowBin)) {
-    throw new Error(
-      "KSQL_FLOW_BIN は引数なしで起動できる実行ファイルパスが必要です。Windows実機E2Eでは dist-bin\\ksql-flow.exe を指定してください。",
-    );
-  }
+  const ksqlFlowBinArgs = ksqlFlowBinArgsEnvironment(environment);
   return {
     baseUrl: baseUrl.href.replace(/\/$/u, ""),
     profile: environment.KSQL_FLOWNET_PROFILE?.trim() || "prod",
@@ -66,6 +63,7 @@ export function requireM5Environment(environment = process.env) {
     jobLogAppId: logAppId,
     jobLogReadToken: required(environment, "KSQL_TOKEN_LOGS_RO"),
     ksqlFlowBin,
+    ksqlFlowBinArgs,
     configPath: resolve(
       environment.KSQL_FLOW_CONFIG?.trim() ||
         environment.KSQL_FLOW_CONFIG_PATH?.trim() ||
@@ -287,6 +285,7 @@ function childEnvironment(settings) {
     KSQL_FLOWNET_STATE_API_TOKEN: settings.stateApiToken,
     KSQL_FLOWNET_AUDIT_API_TOKEN: settings.auditApiToken,
     KSQL_FLOW_BIN: settings.ksqlFlowBin,
+    KSQL_FLOW_BIN_ARGS: JSON.stringify(settings.ksqlFlowBinArgs),
     KSQL_FLOW_CONFIG: settings.configPath,
     KSQL_FLOW_WORKDIR: settings.workdir,
     KSQL_FLOW_LOG_APP_ID: String(settings.jobLogAppId),
@@ -367,6 +366,7 @@ export async function startStandaloneLongRead(settings, scope) {
   const correlationId = `${scope}_holder`;
   const resultJson = join(settings.workdir, `${attemptId}-result.json`);
   const args = [
+    ...settings.ksqlFlowBinArgs,
     "run",
     "-f",
     join(FIXTURES, "job-longread.sql"),
@@ -454,10 +454,14 @@ function parseMachineJson(stdout, expectedKind) {
 }
 
 async function runKsqlFlowJson(settings, args, expectedKind) {
-  const processResult = await startProcess(settings.ksqlFlowBin, args, {
-    cwd: ROOT,
-    env: process.env,
-  }).completion;
+  const processResult = await startProcess(
+    settings.ksqlFlowBin,
+    [...settings.ksqlFlowBinArgs, ...args],
+    {
+      cwd: ROOT,
+      env: process.env,
+    },
+  ).completion;
   const output = parseMachineJson(processResult.stdout, expectedKind);
   return { process: processResult, output };
 }
