@@ -98,7 +98,7 @@ function run(status = "CREATED") {
   };
 }
 
-function invocation(mode) {
+function invocation(mode, selectedNodeIds = []) {
   return {
     invocation_id: "invoke_1",
     run_id: "run_1",
@@ -109,7 +109,7 @@ function invocation(mode) {
     finished_at: null,
     status: "RUNNING",
     result_code: "PENDING",
-    selected_node_ids: [],
+    selected_node_ids: selectedNodeIds,
     preserved_node_ids: [],
     blocked_node_ids: [],
     reason: "test",
@@ -120,7 +120,7 @@ async function seed(nodes, options = {}) {
   const repository = new InMemoryPersistenceRepository();
   const seededRun = await repository.createRun(run(options.runStatus));
   const seededInvocation = await repository.createInvocation(
-    invocation(options.mode ?? "NEW"),
+    invocation(options.mode ?? "NEW", options.selectedNodeIds ?? []),
   );
   for (const node of nodes) {
     let state = await repository.upsertNodeState({
@@ -144,7 +144,67 @@ async function seed(nodes, options = {}) {
         updated_at: T0,
       },
     });
+    if (options.successfulAttemptNodeIds?.includes(node.id)) {
+      const attempt = await repository.createAttempt({
+        node_state: state,
+        node_attempt_id: `old_attempt_${node.id}`,
+        invocation_id: "invoke_1",
+      });
+      state = await repository.upsertNodeState({
+        expected_revision: state.revision,
+        value: {
+          ...state.value,
+          status: "RUNNING",
+          latest_attempt_no: attempt.value.attempt_no,
+          active_attempt_id: attempt.value.node_attempt_id,
+        },
+      });
+      const started = await repository.setAttemptExecutionStarted(
+        attempt.value.node_attempt_id,
+        attempt.revision,
+        { execution_started_at: T0 },
+      );
+      await repository.finalizeAttempt(
+        attempt.value.node_attempt_id,
+        started.revision,
+        {
+          status: "SUCCESS",
+          result_code: "OK",
+          runner_execution_started_at: T0,
+          execution_id: `old_exec_${node.id}`,
+          finished_at: T0,
+          duration_sec: 0,
+          error_message: null,
+          read_count: 1,
+          written_count: 1,
+          last_successful_chunk_no: null,
+          last_written_key: null,
+        },
+      );
+      state = await repository.upsertNodeState({
+        expected_revision: state.revision,
+        value: {
+          ...state.value,
+          status: "SUCCESS",
+          active_attempt_id: null,
+          finished_at: T0,
+        },
+      });
+    }
     const desired = options.initial?.[node.id];
+    if (
+      desired === "WAITING" &&
+      options.successfulAttemptNodeIds?.includes(node.id)
+    ) {
+      await repository.upsertNodeState({
+        expected_revision: state.revision,
+        value: {
+          ...state.value,
+          status: "WAITING",
+          finished_at: null,
+        },
+      });
+    }
     if (desired && desired !== "WAITING") {
       if (desired === "BLOCKED") {
         await repository.upsertNodeState({
@@ -374,6 +434,43 @@ test("resumeはSUCCESSを保持し、冪等FAILEDだけ再試行する", async (
   assert.deepEqual(result.summary.preservedNodeIds, ["preserved"]);
   assert.equal(result.summary.aggregateStatus, "SUCCESS");
   assert.equal((await result.repository.getAttempts("run_1")).length, 1);
+});
+
+test("RERUN_FROMは対象集合だけを再実行し過去Attemptを保持して継続採番する（受入12）", async () => {
+  const nodes = [
+    { id: "upstream", dependsOn: [] },
+    { id: "selected", dependsOn: ["upstream"] },
+    { id: "child", dependsOn: ["selected"] },
+    { id: "sibling", dependsOn: ["upstream"] },
+  ];
+  const result = await execute(nodes, {
+    mode: "RERUN_FROM",
+    runStatus: "FAILED",
+    selectedNodeIds: ["selected", "child"],
+    successfulAttemptNodeIds: ["upstream", "selected", "child", "sibling"],
+    initial: { selected: "WAITING", child: "WAITING" },
+  });
+  assert.deepEqual(result.calls, ["selected", "child"]);
+  assert.deepEqual(result.summary.selectedNodeIds, ["selected", "child"]);
+  assert.deepEqual(result.summary.preservedNodeIds, ["upstream", "sibling"]);
+  const attempts = await result.repository.getAttempts("run_1");
+  for (const nodeId of ["selected", "child"]) {
+    assert.deepEqual(
+      attempts
+        .filter(({ value }) => value.node_id === nodeId)
+        .map(({ value }) => [value.attempt_no, value.status]),
+      [
+        [1, "SUCCESS"],
+        [2, "SUCCESS"],
+      ],
+    );
+  }
+  for (const nodeId of ["upstream", "sibling"]) {
+    assert.equal(
+      attempts.filter(({ value }) => value.node_id === nodeId).length,
+      1,
+    );
+  }
 });
 
 test("LOCK_CONFLICTは番号を保持してWAITINGへ戻し、独立ノードを継続する（受入24）", async () => {

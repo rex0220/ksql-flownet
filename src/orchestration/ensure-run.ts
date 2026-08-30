@@ -6,6 +6,10 @@ import { buildBundle, readStoreZip, verifyBundle } from "../bundle/index.js";
 import { resolveBusinessKey } from "../domain/business-key.js";
 import { nodeStateKey } from "../domain/canonical-record-key.js";
 import {
+  descendantsIncludingSelf,
+  DescendantsError,
+} from "../dag/descendants.js";
+import {
   loadNetworkDefinition,
   loadNetworkDefinitionSource,
 } from "../domain/load-network.js";
@@ -52,6 +56,11 @@ export type EnsureRunErrorCode =
   | "BUNDLE_INPUT_CHANGED"
   | "RUN_SNAPSHOT_MISMATCH"
   | "BUNDLE_DIALECT_MISMATCH"
+  | "RERUN_FROM_SUCCESS_RUN"
+  | "RERUN_FROM_NODE_NOT_FOUND"
+  | "RERUN_FROM_DAG_INVALID"
+  | "RERUN_FROM_UNKNOWN_STATE"
+  | "RERUN_FROM_NON_IDEMPOTENT"
   | "ENSURE_RUN_FAILED";
 
 export class EnsureRunError extends Error {
@@ -93,6 +102,7 @@ export interface EnsureRunInput {
   readonly businessKey?: string;
   readonly resume?: boolean;
   readonly resumeRunId?: string;
+  readonly rerunFrom?: string;
   readonly requestedBy: string;
   readonly host: string;
   readonly invocationId?: string;
@@ -173,10 +183,12 @@ export async function ensureRun(
     let bundleBytes: Buffer;
 
     if (run === null) {
-      if (input.resumeRunId !== undefined) {
+      if (input.resumeRunId !== undefined || input.rerunFrom !== undefined) {
         throw new EnsureRunError(
           "RUN_NOT_FOUND",
-          `run '${input.resumeRunId}' was not found`,
+          input.resumeRunId === undefined
+            ? "--rerun-from requires an existing Run selected by --resume"
+            : `run '${input.resumeRunId}' was not found`,
         );
       }
       const blockedBy = (
@@ -221,7 +233,7 @@ export async function ensureRun(
       outcome = "NEW";
     } else {
       assertRunIdentity(run.value, input.profile, definition.network_id);
-      if (run.value.status === "SUCCESS") {
+      if (run.value.status === "SUCCESS" && input.rerunFrom === undefined) {
         await input.lockManager.release(lock, "SUCCESS", "ALREADY_SUCCESS");
         lock = null;
         return {
@@ -233,8 +245,12 @@ export async function ensureRun(
         };
       }
       outcome = "RESUME";
-      invocation = await createInvocation(input, run, outcome, now, uuid);
-      assertRunResumable(run.value);
+      if (input.rerunFrom === undefined) {
+        invocation = await createInvocation(input, run, outcome, now, uuid);
+      }
+      if (!(input.rerunFrom !== undefined && run.value.status === "SUCCESS")) {
+        assertRunResumable(run.value);
+      }
       const description = await input.executor.describeProfile();
       assertDescriptionProfile(description, input.profile);
       assertStoredProfile(description, run.value);
@@ -242,20 +258,43 @@ export async function ensureRun(
         await input.bundleStore.download(run.value.source_bundle_attachment),
       );
       verifyBundle(bundleBytes, { zipSha256: run.value.source_bundle_sha256 });
+      const snapshotDefinition = definitionFromBundle(bundleBytes, run.value);
       await ensureNodeStates(
         input.repository,
         run.value.run_id,
-        definitionFromBundle(bundleBytes, run.value),
+        snapshotDefinition,
         now().toISOString(),
         uuid,
       );
+
+      await reconcileRun(input.repository, run.value.run_id);
+      run = await input.repository.getRun(run.value.run_id);
+      if (input.rerunFrom !== undefined) {
+        const selectedNodeIds = await prepareRerunFrom(
+          input.repository,
+          run,
+          snapshotDefinition,
+          input.rerunFrom,
+          now,
+        );
+        invocation = await createInvocation(
+          input,
+          run,
+          "RERUN_FROM",
+          now,
+          uuid,
+          selectedNodeIds,
+        );
+      }
     }
 
     if (invocation === null) {
       invocation = await createInvocation(input, run, outcome, now, uuid);
     }
-    await reconcileRun(input.repository, run.value.run_id);
-    run = await input.repository.getRun(run.value.run_id);
+    if (outcome === "NEW") {
+      await reconcileRun(input.repository, run.value.run_id);
+      run = await input.repository.getRun(run.value.run_id);
+    }
 
     const activeLock = lock;
     const activeInvocation = invocation;
@@ -577,13 +616,13 @@ function initialNodeState(
 async function createInvocation(
   input: EnsureRunInput,
   run: Versioned<NetworkRun>,
-  mode: "NEW" | "RESUME",
+  mode: "NEW" | "RESUME" | "RERUN_FROM",
   now: () => Date,
   uuid: () => string,
-  newRunNodeIds?: readonly string[],
+  selectedNodeIds?: readonly string[],
 ): Promise<Versioned<RunInvocation>> {
   const states =
-    newRunNodeIds === undefined
+    selectedNodeIds === undefined
       ? await input.repository.getNodeStates(run.value.run_id)
       : [];
   const preserved = states
@@ -601,7 +640,7 @@ async function createInvocation(
     .sort();
   const blockedSet = new Set(blocked);
   const selected =
-    newRunNodeIds === undefined
+    selectedNodeIds === undefined
       ? states
           .filter(
             ({ value }) =>
@@ -609,7 +648,7 @@ async function createInvocation(
           )
           .map(({ value }) => value.node_id)
           .sort()
-      : [...newRunNodeIds].sort();
+      : [...selectedNodeIds];
   return input.repository.createInvocation({
     invocation_id: input.invocationId ?? `invoke_${uuid()}`,
     run_id: run.value.run_id,
@@ -623,8 +662,94 @@ async function createInvocation(
     selected_node_ids: selected,
     preserved_node_ids: preserved,
     blocked_node_ids: blocked,
-    reason: mode === "NEW" ? "new business run" : "resume incomplete run",
+    reason:
+      mode === "NEW"
+        ? "new business run"
+        : mode === "RERUN_FROM"
+          ? `rerun from ${input.rerunFrom}`
+          : "resume incomplete run",
   });
+}
+
+async function prepareRerunFrom(
+  repository: PersistenceRepository,
+  run: Versioned<NetworkRun>,
+  definition: NetworkDefinition,
+  nodeId: string,
+  now: () => Date,
+): Promise<readonly string[]> {
+  let selected: readonly string[];
+  try {
+    selected = descendantsIncludingSelf(definition, nodeId);
+  } catch (error) {
+    if (error instanceof DescendantsError) {
+      throw new EnsureRunError(
+        error.code === "DESCENDANTS_NODE_NOT_FOUND"
+          ? "RERUN_FROM_NODE_NOT_FOUND"
+          : "RERUN_FROM_DAG_INVALID",
+        error.message,
+        [],
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+
+  const states = await repository.getNodeStates(run.value.run_id);
+  const byId = new Map(states.map((state) => [state.value.node_id, state]));
+  const selectedStates = selected.map((id) => {
+    const state = byId.get(id);
+    if (state === undefined) {
+      throw new EnsureRunError(
+        "RERUN_FROM_DAG_INVALID",
+        `Node State '${id}' is missing for the snapshot DAG`,
+      );
+    }
+    return state;
+  });
+
+  // All safety checks complete before the first rerun state transition.
+  if (run.value.status === "SUCCESS") {
+    throw new EnsureRunError(
+      "RERUN_FROM_SUCCESS_RUN",
+      `run '${run.value.run_id}' is terminal SUCCESS and cannot be reopened; create a new correction business key`,
+    );
+  }
+  const unknown = selectedStates
+    .filter(({ value }) => value.status === "UNKNOWN")
+    .map(({ value }) => value.node_id);
+  if (unknown.length > 0) {
+    throw new EnsureRunError(
+      "RERUN_FROM_UNKNOWN_STATE",
+      `rerun target contains unresolved UNKNOWN Node State(s): ${unknown.join(", ")}`,
+    );
+  }
+  const nonIdempotent = selectedStates
+    .filter(({ value }) => !value.idempotent)
+    .map(({ value }) => value.node_id);
+  if (nonIdempotent.length > 0) {
+    throw new EnsureRunError(
+      "RERUN_FROM_NON_IDEMPOTENT",
+      `rerun target contains idempotent=false node(s): ${nonIdempotent.join(", ")}`,
+    );
+  }
+
+  const at = now().toISOString();
+  for (const state of selectedStates) {
+    await repository.upsertNodeState({
+      expected_revision: state.revision,
+      value: {
+        ...state.value,
+        status: "WAITING",
+        active_attempt_id: null,
+        blocked_by: [],
+        status_reason: null,
+        finished_at: null,
+        updated_at: at,
+      },
+    });
+  }
+  return selected;
 }
 
 function resolveEnsureBusinessKey(

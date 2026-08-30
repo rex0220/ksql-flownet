@@ -106,7 +106,11 @@ export async function runSequentialScheduler(
   const now = input.now ?? (() => new Date());
   const uuid = input.uuid ?? randomUUID;
   let extracted: Awaited<ReturnType<typeof extractBundle>> | null = null;
-  const selected = new Set<string>();
+  const selected = new Set<string>(
+    input.invocation.value.mode === "RERUN_FROM"
+      ? input.invocation.value.selected_node_ids
+      : [],
+  );
   const preserved = new Set<string>();
   const blocked = new Set<string>();
   const results = new Map<string, SchedulerNodeResult>();
@@ -137,6 +141,18 @@ export async function runSequentialScheduler(
     for (const nodeId of order) {
       const node = nodes.get(nodeId)!;
       let state = requiredState(states, nodeId);
+      if (
+        input.invocation.value.mode === "RERUN_FROM" &&
+        !selected.has(nodeId)
+      ) {
+        if (state.value.status === "SUCCESS") {
+          preserved.add(nodeId);
+          results.set(nodeId, nodeResult(nodeId, "PRESERVED", state));
+        } else {
+          results.set(nodeId, nodeResult(nodeId, "EXCLUDED", state));
+        }
+        continue;
+      }
       if (state.value.status === "SUCCESS") {
         preserved.add(nodeId);
         results.set(nodeId, nodeResult(nodeId, "PRESERVED", state));

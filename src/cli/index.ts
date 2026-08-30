@@ -20,7 +20,7 @@ Commands:
   plan <network> [--scheduled-for <timestamp>] [--business-key <key>]
                       display the business key and stable execution plan (read-only)
   run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
-                        [--resume] [--resume-run <run_id>]
+                        [--resume] [--resume-run <run_id>] [--rerun-from <node_id>]
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
