@@ -1,13 +1,21 @@
+import assert, { AssertionError } from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
 import { sanitize } from "../../spikes/lib/runtime.mjs";
+import {
+  attemptKey,
+  nodeStateKey,
+} from "../../dist/domain/canonical-record-key.js";
+import { networkLockKey } from "../../dist/domain/canonical-lock-key.js";
 import { KintonePersistenceRepository } from "../../dist/persistence/kintone/repository.js";
+import { releaseTombstoneRecordKey } from "../../dist/persistence/network-lock.js";
 
 const FORBIDDEN_APP_IDS = new Set(["4246", "4247", "4249"]);
-export const ITEST_PREFIX = "ITEST_";
+const MAX_UNIQUE_KEY_LENGTH = 64;
+export const ITEST_PREFIX = "IT";
 
 function required(environment, name) {
   const value = environment[name]?.trim();
@@ -42,8 +50,107 @@ export function requireIntegrationEnvironment(environment = process.env) {
 }
 
 export function makeScope(name) {
-  const stamp = new Date().toISOString().replaceAll(/[-:.TZ]/g, "");
-  return `${ITEST_PREFIX}${name.replaceAll("-", "_")}_${stamp}_${randomUUID().slice(0, 8)}`;
+  assert.ok(name, "integration test name must not be empty");
+  const stamp = new Date().toISOString().slice(2, 19).replaceAll(/[-:T]/g, "");
+  return `${ITEST_PREFIX}${stamp}_${randomUUID().slice(0, 4)}`;
+}
+
+export function integrationKeySamples(scope) {
+  const runIds = [
+    scope,
+    ...["a", "b", "c", "success_write", "failure_write"].map(
+      (suffix) => `${scope}_${suffix}`,
+    ),
+  ];
+  const nodeIds = runIds.map((runId) => `${runId}_node`);
+  const attemptIds = [
+    ...runIds.map((runId) => `${runId}_attempt`),
+    ...["1a", "1b", "2", "3"].map((suffix) => `${scope}_attempt_${suffix}`),
+  ];
+  const invocationIds = [
+    ...runIds.map((runId) => `${runId}_invocation`),
+    ...["a", "b", "2", "3"].map((suffix) => `${scope}_invocation_${suffix}`),
+  ];
+  const canonicalStateKeys = runIds.map((runId, index) =>
+    nodeStateKey(runId, nodeIds[index]),
+  );
+  const canonicalAttemptKeys = runIds.map((runId, index) =>
+    attemptKey(runId, nodeIds[index], 1),
+  );
+  const lockKey = networkLockKey(
+    `${scope}_profile`,
+    `${scope}_failure_network`,
+  );
+  const entries = [
+    ["scope", scope],
+    ...runIds.map((value) => ["run_id", value]),
+    [`network_id`, `${scope}_network`],
+    [`network_id`, `${scope}_success_network`],
+    [`network_id`, `${scope}_failure_network`],
+    ["business_key", `${scope}_business`],
+    ["profile", `${scope}_profile`],
+    ...nodeIds.map((value) => ["node_id", value]),
+    ...runIds.map((runId) => ["job_id", `${runId}_job`]),
+    ...runIds.map((runId) => ["node_state_id", `${runId}_state`]),
+    [`node_state_id`, `${scope}_state_competitor`],
+    ...attemptIds.map((value) => ["node_attempt_id", value]),
+    ...invocationIds.map((value) => ["invocation_id", value]),
+    [`owner_invocation_id`, `${scope}_failure_owner`],
+    [`owner_instance_id`, `${scope}_failure_instance`],
+    ...canonicalStateKeys.map((value) => ["node_state_key", value]),
+    ...canonicalAttemptKeys.map((value) => ["attempt_key", value]),
+    ...runIds.map((runId) => ["record_key.RUN", `RUN:${runId}`]),
+    ...canonicalStateKeys.map((key) => ["record_key.STATE", `STATE:${key}`]),
+    ...attemptIds.map((attemptId) => ["record_key.ATT", `ATT:${attemptId}`]),
+    ...invocationIds.map((invocationId) => [
+      "record_key.INV",
+      `INV:${invocationId}`,
+    ]),
+    [
+      "record_key.OP",
+      `OP:${"0".repeat(8)}-${"0".repeat(4)}-${"0".repeat(4)}-${"0".repeat(4)}-${"0".repeat(12)}`,
+    ],
+    ["lock_key", lockKey],
+    ["record_key.LOCK", `LOCK:${lockKey}`],
+    [
+      "record_key.LOCKDONE",
+      releaseTombstoneRecordKey(`${lockKey}:${"0".repeat(36)}`),
+    ],
+  ];
+  return entries.map(([kind, value]) => ({
+    kind,
+    value,
+    length: value.length,
+  }));
+}
+
+export function assertIntegrationKeySampleLengths(samples) {
+  for (const sample of samples) {
+    assert.ok(
+      sample.length <= MAX_UNIQUE_KEY_LENGTH,
+      `M3 integration key exceeds ${MAX_UNIQUE_KEY_LENGTH} characters: kind=${sample.kind} actualLength=${sample.length} value=${JSON.stringify(sample.value)}`,
+    );
+  }
+  return samples;
+}
+
+export function assertIntegrationKeyLengths(scope) {
+  assert.match(
+    scope,
+    /^IT\d{12}_[0-9a-f]{4}$/,
+    `M3 integration scope format is invalid: actual=${JSON.stringify(scope)}`,
+  );
+  return assertIntegrationKeySampleLengths(integrationKeySamples(scope));
+}
+
+export function assertObserved(condition, expected, actual, context) {
+  if (condition) return;
+  throw new AssertionError({
+    message: context,
+    actual,
+    expected,
+    operator: "observed",
+  });
 }
 
 export function createObservedFetch(observations) {
@@ -55,9 +162,17 @@ export function createObservedFetch(observations) {
       method: init.method ?? "GET",
       path: new URL(input).pathname,
       status: response.status,
+      code:
+        responseBody && typeof responseBody.code === "string"
+          ? responseBody.code
+          : null,
       apiCode:
         responseBody && typeof responseBody.code === "string"
           ? responseBody.code
+          : null,
+      message:
+        responseBody && typeof responseBody.message === "string"
+          ? responseBody.message
           : null,
     });
     return response;
@@ -270,12 +385,25 @@ export function attemptFinalization(status = "SUCCESS") {
 }
 
 export function summarizeError(error) {
+  const originalMessage = error?.message ?? String(error);
+  const assertionObservation =
+    error?.actual !== undefined || error?.expected !== undefined
+      ? `; expected=${JSON.stringify(error?.expected)} actual=${JSON.stringify(error?.actual)}`
+      : "";
   return {
     name: error?.name ?? "Error",
     code: error?.code ?? null,
     status: error?.status ?? null,
     apiCode: error?.apiCode ?? null,
-    message: error?.message ?? String(error),
+    message: `${originalMessage}${assertionObservation}`,
+    ...(error?.actual !== undefined ? { actual: error.actual } : {}),
+    ...(error?.expected !== undefined ? { expected: error.expected } : {}),
+    ...(error?.operator !== undefined ? { operator: error.operator } : {}),
+    ...(error?.causeDetail
+      ? { cause: summarizeError(error.causeDetail) }
+      : error?.cause
+        ? { cause: summarizeError(error.cause) }
+        : {}),
     ...(error?.result ? { result: error.result } : {}),
   };
 }
@@ -308,6 +436,7 @@ export async function runIntegration(importMetaUrl, name, test, options = {}) {
   let passed = false;
   let cleanup = null;
   try {
+    assertIntegrationKeyLengths(scope);
     config = requireIntegrationEnvironment();
     detail = await test({ config, scope });
     passed = true;

@@ -12,7 +12,7 @@ M3完了ゲートを、`pretest`/`build`で生成した`dist/`の製品コード
 
 ## 実行順
 
-各コマンドは合格時0、不合格時1のexit codeを返します。途中で不合格になっても自己清掃を試みます。最後のcleanupは、異常終了で残った`ITEST_`タグのレコードを清掃する安全網です。
+各コマンドは合格時0、不合格時1のexit codeを返します。途中で不合格になっても自己清掃を試みます。最後のcleanupは、異常終了で残った`IT`タグのレコードを清掃する安全網です。
 
 ```powershell
 npm run build
@@ -25,7 +25,7 @@ node --env-file=.env tests/integration/m3-heartbeat-drain.mjs
 node --env-file=.env tests/integration/m3-cleanup.mjs
 ```
 
-結果の詳細JSONは`tests/integration/results/`へ保存されます。token名のフィールドを除去し、設定されたtoken値がシリアライズ結果に残っていないことを保存前に検査します。結果JSONはgit管理対象外です。試験IDにはcanonical identifierで禁止される`:`を使わず、`ITEST_`接頭辞を使用します。製品が付加する`RUN:`/`ATT:`等を含むrecord keyと、`run_id`・lock owner・解放tombstoneの`status_reason`へこのタグを伝播して清掃対象を識別します。
+結果の詳細JSONは`tests/integration/results/`へ保存されます。token名のフィールドを除去し、設定されたtoken値がシリアライズ結果に残っていないことを保存前に検査します。結果JSONはgit管理対象外です。scopeは試験名をキーに含めず、`IT<yymmddHHmmss>_<4hex>`形式の19文字とします。試験名は結果JSONの`test`とコンソールログに保持します。製品が付加する`RUN:`/`ATT:`等を含むrecord keyと、`run_id`・lock owner・解放tombstoneの`status_reason`へ`IT`タグを伝播して清掃対象を識別します。試験開始前に全派生キーの64文字制限を検証します。
 
 ## M3ゲート対応
 
@@ -37,4 +37,4 @@ node --env-file=.env tests/integration/m3-cleanup.mjs
 | 4 canonical key/競合      | `m3-canonical-key-conflict.mjs` | distとtest vector一致、node_state_key重複禁止、revision 409                |
 | 5 長時間heartbeat/fencing | `m3-lease-heartbeat.mjs`        | 縮小leaseで3回更新、旧token拒否、tombstone解放                             |
 | 6 heartbeat一時断drain    | `m3-heartbeat-drain.mjs`        | fetch障害注入、起動停止、実行中処理完走、最終確認成功時だけ書込み          |
-| 清掃                      | `m3-cleanup.mjs`                | `ITEST_`タグのEXEC/AUDITレコード削除                                       |
+| 清掃                      | `m3-cleanup.mjs`                | `IT`タグのEXEC/AUDITレコード削除                                           |
