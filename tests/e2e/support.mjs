@@ -664,12 +664,22 @@ export async function killKsqlFlowAttempt(attemptId, ksqlFlowCliPath, scope) {
     matches,
     `kSQL-Flow cliPath=${resolve(ksqlFlowCliPath)} and scope=${scope}`,
   );
-  const result = await startProcess(
-    "taskkill.exe",
-    ["/PID", String(rootProcessId), "/T", "/F"],
-    { env: process.env },
-  ).completion;
-  assert.equal(result.exitCode, 0, result.stderr || result.stdout);
+  // taskkill /T はWindowsで "operation not supported" を返すことがある(実測)。
+  // 列挙済みのツリーPIDを子→親の順で直接TerminateProcessする。
+  const byDepth = [...matches].sort(
+    (a, b) => Number(b.processId) - Number(a.processId),
+  );
+  const killErrors = [];
+  for (const { processId } of byDepth) {
+    try {
+      process.kill(Number(processId), "SIGKILL");
+    } catch (error) {
+      if (error.code !== "ESRCH") {
+        killErrors.push({ processId, error: error.code ?? error.message });
+      }
+    }
+  }
+  assert.deepEqual(killErrors, [], "process tree kill failed");
   return rootProcessId;
 }
 
