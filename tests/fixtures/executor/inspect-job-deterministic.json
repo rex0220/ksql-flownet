@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "kind": "JOB_INSPECTION",
-  "jobId": "aggregate_customer",
-  "fileName": "aggregate_customer.sql",
+  "jobId": "m5_shared_read",
+  "fileName": "success-n1-extract.sql",
   "dialect": 1,
-  "statementCount": 1,
+  "statementCount": 2,
   "dependsOn": [],
-  "timeoutSec": 90,
+  "timeoutSec": 120,
   "diagnostics": [],
   "nondeterministicElements": []
 }

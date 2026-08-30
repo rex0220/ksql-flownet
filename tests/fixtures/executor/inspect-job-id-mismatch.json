@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "kind": "JOB_INSPECTION",
   "jobId": "different_job",
-  "fileName": "aggregate_customer.sql",
+  "fileName": "success-n1-extract.sql",
   "dialect": 1,
-  "statementCount": 1,
+  "statementCount": 2,
   "dependsOn": [],
-  "timeoutSec": 90,
+  "timeoutSec": 120,
   "diagnostics": [],
   "nondeterministicElements": []
 }

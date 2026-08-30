@@ -307,8 +307,11 @@ function productionDependencies(
         binArgs,
         executionDirectory,
         timeoutMs:
-          result.run.value.resolved_profile_snapshot.limits.batch_timeout_sec *
-          1000,
+          result.run.value.resolved_profile_snapshot.limits
+            .batch_timeout_sec === null
+            ? null
+            : result.run.value.resolved_profile_snapshot.limits
+                .batch_timeout_sec * 1000,
         gracePeriodMs,
       });
       return runSequentialScheduler({

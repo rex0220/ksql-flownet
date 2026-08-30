@@ -37,7 +37,7 @@ export interface RunSubprocessOptions {
   readonly command: string;
   readonly binArgs?: readonly string[];
   readonly executionDirectory: string;
-  readonly timeoutMs: number;
+  readonly timeoutMs: number | null;
   readonly gracePeriodMs: number;
   readonly forcedExitWaitMs?: number;
   readonly spawn?: RunSpawn;
@@ -62,8 +62,8 @@ export class RunSubprocess {
     if (!isAbsolute(options.executionDirectory))
       throw new Error("executionDirectory must be absolute");
     if (
-      !Number.isFinite(options.timeoutMs) ||
-      options.timeoutMs < 0 ||
+      (options.timeoutMs !== null &&
+        (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 0)) ||
       !Number.isFinite(options.gracePeriodMs) ||
       options.gracePeriodMs < 0
     )
@@ -128,7 +128,10 @@ export class RunSubprocess {
       };
     }
 
-    const first = await raceExit(handle.completion, this.options.timeoutMs);
+    const first =
+      this.options.timeoutMs === null
+        ? await handle.completion
+        : await raceExit(handle.completion, this.options.timeoutMs);
     if (first)
       return completed(first, stdout, stderr, resultJsonPath, false, false);
 

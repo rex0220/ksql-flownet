@@ -529,10 +529,10 @@ export function createM4LockManager(
 export async function withM4Fixture(scope, options, test) {
   const directory = await mkdtemp(join(tmpdir(), "ksql-flownet-m4-"));
   const nodeId = options.nodeId ?? "aggregate";
-  const jobId = options.jobId ?? "aggregate_customer";
+  const jobId = options.jobId ?? "m5_shared_read";
   const networkId = options.networkId ?? `${scope}_network`;
   const sql =
-    options.sql ?? "-- @ksql name: aggregate_customer\nSELECT $id FROM APP1;\n";
+    options.sql ?? "-- @ksql name: m5_shared_read\nSELECT $id FROM APP1;\n";
   const jobsDirectory = join(directory, "jobs");
   const sqlPath = join(jobsDirectory, `${nodeId}.sql`);
   const networkPath = join(directory, "network.yaml");

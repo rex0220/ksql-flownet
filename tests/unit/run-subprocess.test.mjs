@@ -59,6 +59,30 @@ test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/
   ]);
 });
 
+test("timeoutMs nullは外側のbatch timeoutを無効にする", async () => {
+  let stopped = false;
+  const runner = new RunSubprocess({
+    command: "fake",
+    executionDirectory: "C:\\exec",
+    timeoutMs: null,
+    gracePeriodMs: 1,
+    uniqueId: () => "no-timeout",
+    spawn: () => ({
+      completion: Promise.resolve({ exitCode: 0 }),
+      gracefulStop() {
+        stopped = true;
+      },
+      forceStop() {
+        stopped = true;
+      },
+    }),
+  });
+  const outcome = await runner.run(request);
+  assert.equal(outcome.exitCode, 0);
+  assert.equal(outcome.timedOut, false);
+  assert.equal(stopped, false);
+});
+
 test("timeoutはgraceful signal後のCANCELLED終了を待つ", async () => {
   let graceful = 0;
   let finish;

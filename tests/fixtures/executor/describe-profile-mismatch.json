@@ -1,29 +1,30 @@
 {
   "apps": {
-    "orders": 102,
-    "execution_log": 999
+    "実行ログ": 4249,
+    "案件管理": 4247,
+    "顧客管理": 4248
   },
   "baseUrl": "https://other.cybozu.com",
   "formatVersion": 1,
-  "guestSpaceId": 42,
-  "httpTimeoutMs": 4567,
+  "guestSpaceId": null,
+  "httpTimeoutMs": 30000,
   "kind": "PROFILE_DESCRIPTION",
   "limits": {
-    "batchTimeoutSec": 1200,
-    "maxApiCalls": 321,
-    "maxReadRows": 654,
-    "maxTempRows": 987
+    "batchTimeoutSec": 3600,
+    "maxApiCalls": null,
+    "maxReadRows": null,
+    "maxTempRows": null
   },
   "logApp": {
-    "appId": 999,
-    "name": "execution_log"
+    "appId": 4249,
+    "name": "実行ログ"
   },
   "profile": "prod",
   "retry": {
-    "initialDelayMs": 25,
-    "maxAttempts": 7,
-    "maxDelayMs": 2500,
-    "respectRetryAfter": false
+    "initialDelayMs": 1000,
+    "maxAttempts": 5,
+    "maxDelayMs": 60000,
+    "respectRetryAfter": true
   },
   "timezone": "Asia/Tokyo"
 }

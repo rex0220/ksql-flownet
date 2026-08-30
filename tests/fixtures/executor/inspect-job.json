@@ -1,35 +1,12 @@
 {
   "formatVersion": 1,
   "kind": "JOB_INSPECTION",
-  "jobId": "aggregate_customer",
-  "fileName": "aggregate_customer.sql",
+  "jobId": "m5_shared_read",
+  "fileName": "success-n1-extract.sql",
   "dialect": 1,
-  "statementCount": 1,
-  "dependsOn": ["extract_sales"],
-  "timeoutSec": 90,
-  "diagnostics": [
-    {
-      "code": "KSQL1305",
-      "severity": "warning",
-      "line": 5,
-      "column": 1,
-      "message": "plain INSERT may not be idempotent"
-    },
-    {
-      "code": "KSQL1306",
-      "severity": "warning",
-      "line": 5,
-      "column": 42,
-      "message": "server time function is not fixed by as-of"
-    }
-  ],
-  "nondeterministicElements": [
-    {
-      "code": "KSQL1306",
-      "severity": "warning",
-      "line": 5,
-      "column": 42,
-      "message": "server time function is not fixed by as-of"
-    }
-  ]
+  "statementCount": 2,
+  "dependsOn": [],
+  "timeoutSec": 120,
+  "diagnostics": [],
+  "nondeterministicElements": []
 }
