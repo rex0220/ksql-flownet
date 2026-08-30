@@ -21,7 +21,9 @@ Commands:
                       display the business key and stable execution plan (read-only)
   run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
                         [--resume] [--resume-run <run_id>]
-                      ensure a Network Run (node execution starts in M5)
+                        [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
+                        [--ksql-flow-workdir <path>]
+                      ensure and execute a Network Run sequentially
 `;
 
 function getVersion(): string {

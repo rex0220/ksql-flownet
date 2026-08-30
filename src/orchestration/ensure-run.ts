@@ -107,6 +107,11 @@ export interface EnsureRunInput {
 export interface EnsureRunCloseInput {
   readonly status: Exclude<RunInvocationStatus, "RUNNING">;
   readonly resultCode: string;
+  readonly selectedNodeIds?: readonly string[];
+  readonly preservedNodeIds?: readonly string[];
+  readonly blockedNodeIds?: readonly string[];
+  /** D-29 unrecovered drain releases only if possible and leaves Invocation untouched. */
+  readonly persistInvocation?: boolean;
 }
 
 export interface EnsureRunNoopResult {
@@ -124,6 +129,7 @@ export interface EnsureRunExecutionResult {
   readonly blockedBy: readonly string[];
   readonly businessKey: string;
   readonly bundleBytes: Buffer;
+  readonly lock: NetworkLockReference;
   close(input: EnsureRunCloseInput): Promise<void>;
 }
 
@@ -262,22 +268,34 @@ export async function ensureRun(
       blockedBy: [],
       businessKey: run.value.business_key,
       bundleBytes,
+      lock: activeLock,
       async close(finalization): Promise<void> {
         if (closed) return;
         closed = true;
         let finalizationError: unknown;
-        try {
-          await input.repository.finalizeInvocation(
-            activeInvocation.value.invocation_id,
-            activeInvocation.revision,
-            {
-              status: finalization.status,
-              result_code: finalization.resultCode,
-              finished_at: now().toISOString(),
-            },
-          );
-        } catch (error) {
-          finalizationError = error;
+        if (finalization.persistInvocation !== false) {
+          try {
+            await input.repository.finalizeInvocation(
+              activeInvocation.value.invocation_id,
+              activeInvocation.revision,
+              {
+                status: finalization.status,
+                result_code: finalization.resultCode,
+                finished_at: now().toISOString(),
+                ...(finalization.selectedNodeIds === undefined
+                  ? {}
+                  : { selected_node_ids: finalization.selectedNodeIds }),
+                ...(finalization.preservedNodeIds === undefined
+                  ? {}
+                  : { preserved_node_ids: finalization.preservedNodeIds }),
+                ...(finalization.blockedNodeIds === undefined
+                  ? {}
+                  : { blocked_node_ids: finalization.blockedNodeIds }),
+              },
+            );
+          } catch (error) {
+            finalizationError = error;
+          }
         }
         try {
           await input.lockManager.release(

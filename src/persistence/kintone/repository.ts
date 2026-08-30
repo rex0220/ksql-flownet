@@ -470,9 +470,47 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       status: field(finalization.status),
       result_code: field(finalization.result_code),
       finished_at: field(finalization.finished_at),
+      ...(finalization.selected_node_ids === undefined
+        ? {}
+        : {
+            selected_node_ids: field(
+              JSON.stringify(finalization.selected_node_ids),
+            ),
+          }),
+      ...(finalization.preserved_node_ids === undefined
+        ? {}
+        : {
+            preserved_node_ids: field(
+              JSON.stringify(finalization.preserved_node_ids),
+            ),
+          }),
+      ...(finalization.blocked_node_ids === undefined
+        ? {}
+        : {
+            blocked_node_ids: field(
+              JSON.stringify(finalization.blocked_node_ids),
+            ),
+          }),
     });
     return {
-      value: { ...current.value, ...finalization },
+      value: {
+        ...current.value,
+        status: finalization.status,
+        result_code: finalization.result_code,
+        finished_at: finalization.finished_at,
+        selected_node_ids:
+          finalization.selected_node_ids === undefined
+            ? current.value.selected_node_ids
+            : [...finalization.selected_node_ids],
+        preserved_node_ids:
+          finalization.preserved_node_ids === undefined
+            ? current.value.preserved_node_ids
+            : [...finalization.preserved_node_ids],
+        blocked_node_ids:
+          finalization.blocked_node_ids === undefined
+            ? current.value.blocked_node_ids
+            : [...finalization.blocked_node_ids],
+      },
       revision: expectedRevision + 1,
     };
   }

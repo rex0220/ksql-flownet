@@ -140,7 +140,25 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
         "only a running invocation can be finalized",
       );
     }
-    return next(stored, { ...stored.value, ...finalization });
+    const value: RunInvocation = {
+      ...stored.value,
+      status: finalization.status,
+      result_code: finalization.result_code,
+      finished_at: finalization.finished_at,
+      selected_node_ids:
+        finalization.selected_node_ids === undefined
+          ? stored.value.selected_node_ids
+          : [...finalization.selected_node_ids],
+      preserved_node_ids:
+        finalization.preserved_node_ids === undefined
+          ? stored.value.preserved_node_ids
+          : [...finalization.preserved_node_ids],
+      blocked_node_ids:
+        finalization.blocked_node_ids === undefined
+          ? stored.value.blocked_node_ids
+          : [...finalization.blocked_node_ids],
+    };
+    return next(stored, value);
   }
 
   async getNodeStates(runId: string): Promise<Versioned<NodeState>[]> {

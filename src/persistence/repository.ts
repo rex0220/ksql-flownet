@@ -55,6 +55,9 @@ export interface InvocationFinalization {
   status: Exclude<RunInvocationStatus, "RUNNING">;
   result_code: string;
   finished_at: string;
+  selected_node_ids?: readonly string[];
+  preserved_node_ids?: readonly string[];
+  blocked_node_ids?: readonly string[];
 }
 
 export interface NodeStateWrite {

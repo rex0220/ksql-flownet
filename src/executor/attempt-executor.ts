@@ -24,6 +24,8 @@ export interface AttemptExecutorInput extends RunRequest {
   readonly attempt: Versioned<NodeAttempt>;
   readonly nodeState: Versioned<NodeState>;
   readonly executionStartedAt: string;
+  /** D-29 gate evaluated after subprocess completion and before result writes. */
+  readonly authorizeResultPersistence?: () => Promise<boolean>;
 }
 
 export interface AttemptExecutorOptions {
@@ -40,6 +42,20 @@ export interface AttemptExecutionOutcome {
   readonly attempt: Versioned<NodeAttempt>;
   readonly nodeState: Versioned<NodeState>;
   readonly invocationResultCode: string | null;
+}
+
+export class AttemptResultPersistenceDeferredError extends Error {
+  readonly code = "NETWORK_LEASE_INTERRUPTED";
+
+  constructor(
+    readonly classification: ResultClassification,
+    readonly process: SubprocessRunResult,
+  ) {
+    super(
+      "subprocess completed but the Network lease does not permit result persistence",
+    );
+    this.name = "AttemptResultPersistenceDeferredError";
+  }
 }
 
 /** FN-10 entry point for one already-created RUNNING attempt and node state. */
@@ -127,6 +143,12 @@ export class AttemptExecutor {
 
     const result = classification.result;
     const finishedAt = result?.finishedAt ?? this.now();
+    if (
+      input.authorizeResultPersistence !== undefined &&
+      !(await input.authorizeResultPersistence())
+    ) {
+      throw new AttemptResultPersistenceDeferredError(classification, process);
+    }
     const attempt = await this.options.repository.finalizeAttempt(
       startedAttempt.value.node_attempt_id,
       startedAttempt.revision,
