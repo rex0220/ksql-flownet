@@ -116,6 +116,7 @@ FDR D-08の第一候補を検証するため、次の2アプリを新設して�
 | written_count               | Written Count                     | 数値             | 条件付き | No       | 0以上の整数                                                                         |
 | last_successful_chunk_no    | Last Successful Chunk No          | 数値             | No       | No       | 診断情報、resume cursorではない                                                     |
 | last_written_key            | Last Written Key                  | 文字列（1行）    | No       | No       | 診断情報、秘密を含めない                                                            |
+| state_revision_before       | State Revision Before             | 数値             | 条件付き | No       | D-09の開始プロトコルでAttempt作成直前に確認したNode State revision                  |
 
 ### Attempt Resolution（FDR D-04 JSON例）
 
@@ -148,14 +149,14 @@ FDR D-08の第一候補を検証するため、次の2アプリを新設して�
 
 ### FlowNet 監査履歴 Spike
 
-| セクション         | 行（上から順）                                                                                                                                                                                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Common             | `record_key, record_type`                                                                                                                                                                                                                                |
-| Run Invocation     | `run_id, started_at, finished_at`<br>`status, result_code`<br>`invocation_id, mode`<br>`requested_by, host`<br>`selected_node_ids`<br>`preserved_node_ids`<br>`blocked_node_ids`<br>`reason`                                                             |
-| Node Attempt       | `node_attempt_id, attempt_key`<br>`node_id, job_id, attempt_no`<br>`execution_started_at, runner_execution_started_at`<br>`execution_id, duration_sec`<br>`error_message`<br>`read_count, written_count, last_successful_chunk_no`<br>`last_written_key` |
-| Attempt Resolution | `event_type, attempt_id, resolved_outcome`<br>`evidence_ref, service_principal`<br>`approved_by, resolved_at`                                                                                                                                            |
-| Operation Audit    | 固有フィールドなし                                                                                                                                                                                                                                       |
-| System             | previewレイアウトから取得した自動生成フィールドの既存行                                                                                                                                                                                                  |
+| セクション         | 行（上から順）                                                                                                                                                                                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Common             | `record_key, record_type`                                                                                                                                                                                                                                                           |
+| Run Invocation     | `run_id, started_at, finished_at`<br>`status, result_code`<br>`invocation_id, mode`<br>`requested_by, host`<br>`selected_node_ids`<br>`preserved_node_ids`<br>`blocked_node_ids`<br>`reason`                                                                                        |
+| Node Attempt       | `node_attempt_id, attempt_key`<br>`node_id, job_id, attempt_no`<br>`execution_started_at, runner_execution_started_at`<br>`execution_id, duration_sec`<br>`error_message`<br>`read_count, written_count, last_successful_chunk_no`<br>`last_written_key`<br>`state_revision_before` |
+| Attempt Resolution | `event_type, attempt_id, resolved_outcome`<br>`evidence_ref, service_principal`<br>`approved_by, resolved_at`                                                                                                                                                                       |
+| Operation Audit    | 固有フィールドなし                                                                                                                                                                                                                                                                  |
+| System             | previewレイアウトから取得した自動生成フィールドの既存行                                                                                                                                                                                                                             |
 
 共有フィールドは最初に該当するセクションへ1回だけ置く。`run_id`、`started_at`、`finished_at`、`status`、`result_code`、`invocation_id`、`requested_by`、`reason`はRun Invocation、`event_type`、`evidence_ref`、`service_principal`、`resolved_at`はAttempt Resolutionへ置く。Operation Auditはこれらの共有フィールドを参照するため、見出しだけを配置する。Systemセクションの扱いは実行管理appと同じとする。
 

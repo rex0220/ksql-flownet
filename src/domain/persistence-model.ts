@@ -111,7 +111,7 @@ export interface NodeAttempt {
   written_count: number;
   last_successful_chunk_no: number | null;
   last_written_key: string | null;
-  /** D-09 evidence. null when the deployed app schema cannot persist it. */
+  /** D-09 start-protocol evidence. */
   state_revision_before: number | null;
 }
 

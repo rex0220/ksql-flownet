@@ -82,6 +82,20 @@ export class KintoneClient {
     return Number((body as { revision: string }).revision);
   }
 
+  async putRecordById(
+    id: string,
+    revision: number,
+    record: KintoneRecord,
+  ): Promise<number> {
+    const body = await this.request("PUT", `${this.baseUrl}/k/v1/record.json`, {
+      app: this.appId,
+      id,
+      revision,
+      record,
+    });
+    return Number((body as { revision: string }).revision);
+  }
+
   private async request(
     method: "GET" | "POST" | "PUT",
     url: string | URL,

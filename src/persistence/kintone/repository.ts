@@ -273,6 +273,7 @@ function attemptRecord(value: NodeAttempt): KintoneRecord {
     written_count: field(value.written_count),
     last_successful_chunk_no: field(value.last_successful_chunk_no ?? ""),
     last_written_key: field(value.last_written_key ?? ""),
+    state_revision_before: field(value.state_revision_before ?? ""),
   };
 }
 
@@ -303,9 +304,7 @@ function decodeAttempt(record: KintoneRecord): NodeAttempt {
       "last_successful_chunk_no",
     ),
     last_written_key: nullableText(record, "last_written_key"),
-    // app-design-2app.md has no state_revision_before field. Keep the model
-    // explicit and fail closed at orchestration/reconciliation boundaries.
-    state_revision_before: null,
+    state_revision_before: nullableNumber(record, "state_revision_before"),
   };
 }
 
@@ -734,7 +733,9 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     try {
       // TODO(FDR): define a retry policy. Until then, deliberately do not retry;
       // callers must re-GET and reconcile ambiguous outcomes before continuing.
-      await client.putRecord(recordKey, revision, record);
+      const update = { ...record };
+      delete update.record_key;
+      await client.putRecord(recordKey, revision, update);
     } catch (error) {
       mapError(error);
     }
