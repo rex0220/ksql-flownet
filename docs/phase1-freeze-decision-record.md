@@ -237,6 +237,18 @@ force-unlockの初回実行は`--stop-evidence-ref`欠落により「停止証�
 
 「正常な長時間Run」は、lease 6秒 / heartbeat 2秒の縮小値と5.2768794秒の疑似subprocessによる実測で代替した。この限定を受容し、実運用値の決定、実Cloud Run照会、複数ホスト、実運用スケールの長時間Run、実subprocess drain、schema v2専用フィールド、回収後Attempt照合を後続管理する条件で、プロトコル全測定分岐の成立をもってD-29を`DECIDED`とする。D-14は未実施のままであり、本判断では変更しない。Supersededはない。
 
+2026-08-30の追記(M6ゲート実機判定)。参照: `docs/test-results/m6-gate-20260830/`(公式実行6/6合格)、`docs/runbook-phase1-recovery.md`。
+
+M6ゲートE2E(devenxyfi実機、実kSQL-Flow subprocess、実process tree kill)で次を確定した。
+
+1. **kintone DATETIMEのround-trip照合禁止を契約化する。** DATETIMEフィールドは分精度で保存され、書込んだISO時刻の秒・ミリ秒は読み戻しで失われる。同一性は一意キー(record_key)で確定し、内容照合はキーが運ばない主張(resolved_outcome等)に限る。完全時刻の照合が必要な値はテキスト(JSON詰め)側へ保存する。この違反による実バグ2件(Attempt Resolution照合、force-unlock応答消失裁定)を修正した。
+2. **lease失効判定は切り捨て上限+60秒の保守判定とする。** 保存`lease_expires_at`は最大59秒過去へ切り捨てられるため、`stale_candidate`と`LEASE_STILL_ACTIVE`は`lease_expires_at + 60秒`超過で判定する。回収適格が真の失効から最大59秒遅れる(fail-closed方向)。
+3. **release契約の頑健化。** lock解放は自プロセスheartbeatとのrevision競走で間欠失敗し得た(実測2回)。lease監視の停止を解放より先に行い、解放PUTの409時は再GETで`lease_token`が自分のものである場合に限り最新revisionで1回だけ再試行する。他者によるtoken変更・tombstone化は従来どおりfail-closed。
+4. **回収後Attempt照合とUNKNOWN化(残余リスク8)を実装・実測した。** resume時、旧invocationの孤児RUNNING Attemptをジョブログ(attempt_id相関、時刻順序比較なし)で突合し、終端ログはその結果を適用、照合不能は`UNKNOWN`(`NO_EXECUTION_RESULT`)、ログ読取失敗は裁定せず停止する。kill→lease生存中拒否→失効→owner不一致拒否→`local_pid`停止確認(ESRCH)→tombstone回収→`NETWORK_LOCK_FORCE_RELEASED`監査→孤児UNKNOWN化→resolve-node→resume完走、をstatusの復旧識別子のみで通した(復旧runbook経路の成立)。
+5. 実測環境値: API呼出~35ms/call(devenxyfi)、kSQLバッチ上限は20文・temp table 16個(長時間ジョブの構成制約)。
+
+残余リスク1(実運用値)・2(実Cloud Run照会)・3(複数ホスト)・6(schema v2)は変更なし。4・5は「実process kill・実subprocess・実kintone」で上書きされた(実運用スケールの長時間Runのみ未実施)。8は解消。復旧手順の正本は`docs/runbook-phase1-recovery.md`とする。
+
 ### D-30: 外部ジョブスケジューラとの責務境界
 
 Phase 1のkSQL-FlowNetはcron式、カレンダースケジュール、常駐ポーリング、missed runの自動補完を所有しない。cron、Cloud Scheduler、GitHub Actions、Windows Task Scheduler等を外部Triggerとして扱い、起動時刻、missed run、catch-up、起動リトライの回数・間隔は外部スケジューラが管理する。
@@ -1082,7 +1094,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [ ] 現行status移行fixtureの全ケースに合格 (2026-08-29変換試作はD-06 fixture全14ケースに合格し、原因情報が欠落・矛盾する4ケースと未知status 1ケースのfail-closedを確認。本実装（M7）で全件実行後に閉じる)
 - [ ] ensure-runの0件／未完了1件／完了1件／複数件試験に合格
 - [ ] snapshot破損・取得不能時のfail-closed試験に合格
-- [ ] stale検知から旧保持者停止確認、突合、解決、resumeまでの復旧訓練に合格
+- [x] stale検知から旧保持者停止確認、突合、解決、resumeまでの復旧訓練に合格 (2026-08-30 M6ゲートm6-04実機ドリル。`docs/test-results/m6-gate-20260830/`、手順正本は`docs/runbook-phase1-recovery.md`)
 - [ ] ジョブネット経由と単体実行経由のNodeロック競合試験に合格
 - [ ] 未保証事項と残余リスクを仕様・runbookへ反映
 
