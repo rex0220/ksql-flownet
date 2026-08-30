@@ -65,10 +65,15 @@ function makeRun() {
   };
 }
 
-function createKintoneFake({ loseFirstAttemptResponse = false } = {}) {
+function createKintoneFake({
+  loseFirstAttemptResponse = false,
+  staleUpdateReturnsDa02 = false,
+  failRereadAfterDa02 = false,
+} = {}) {
   const apps = new Map();
   const calls = [];
   let lost = false;
+  let da02Returned = false;
   const recordsFor = (app) => {
     if (!apps.has(app)) apps.set(app, []);
     return apps.get(app);
@@ -85,6 +90,8 @@ function createKintoneFake({ loseFirstAttemptResponse = false } = {}) {
     const body = init.body ? JSON.parse(init.body) : null;
     calls.push({ url, method, headers: init.headers, body });
     if (method === "GET") {
+      if (failRereadAfterDa02 && da02Returned)
+        return response({ code: "GAIA_TM12" }, 503);
       const app = Number(url.searchParams.get("app"));
       const query = url.searchParams.get("query");
       const predicates = [
@@ -131,8 +138,13 @@ function createKintoneFake({ loseFirstAttemptResponse = false } = {}) {
         (candidate) => candidate.record_key.value === body.updateKey.value,
       );
       if (!record) return response({ code: "GAIA_RE20" }, 404);
-      if (Number(record.$revision.value) !== body.revision)
+      if (Number(record.$revision.value) !== body.revision) {
+        if (staleUpdateReturnsDa02) {
+          da02Returned = true;
+          return response({ code: "GAIA_DA02" }, 400);
+        }
         return response({ code: "GAIA_CO02" }, 409);
+      }
       const revision = String(Number(record.$revision.value) + 1);
       Object.assign(record, body.record, { $revision: { value: revision } });
       return response({ revision });
@@ -360,5 +372,67 @@ test("kintone: GAIA_CO02を安定REVISION_CONFLICTへ変換する", async () => 
     }),
     (error) =>
       error instanceof RepositoryError && error.code === "REVISION_CONFLICT",
+  );
+});
+
+test("kintone: 並行updateKey PUT敗者のGAIA_DA02を再GETしてREVISION_CONFLICTへ裁定する", async () => {
+  const fake = createKintoneFake({ staleUpdateReturnsDa02: true });
+  const repo = repository(fake);
+  const run = await repo.createRun(makeRun());
+  const outcomes = await Promise.allSettled([
+    repo.updateRunAggregate("run_1", run.revision, {
+      status: "RUNNING",
+      started_at: null,
+      finished_at: null,
+      updated_at: "2026-08-30T00:00:01Z",
+    }),
+    repo.updateRunAggregate("run_1", run.revision, {
+      status: "FAILED",
+      started_at: null,
+      finished_at: null,
+      updated_at: "2026-08-30T00:00:02Z",
+    }),
+  ]);
+  const rejected = outcomes.find(({ status }) => status === "rejected");
+  assert.equal(
+    outcomes.filter(({ status }) => status === "fulfilled").length,
+    1,
+  );
+  assert.ok(
+    rejected?.reason instanceof RepositoryError &&
+      rejected.reason.code === "REVISION_CONFLICT",
+  );
+  const da02PutIndex = fake.calls.findIndex(
+    ({ method, body }) =>
+      method === "PUT" && body?.revision === run.revision && body?.record,
+  );
+  assert.ok(da02PutIndex >= 0);
+  assert.ok(
+    fake.calls.slice(da02PutIndex + 1).some(({ method }) => method === "GET"),
+  );
+});
+
+test("kintone: GAIA_DA02後の再GET不能はREMOTE_ERRORへfail-closedする", async () => {
+  const fake = createKintoneFake({
+    staleUpdateReturnsDa02: true,
+    failRereadAfterDa02: true,
+  });
+  const repo = repository(fake);
+  const run = await repo.createRun(makeRun());
+  await repo.updateRunAggregate("run_1", run.revision, {
+    status: "RUNNING",
+    started_at: null,
+    finished_at: null,
+    updated_at: "2026-08-30T00:00:01Z",
+  });
+  await assert.rejects(
+    repo.updateRunAggregate("run_1", run.revision, {
+      status: "FAILED",
+      started_at: null,
+      finished_at: null,
+      updated_at: "2026-08-30T00:00:02Z",
+    }),
+    (error) =>
+      error instanceof RepositoryError && error.code === "REMOTE_ERROR",
   );
 });

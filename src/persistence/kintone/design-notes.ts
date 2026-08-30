@@ -18,3 +18,13 @@ export const KINTONE_DATETIME_PRECISION = "minute" as const;
  * include state_revision_before and therefore fail against the old schema.
  */
 export const STATE_REVISION_BEFORE_DEPLOYMENT_REQUIRED = true as const;
+
+/**
+ * updateKey concurrency observation (M3 device measurement, 2026-08-30): two
+ * PUTs using the same revision do not have a deterministic loser response.
+ * kintone returned either 409 GAIA_CO02 or 400 GAIA_DA02 across repeated
+ * races. GAIA_DA02 is therefore adjudicated by re-reading the record: a newer
+ * revision or a missing target is a revision conflict, while inconclusive or
+ * failed reads remain fail-closed remote errors.
+ */
+export const UPDATE_KEY_DA02_REQUIRES_REREAD = true as const;

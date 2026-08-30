@@ -239,6 +239,8 @@ export async function getRecordByKey(config, target, recordKey) {
 }
 
 export async function uploadBundle(config, scope) {
+  // An upload fileKey is single-use: every record attachment POST must consume
+  // a freshly uploaded key, even when the bundle bytes are identical.
   const form = new globalThis.FormData();
   form.append(
     "file",
