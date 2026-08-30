@@ -1,0 +1,207 @@
+{
+  "test": "cloudrun-failclosed",
+  "passed": true,
+  "scope": "M6260830141404_1c46_cloudrun-failclosed",
+  "observedAt": "2026-08-30T14:16:06.902Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T14:14:04.855Z",
+      "scenarioStartedAt": "2026-08-30T14:14:04.860Z",
+      "scenarioFinishedAt": "2026-08-30T14:16:06.225Z",
+      "cleanupStartedAt": "2026-08-30T14:16:06.226Z",
+      "cleanupFinishedAt": "2026-08-30T14:16:06.902Z",
+      "resultAssembledAt": "2026-08-30T14:16:06.902Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 121365,
+      "cleanupMs": 676,
+      "totalMs": 122047
+    }
+  },
+  "detail": {
+    "localPidFormatProbe": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "Error [STOP_NOT_CONFIRMED]: owner_instance_id is not a valid Cloud Run Job Execution resource\n"
+    },
+    "unknownMethodProbe": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "Error [STOP_NOT_CONFIRMED]: unknown stop confirmation method 'm6_unknown_method'\n"
+    },
+    "localStatus": {
+      "network_id": "M6260830141404_1c46_cloudrun-failclosed_local_drill",
+      "profile": "prod",
+      "lock": {
+        "record_id": "550",
+        "owner_invocation_id": "invoke_e5377149-8059-4d8a-ae7a-f3bd965106a2",
+        "owner_instance_id": "local-pid://Laptop5/11332",
+        "heartbeat_at": "2026-08-30T14:14:00Z",
+        "lease_expires_at": "2026-08-30T14:14:00Z",
+        "stale_candidate": true,
+        "revision": 3
+      },
+      "runs": [
+        {
+          "run_id": "netrun_3357cfc9-26c2-4111-a509-703de7a09ae4",
+          "business_key": "M6260830141404_1c46_cloudrun-failclosed_local",
+          "status": "RUNNING",
+          "resume_allowed": true,
+          "lifecycle_status": "ACTIVE",
+          "created_at": "2026-08-30T14:14:00Z",
+          "started_at": "2026-08-30T14:14:00Z",
+          "finished_at": null,
+          "updated_at": "2026-08-30T14:14:00Z",
+          "invocations": [
+            {
+              "invocation_id": "invoke_e5377149-8059-4d8a-ae7a-f3bd965106a2",
+              "mode": "NEW",
+              "status": "RUNNING",
+              "result_code": "PENDING"
+            }
+          ],
+          "node_states": [
+            {
+              "node_id": "n3_join",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n2_independent",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n1_longread",
+              "status": "RUNNING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": "attempt_c654ba9a-00d2-4124-98b9-6b6d9a38126a",
+              "active_attempt": {
+                "node_attempt_id": "attempt_c654ba9a-00d2-4124-98b9-6b6d9a38126a",
+                "attempt_no": 1,
+                "status": "RUNNING"
+              }
+            }
+          ],
+          "reconciliation": {
+            "inconsistencies": []
+          },
+          "recovery_identifiers": {
+            "resolve_node": [],
+            "force_unlock_network": {
+              "network_id": "M6260830141404_1c46_cloudrun-failclosed_local_drill",
+              "profile": "prod",
+              "expected_owner_invocation_id": "invoke_e5377149-8059-4d8a-ae7a-f3bd965106a2"
+            },
+            "run_network": {
+              "resume_run": "netrun_3357cfc9-26c2-4111-a509-703de7a09ae4"
+            }
+          }
+        }
+      ]
+    },
+    "cloudStatus": {
+      "network_id": "M6260830141404_1c46_cloudrun-failclosed_cloud_drill",
+      "profile": "prod",
+      "lock": {
+        "record_id": "555",
+        "owner_invocation_id": "invoke_acffc96d-c332-448e-9fca-94c7b6e8f046",
+        "owner_instance_id": "projects/m6-test/locations/asia-northeast1/jobs/m6-job/executions/m6-execution",
+        "heartbeat_at": "2026-08-30T14:15:00Z",
+        "lease_expires_at": "2026-08-30T14:15:00Z",
+        "stale_candidate": true,
+        "revision": 3
+      },
+      "runs": [
+        {
+          "run_id": "netrun_7cf755e8-7c4f-4898-9b2f-a2d7e1c90a8a",
+          "business_key": "M6260830141404_1c46_cloudrun-failclosed_cloud",
+          "status": "RUNNING",
+          "resume_allowed": true,
+          "lifecycle_status": "ACTIVE",
+          "created_at": "2026-08-30T14:15:00Z",
+          "started_at": "2026-08-30T14:15:00Z",
+          "finished_at": null,
+          "updated_at": "2026-08-30T14:15:00Z",
+          "invocations": [
+            {
+              "invocation_id": "invoke_acffc96d-c332-448e-9fca-94c7b6e8f046",
+              "mode": "NEW",
+              "status": "RUNNING",
+              "result_code": "PENDING"
+            }
+          ],
+          "node_states": [
+            {
+              "node_id": "n3_join",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n2_independent",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n1_longread",
+              "status": "RUNNING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": "attempt_6e36a1d1-f25d-4c13-b816-dc4ff080fd80",
+              "active_attempt": {
+                "node_attempt_id": "attempt_6e36a1d1-f25d-4c13-b816-dc4ff080fd80",
+                "attempt_no": 1,
+                "status": "RUNNING"
+              }
+            }
+          ],
+          "reconciliation": {
+            "inconsistencies": []
+          },
+          "recovery_identifiers": {
+            "resolve_node": [],
+            "force_unlock_network": {
+              "network_id": "M6260830141404_1c46_cloudrun-failclosed_cloud_drill",
+              "profile": "prod",
+              "expected_owner_invocation_id": "invoke_acffc96d-c332-448e-9fca-94c7b6e8f046"
+            },
+            "run_network": {
+              "resume_run": "netrun_7cf755e8-7c4f-4898-9b2f-a2d7e1c90a8a"
+            }
+          }
+        }
+      ]
+    },
+    "unitCoverageNote": "Permission denied, transport failure, RUNNING, PENDING, and unknown Cloud Run states are covered by tests/unit/network-lock-recovery.test.mjs; this E2E intentionally performs no GCP request."
+  },
+  "cleanup": {
+    "prefix": "M6260830141404_1c46_cloudrun-failclosed",
+    "runIds": [],
+    "networkIds": [],
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

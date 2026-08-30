@@ -1,0 +1,189 @@
+{
+  "test": "unknown-isolation",
+  "passed": true,
+  "scope": "M6260830140912_b577_unknown-isolation",
+  "observedAt": "2026-08-30T14:09:48.167Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T14:09:12.411Z",
+      "scenarioStartedAt": "2026-08-30T14:09:12.421Z",
+      "scenarioFinishedAt": "2026-08-30T14:09:46.092Z",
+      "cleanupStartedAt": "2026-08-30T14:09:46.092Z",
+      "cleanupFinishedAt": "2026-08-30T14:09:48.167Z",
+      "resultAssembledAt": "2026-08-30T14:09:48.167Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 33671,
+      "cleanupMs": 2075,
+      "totalMs": 35756
+    }
+  },
+  "detail": {
+    "process": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "NEW: Run netrun_5c546fb2-71e9-4f6e-9c93-df13245754d8 finished with aggregate UNKNOWN (NODE_RESULT_UNKNOWN).\n",
+      "stderr": ""
+    },
+    "killedPid": 10748,
+    "killedAttemptId": "attempt_d44aeb19-2dc4-4d71-8aef-22dafd22cf68",
+    "networkId": "M6260830140912_b577_unknown-isolation_drill",
+    "graph": {
+      "run": {
+        "recordKey": "R1:wKXFxNgiExOTEdtnSeaMSxKJFi5sx5u9_VS-tO77zIo",
+        "runId": "netrun_5c546fb2-71e9-4f6e-9c93-df13245754d8",
+        "networkId": "M6260830140912_b577_unknown-isolation_drill",
+        "businessKey": "M6260830140912_b577_unknown-isolation",
+        "status": "UNKNOWN",
+        "asOf": "",
+        "startedAt": "2026-08-30T14:09:00Z",
+        "finishedAt": "2026-08-30T14:09:00Z",
+        "resolvedProfile": "prod"
+      },
+      "states": [
+        {
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "status": "UNKNOWN",
+          "latestAttemptNo": 1,
+          "statusReason": "NO_EXECUTION_RESULT",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T14:09:00Z",
+          "finishedAt": "2026-08-30T14:09:00Z"
+        },
+        {
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "status": "SUCCESS",
+          "latestAttemptNo": 1,
+          "statusReason": "OK",
+          "blockedBy": [],
+          "startedAt": "2026-08-30T14:09:00Z",
+          "finishedAt": "2026-08-30T14:09:00Z"
+        },
+        {
+          "nodeId": "n3_join",
+          "jobId": "m6_join",
+          "status": "BLOCKED",
+          "latestAttemptNo": 0,
+          "statusReason": "ALL_SUCCESS_NOT_SATISFIED",
+          "blockedBy": [
+            "n1_longread"
+          ],
+          "startedAt": "",
+          "finishedAt": "2026-08-30T14:09:00Z"
+        }
+      ],
+      "attempts": [
+        {
+          "recordId": 305,
+          "attemptId": "attempt_d44aeb19-2dc4-4d71-8aef-22dafd22cf68",
+          "nodeId": "n1_longread",
+          "jobId": "m6_longread",
+          "invocationId": "invoke_71b42764-571c-4763-9350-ffd411483d13",
+          "attemptNo": 1,
+          "status": "UNKNOWN",
+          "resultCode": "NO_EXECUTION_RESULT",
+          "executionStartedAt": "2026-08-30T14:09:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T14:09:00Z",
+          "executionId": "7a5e1b01-8c2f-4b69-b1ab-e4b4873c2350",
+          "finishedAt": "2026-08-30T14:09:00Z",
+          "readCount": 0,
+          "writtenCount": 0
+        },
+        {
+          "recordId": 306,
+          "attemptId": "attempt_ed2059c3-a392-4640-8e13-26074e02eb8b",
+          "nodeId": "n2_independent",
+          "jobId": "m6_read_deals",
+          "invocationId": "invoke_71b42764-571c-4763-9350-ffd411483d13",
+          "attemptNo": 1,
+          "status": "SUCCESS",
+          "resultCode": "OK",
+          "executionStartedAt": "2026-08-30T14:09:00Z",
+          "runnerExecutionStartedAt": "2026-08-30T14:09:00Z",
+          "executionId": "7c7aa318-c9e8-4999-8f52-ef445aa466b7",
+          "finishedAt": "2026-08-30T14:09:00Z",
+          "readCount": 18,
+          "writtenCount": 0
+        }
+      ],
+      "invocations": [
+        {
+          "recordId": 304,
+          "invocationId": "invoke_71b42764-571c-4763-9350-ffd411483d13",
+          "mode": "NEW",
+          "status": "UNKNOWN",
+          "resultCode": "NODE_RESULT_UNKNOWN",
+          "selectedNodeIds": [
+            "n1_longread",
+            "n2_independent"
+          ],
+          "preservedNodeIds": [],
+          "blockedNodeIds": [
+            "n3_join"
+          ],
+          "startedAt": "2026-08-30T14:09:00Z",
+          "finishedAt": "2026-08-30T14:09:00Z"
+        }
+      ]
+    },
+    "lockRecovery": {
+      "jobKey": "prod:m6_longread",
+      "inspection": {
+        "process": {
+          "exitCode": 0,
+          "signal": null,
+          "stdout": "{\"kind\":\"LOCK_INSPECTION_RESULT\",\"formatVersion\":1,\"jobKey\":\"prod:m6_longread\",\"locked\":true,\"record\":{\"recordId\":\"571\",\"batchId\":\"7a5e1b01-8c2f-4b69-b1ab-e4b4873c2350\",\"startedAt\":\"2026-08-30T14:09:00Z\",\"host\":\"Laptop5\",\"scriptName\":\"n1_longread.sql\"},\"inspectedAt\":\"2026-08-30T14:09:43.686Z\"}\n",
+          "stderr": ""
+        },
+        "output": {
+          "kind": "LOCK_INSPECTION_RESULT",
+          "formatVersion": 1,
+          "jobKey": "prod:m6_longread",
+          "locked": true,
+          "record": {
+            "recordId": "571",
+            "batchId": "7a5e1b01-8c2f-4b69-b1ab-e4b4873c2350",
+            "startedAt": "2026-08-30T14:09:00Z",
+            "host": "Laptop5",
+            "scriptName": "n1_longread.sql"
+          },
+          "inspectedAt": "2026-08-30T14:09:43.686Z"
+        }
+      },
+      "lockRecoveryResult": {
+        "kind": "LOCK_RECOVERY_RESULT",
+        "formatVersion": 1,
+        "jobKey": "prod:m6_longread",
+        "recordId": "571",
+        "outcome": "RELEASED",
+        "before": {
+          "batchId": "7a5e1b01-8c2f-4b69-b1ab-e4b4873c2350",
+          "startedAt": "2026-08-30T14:09:00Z",
+          "host": "Laptop5"
+        },
+        "executedAt": "2026-08-30T14:09:44.666Z"
+      },
+      "recoveryProcess": {
+        "exitCode": 0,
+        "signal": null,
+        "stdout": "{\"kind\":\"LOCK_RECOVERY_RESULT\",\"formatVersion\":1,\"jobKey\":\"prod:m6_longread\",\"recordId\":\"571\",\"outcome\":\"RELEASED\",\"before\":{\"batchId\":\"7a5e1b01-8c2f-4b69-b1ab-e4b4873c2350\",\"startedAt\":\"2026-08-30T14:09:00Z\",\"host\":\"Laptop5\"},\"executedAt\":\"2026-08-30T14:09:44.666Z\"}\n",
+        "stderr": ""
+      }
+    }
+  },
+  "cleanup": {
+    "prefix": "M6260830140912_b577_unknown-isolation",
+    "runIds": [
+      "netrun_5c546fb2-71e9-4f6e-9c93-df13245754d8"
+    ],
+    "networkIds": [
+      "M6260830140912_b577_unknown-isolation_drill"
+    ],
+    "state": 4,
+    "audit": 3,
+    "total": 7
+  }
+}

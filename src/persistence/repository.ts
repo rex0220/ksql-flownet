@@ -58,6 +58,7 @@ export interface InvocationFinalization {
   selected_node_ids?: readonly string[];
   preserved_node_ids?: readonly string[];
   blocked_node_ids?: readonly string[];
+  reason?: string;
 }
 
 export interface NodeStateWrite {

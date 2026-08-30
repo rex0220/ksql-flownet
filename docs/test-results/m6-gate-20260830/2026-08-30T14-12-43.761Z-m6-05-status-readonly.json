@@ -1,0 +1,288 @@
+{
+  "test": "status-readonly",
+  "passed": true,
+  "scope": "M6260830141243_347c_status-readonly",
+  "observedAt": "2026-08-30T14:14:04.352Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-30T14:12:43.757Z",
+      "scenarioStartedAt": "2026-08-30T14:12:43.762Z",
+      "scenarioFinishedAt": "2026-08-30T14:14:02.496Z",
+      "cleanupStartedAt": "2026-08-30T14:14:02.497Z",
+      "cleanupFinishedAt": "2026-08-30T14:14:04.352Z",
+      "resultAssembledAt": "2026-08-30T14:14:04.352Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 78734,
+      "cleanupMs": 1855,
+      "totalMs": 80595
+    }
+  },
+  "detail": {
+    "executedProcess": {
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "NEW: Run netrun_59d3f979-2346-4ddb-af30-815b128e2440 finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+      "stderr": ""
+    },
+    "executedNetworkId": "M6260830141243_347c_status-readonly_nonidem",
+    "statusText": "Network: M6260830141243_347c_status-readonly_nonidem\nProfile: prod\nLock: none\nRuns: 1\n- run_id: netrun_59d3f979-2346-4ddb-af30-815b128e2440\n  business_key: M6260830141243_347c_status-readonly\n  status: FAILED\n  resume_allowed: true\n  lifecycle_status: ACTIVE\n  created_at: 2026-08-30T14:12:00Z\n  started_at: 2026-08-30T14:12:00Z\n  finished_at: 2026-08-30T14:13:00Z\n  updated_at: 2026-08-30T14:13:00Z\n  invocations: [{\"invocation_id\":\"invoke_b3a20ba0-2acf-48b9-87cd-1e3f0f4e9b71\",\"mode\":\"NEW\",\"status\":\"FAILED\",\"result_code\":\"NODE_FAILED_OR_BLOCKED\"}]\n  node_states: [{\"node_id\":\"n3_finalize\",\"status\":\"BLOCKED\",\"status_reason\":\"ALL_SUCCESS_NOT_SATISFIED\",\"idempotent\":true,\"latest_attempt_no\":0,\"active_attempt_id\":null,\"active_attempt\":null},{\"node_id\":\"n2_nonidem\",\"status\":\"FAILED\",\"status_reason\":\"ASSERT_FAILED\",\"idempotent\":false,\"latest_attempt_no\":1,\"active_attempt_id\":null,\"active_attempt\":null},{\"node_id\":\"n1_read\",\"status\":\"SUCCESS\",\"status_reason\":\"OK\",\"idempotent\":true,\"latest_attempt_no\":1,\"active_attempt_id\":null,\"active_attempt\":null}]\n  reconciliation: {\"inconsistencies\":[]}\n  recovery_identifiers: {\"resolve_node\":[{\"run_id\":\"netrun_59d3f979-2346-4ddb-af30-815b128e2440\",\"node_id\":\"n2_nonidem\"}],\"force_unlock_network\":null,\"run_network\":{\"resume_run\":\"netrun_59d3f979-2346-4ddb-af30-815b128e2440\"}}\n",
+    "statusJson": {
+      "network_id": "M6260830141243_347c_status-readonly_nonidem",
+      "profile": "prod",
+      "lock": null,
+      "runs": [
+        {
+          "run_id": "netrun_59d3f979-2346-4ddb-af30-815b128e2440",
+          "business_key": "M6260830141243_347c_status-readonly",
+          "status": "FAILED",
+          "resume_allowed": true,
+          "lifecycle_status": "ACTIVE",
+          "created_at": "2026-08-30T14:12:00Z",
+          "started_at": "2026-08-30T14:12:00Z",
+          "finished_at": "2026-08-30T14:13:00Z",
+          "updated_at": "2026-08-30T14:13:00Z",
+          "invocations": [
+            {
+              "invocation_id": "invoke_b3a20ba0-2acf-48b9-87cd-1e3f0f4e9b71",
+              "mode": "NEW",
+              "status": "FAILED",
+              "result_code": "NODE_FAILED_OR_BLOCKED"
+            }
+          ],
+          "node_states": [
+            {
+              "node_id": "n3_finalize",
+              "status": "BLOCKED",
+              "status_reason": "ALL_SUCCESS_NOT_SATISFIED",
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n2_nonidem",
+              "status": "FAILED",
+              "status_reason": "ASSERT_FAILED",
+              "idempotent": false,
+              "latest_attempt_no": 1,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n1_read",
+              "status": "SUCCESS",
+              "status_reason": "OK",
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": null,
+              "active_attempt": null
+            }
+          ],
+          "reconciliation": {
+            "inconsistencies": []
+          },
+          "recovery_identifiers": {
+            "resolve_node": [
+              {
+                "run_id": "netrun_59d3f979-2346-4ddb-af30-815b128e2440",
+                "node_id": "n2_nonidem"
+              }
+            ],
+            "force_unlock_network": null,
+            "run_network": {
+              "resume_run": "netrun_59d3f979-2346-4ddb-af30-815b128e2440"
+            }
+          }
+        }
+      ]
+    },
+    "revisionCounts": {
+      "state": 84,
+      "audit": 23
+    },
+    "runningNetworkId": "M6260830141243_347c_status-readonly_stale_drill",
+    "liveStatus": {
+      "network_id": "M6260830141243_347c_status-readonly_stale_drill",
+      "profile": "prod",
+      "lock": {
+        "record_id": "545",
+        "owner_invocation_id": "invoke_9dd057c3-5f64-4b92-8c8d-5ddb9f8781df",
+        "owner_instance_id": "local-pid://Laptop5/34844",
+        "heartbeat_at": "2026-08-30T14:13:00Z",
+        "lease_expires_at": "2026-08-30T14:13:00Z",
+        "stale_candidate": false,
+        "revision": 3
+      },
+      "runs": [
+        {
+          "run_id": "netrun_740778c5-f7f3-4f58-9a4b-cc47e83d5e25",
+          "business_key": "M6260830141243_347c_status-readonly_stale",
+          "status": "RUNNING",
+          "resume_allowed": true,
+          "lifecycle_status": "ACTIVE",
+          "created_at": "2026-08-30T14:13:00Z",
+          "started_at": "2026-08-30T14:13:00Z",
+          "finished_at": null,
+          "updated_at": "2026-08-30T14:13:00Z",
+          "invocations": [
+            {
+              "invocation_id": "invoke_9dd057c3-5f64-4b92-8c8d-5ddb9f8781df",
+              "mode": "NEW",
+              "status": "RUNNING",
+              "result_code": "PENDING"
+            }
+          ],
+          "node_states": [
+            {
+              "node_id": "n3_join",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n2_independent",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n1_longread",
+              "status": "RUNNING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": "attempt_0a9965e7-15c3-48c5-856e-3c36cf1ec83e",
+              "active_attempt": {
+                "node_attempt_id": "attempt_0a9965e7-15c3-48c5-856e-3c36cf1ec83e",
+                "attempt_no": 1,
+                "status": "RUNNING"
+              }
+            }
+          ],
+          "reconciliation": {
+            "inconsistencies": []
+          },
+          "recovery_identifiers": {
+            "resolve_node": [],
+            "force_unlock_network": {
+              "network_id": "M6260830141243_347c_status-readonly_stale_drill",
+              "profile": "prod",
+              "expected_owner_invocation_id": "invoke_9dd057c3-5f64-4b92-8c8d-5ddb9f8781df"
+            },
+            "run_network": {
+              "resume_run": "netrun_740778c5-f7f3-4f58-9a4b-cc47e83d5e25"
+            }
+          }
+        }
+      ]
+    },
+    "killedParent": {
+      "exitCode": null,
+      "signal": "SIGKILL",
+      "stdout": "",
+      "stderr": ""
+    },
+    "terminalJobStatus": "SUCCESS",
+    "staleStatus": {
+      "network_id": "M6260830141243_347c_status-readonly_stale_drill",
+      "profile": "prod",
+      "lock": {
+        "record_id": "545",
+        "owner_invocation_id": "invoke_9dd057c3-5f64-4b92-8c8d-5ddb9f8781df",
+        "owner_instance_id": "local-pid://Laptop5/34844",
+        "heartbeat_at": "2026-08-30T14:13:00Z",
+        "lease_expires_at": "2026-08-30T14:13:00Z",
+        "stale_candidate": true,
+        "revision": 3
+      },
+      "runs": [
+        {
+          "run_id": "netrun_740778c5-f7f3-4f58-9a4b-cc47e83d5e25",
+          "business_key": "M6260830141243_347c_status-readonly_stale",
+          "status": "RUNNING",
+          "resume_allowed": true,
+          "lifecycle_status": "ACTIVE",
+          "created_at": "2026-08-30T14:13:00Z",
+          "started_at": "2026-08-30T14:13:00Z",
+          "finished_at": null,
+          "updated_at": "2026-08-30T14:13:00Z",
+          "invocations": [
+            {
+              "invocation_id": "invoke_9dd057c3-5f64-4b92-8c8d-5ddb9f8781df",
+              "mode": "NEW",
+              "status": "RUNNING",
+              "result_code": "PENDING"
+            }
+          ],
+          "node_states": [
+            {
+              "node_id": "n3_join",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n2_independent",
+              "status": "WAITING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 0,
+              "active_attempt_id": null,
+              "active_attempt": null
+            },
+            {
+              "node_id": "n1_longread",
+              "status": "RUNNING",
+              "status_reason": null,
+              "idempotent": true,
+              "latest_attempt_no": 1,
+              "active_attempt_id": "attempt_0a9965e7-15c3-48c5-856e-3c36cf1ec83e",
+              "active_attempt": {
+                "node_attempt_id": "attempt_0a9965e7-15c3-48c5-856e-3c36cf1ec83e",
+                "attempt_no": 1,
+                "status": "RUNNING"
+              }
+            }
+          ],
+          "reconciliation": {
+            "inconsistencies": []
+          },
+          "recovery_identifiers": {
+            "resolve_node": [],
+            "force_unlock_network": {
+              "network_id": "M6260830141243_347c_status-readonly_stale_drill",
+              "profile": "prod",
+              "expected_owner_invocation_id": "invoke_9dd057c3-5f64-4b92-8c8d-5ddb9f8781df"
+            },
+            "run_network": {
+              "resume_run": "netrun_740778c5-f7f3-4f58-9a4b-cc47e83d5e25"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "prefix": "M6260830141243_347c_status-readonly",
+    "runIds": [
+      "netrun_59d3f979-2346-4ddb-af30-815b128e2440"
+    ],
+    "networkIds": [
+      "M6260830141243_347c_status-readonly_nonidem"
+    ],
+    "state": 4,
+    "audit": 3,
+    "total": 7
+  }
+}

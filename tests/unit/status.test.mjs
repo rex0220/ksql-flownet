@@ -145,7 +145,7 @@ test("specified Run detail is read-only and includes recovery identifiers and ac
         owner_invocation_id: "invoke_owner",
         owner_instance_id: "host-1",
         heartbeat_at: T0,
-        lease_expires_at: "2026-08-30T00:01:00.000Z",
+        lease_expires_at: "2026-08-30T00:00:59.000Z",
         revision: 4,
         lease_token: "must-never-leak",
       }),
@@ -164,6 +164,33 @@ test("specified Run detail is read-only and includes recovery identifiers and ac
   ]);
   assert.equal(repository.writes.length, 0);
   assert.doesNotMatch(JSON.stringify(output), /lease_token|must-never-leak/);
+});
+
+test("stale_candidateはDATETIMEの分精度切り捨て上限を加味する", async () => {
+  const cases = [
+    ["2026-08-30T00:01:01.000Z", false],
+    ["2026-08-30T00:00:59.000Z", true],
+    ["2026-08-30T00:03:00.000Z", false],
+  ];
+
+  for (const [leaseExpiresAt, expected] of cases) {
+    const output = await inspectStatus(
+      { networkId: "net", profile: "prod" },
+      {
+        repository: repositoryFixture(),
+        lockReader: lockReader({
+          record_id: "10",
+          owner_invocation_id: "invoke_owner",
+          owner_instance_id: "host-1",
+          heartbeat_at: T0,
+          lease_expires_at: leaseExpiresAt,
+          revision: 4,
+        }),
+        now: () => new Date("2026-08-30T00:02:00.000Z"),
+      },
+    );
+    assert.equal(output.lock.stale_candidate, expected, leaseExpiresAt);
+  }
 });
 
 test("list mode returns summaries and represents an absent lock as null", async () => {

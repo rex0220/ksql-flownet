@@ -74,6 +74,7 @@ function createKintoneFake({
   staleUpdateReturnsDa02 = false,
   failRereadAfterDa02 = false,
   failRereadAfterRunLoss = false,
+  truncateDateTimesOnRead = false,
 } = {}) {
   const apps = new Map();
   const calls = [];
@@ -108,11 +109,27 @@ function createKintoneFake({
         match[1],
         match[2].replaceAll('\\"', '"').replaceAll("\\\\", "\\"),
       ]);
-      const records = recordsFor(app).filter((record) =>
-        predicates.every(
-          ([code, expected]) => String(record[code]?.value ?? "") === expected,
-        ),
-      );
+      const records = recordsFor(app)
+        .filter((record) =>
+          predicates.every(
+            ([code, expected]) =>
+              String(record[code]?.value ?? "") === expected,
+          ),
+        )
+        .map((record) => {
+          const result = globalThis.structuredClone(record);
+          if (truncateDateTimesOnRead) {
+            for (const [code, value] of Object.entries(result)) {
+              if (code.endsWith("_at") && typeof value.value === "string") {
+                value.value = value.value.replace(
+                  /:\d{2}(?:\.\d{3})?Z$/,
+                  ":00Z",
+                );
+              }
+            }
+          }
+          return result;
+        });
       return response({ records });
     }
     if (method === "POST") {
@@ -167,7 +184,7 @@ function createKintoneFake({
     }
     throw new Error(`unexpected ${method}`);
   };
-  return { fetch, calls };
+  return { fetch, calls, recordsFor };
 }
 
 function repository(fake) {
@@ -438,7 +455,7 @@ test("kintone: Network lock強制回収監査をJSON reason方式で追記する
 });
 
 test("kintone: Attempt ResolutionのD-13必須記録を監査appで往復する", async () => {
-  const fake = createKintoneFake();
+  const fake = createKintoneFake({ truncateDateTimesOnRead: true });
   const repo = repository(fake);
   const state = await repo.upsertNodeState({
     value: makeState(),
@@ -492,7 +509,7 @@ test("kintone: Attempt ResolutionのD-13必須記録を監査appで往復する"
     approved_by: "supervisor",
     stop_confirmed_by: "operator",
     stop_evidence_ref: "stop://1",
-    resolved_at: "2026-08-30T00:02:00Z",
+    resolved_at: "2026-08-30T00:02:34.567Z",
   };
   await repo.appendResolution(resolution);
   const resolved = await repo.upsertNodeState({
@@ -517,9 +534,21 @@ test("kintone: Attempt ResolutionのD-13必須記録を監査appで往復する"
     reason: "manual completion",
     stop_confirmed_by: "operator",
     stop_evidence_ref: "stop://1",
+    resolved_at: "2026-08-30T00:02:34.567Z",
   });
   assert.deepEqual((await repo.getResolutions("run_1"))[0].value, resolution);
   assert.equal(resolved.value.status, "SUCCESS");
+
+  const storedResolution = fake
+    .recordsFor(200)
+    .find(({ record_type }) => record_type.value === "ATTEMPT_RESOLUTION");
+  const legacyDetails = JSON.parse(storedResolution.reason.value);
+  delete legacyDetails.resolved_at;
+  storedResolution.reason.value = JSON.stringify(legacyDetails);
+  assert.equal(
+    (await repo.getResolutions("run_1"))[0].value.resolved_at,
+    "2026-08-30T00:02:00Z",
+  );
 });
 
 test("kintone: attempt_key競合は再GET後も別identityならfail-closed", async () => {

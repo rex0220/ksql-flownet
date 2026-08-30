@@ -10,6 +10,7 @@
  * decision defines a canonical precision-preserving field.
  */
 export const KINTONE_DATETIME_PRECISION = "minute" as const;
+export const KINTONE_DATETIME_TRUNCATION_MS = 60_000;
 
 /**
  * Deployment prerequisite (M3): apply

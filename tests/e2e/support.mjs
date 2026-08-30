@@ -21,6 +21,7 @@ import { sanitize } from "../../spikes/lib/runtime.mjs";
 
 export const M5_PREFIX = "M5";
 export const M5_JOB_ID = "m5_shared_read";
+export const M6_PREFIX = "M6";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -77,9 +78,17 @@ export function requireM5Environment(environment = process.env) {
 }
 
 export function makeM5Scope(label) {
+  return makeScope(M5_PREFIX, label);
+}
+
+export function makeM6Scope(label) {
+  return makeScope(M6_PREFIX, label);
+}
+
+function makeScope(prefix, label) {
   assert.match(label, /^[a-z0-9-]+$/u);
   const stamp = new Date().toISOString().slice(2, 19).replaceAll(/[-:T]/gu, "");
-  return `${M5_PREFIX}${stamp}_${randomUUID().slice(0, 4)}_${label}`;
+  return `${prefix}${stamp}_${randomUUID().slice(0, 4)}_${label}`;
 }
 
 function quote(value) {
@@ -116,13 +125,27 @@ async function kintoneRequest(settings, target, path, options = {}) {
   return body;
 }
 
-async function getPersistenceRecords(settings, target, query) {
+async function getPersistenceRecords(settings, target, query, exact = false) {
   const isState = target === "state";
   const app = isState ? settings.stateAppId : settings.auditAppId;
   const body = await kintoneRequest(settings, target, "records", {
-    query: { app, query: `${query} limit 500` },
+    query: { app, query: exact ? query : `${query} limit 500` },
   });
   return body.records ?? [];
+}
+
+export async function getAllPersistenceRecords(settings, target, query = "") {
+  const records = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = await getPersistenceRecords(
+      settings,
+      target,
+      `${query === "" ? "" : `${query} `}order by $id asc limit 500 offset ${offset}`,
+      true,
+    );
+    records.push(...page);
+    if (page.length < 500) return records;
+  }
 }
 
 export async function getJobLogs(settings, query) {
@@ -226,6 +249,84 @@ function decodeInvocation(record) {
   };
 }
 
+function decodeResolution(record) {
+  const detail = JSON.parse(field(record, "reason") || "{}");
+  return {
+    recordId: numberField(record, "$id"),
+    attemptId: field(record, "attempt_id"),
+    eventType: field(record, "event_type"),
+    resolutionType: detail.resolution_type ?? null,
+    resolvedOutcome: field(record, "resolved_outcome"),
+    reason: detail.reason ?? null,
+    evidenceRef: field(record, "evidence_ref"),
+    servicePrincipal: field(record, "service_principal"),
+    requestedBy: field(record, "requested_by"),
+    approvedBy: field(record, "approved_by"),
+    stopConfirmedBy: detail.stop_confirmed_by ?? null,
+    stopEvidenceRef: detail.stop_evidence_ref ?? null,
+    resolvedAt: field(record, "resolved_at"),
+  };
+}
+
+export async function loadAttemptResolutions(settings, attemptIds) {
+  const records = [];
+  for (const group of chunks([...new Set(attemptIds)], 50)) {
+    if (group.length === 0) continue;
+    records.push(
+      ...(await getPersistenceRecords(
+        settings,
+        "audit",
+        `record_type in ("ATTEMPT_RESOLUTION") and attempt_id in (${group.map(quote).join(", ")}) order by $id asc`,
+      )),
+    );
+  }
+  return records.map(decodeResolution);
+}
+
+export async function loadNetworkForceReleaseAudits(settings, networkId) {
+  const records = await getPersistenceRecords(
+    settings,
+    "audit",
+    'record_type in ("OPERATION_AUDIT") and result_code in ("NETWORK_LOCK_FORCE_RELEASED") order by $id asc',
+  );
+  return records
+    .map((record) => {
+      const value = JSON.parse(field(record, "reason") || "null");
+      if (value?.network_id !== networkId) return null;
+      return {
+        recordId: numberField(record, "$id"),
+        eventType: value.event_type,
+        networkId: value.network_id,
+        profile: value.profile,
+        previousOwnerInvocationId: value.previous_owner_invocation_id,
+        servicePrincipal: value.service_principal,
+        requestedBy: value.requested_by,
+        stopConfirmedBy: value.stop_confirmed_by,
+        stopMethod: value.stop_method,
+        stopEvidenceRef: value.stop_evidence_ref,
+        reason: value.reason,
+        evidenceRef: value.evidence_ref,
+        releasedAt: value.released_at,
+        postReleaseRevision: value.post_release_revision,
+      };
+    })
+    .filter(Boolean);
+}
+
+export async function snapshotPersistenceRevisions(settings) {
+  const snapshot = {};
+  for (const target of ["state", "audit"]) {
+    const records = await getAllPersistenceRecords(settings, target);
+    snapshot[target] = Object.fromEntries(
+      records.map((record) => [
+        field(record, "$id"),
+        field(record, "$revision"),
+      ]),
+    );
+  }
+  return snapshot;
+}
+
 export async function loadRunGraph(settings, businessKey) {
   const runRecords = await getPersistenceRecords(
     settings,
@@ -297,7 +398,7 @@ export async function prepareNetwork(scope, fixtureName, options = {}) {
   };
 }
 
-function childEnvironment(settings) {
+export function childEnvironment(settings, overrides = {}) {
   return {
     ...process.env,
     KSQL_FLOWNET_PROFILE: settings.profile,
@@ -312,10 +413,14 @@ function childEnvironment(settings) {
     KSQL_FLOW_WORKDIR: settings.workdir,
     KSQL_FLOW_LOG_APP_ID: String(settings.jobLogAppId),
     KSQL_FLOW_LOG_API_TOKEN: settings.jobLogReadToken,
+    KSQL_FLOWNET_SERVICE_PRINCIPAL:
+      settings.servicePrincipal ?? "m6-e2e-service",
+    KSQL_FLOWNET_REQUESTED_BY: settings.requestedBy ?? "m6-e2e-requester",
+    ...overrides,
   };
 }
 
-function startProcess(command, args, options = {}) {
+export function startProcess(command, args, options = {}) {
   const child = spawn(command, args, {
     cwd: options.cwd ?? ROOT,
     env: options.env ?? process.env,
@@ -355,13 +460,44 @@ export async function startFlowNetNetwork(
     "run-network",
     networkPath,
     ...(options.resume ? ["--resume"] : []),
-    "--business-key",
-    businessKey,
+    ...(options.resumeRun === undefined
+      ? ["--business-key", businessKey]
+      : ["--resume-run", options.resumeRun]),
   ];
   return startProcess(process.execPath, args, {
     cwd: ROOT,
-    env: childEnvironment(settings),
+    env: childEnvironment(settings, options.environment),
   });
+}
+
+export async function runFlowNetCommand(settings, args, options = {}) {
+  return startProcess(process.execPath, [FLOWNET_CLI, ...args], {
+    cwd: ROOT,
+    env: childEnvironment(settings, options.environment),
+  }).completion;
+}
+
+export async function runFlowNetStatus(settings, networkId, selector = {}) {
+  const processResult = await runFlowNetCommand(settings, [
+    "status",
+    networkId,
+    "--profile",
+    settings.profile,
+    ...(selector.runId === undefined ? [] : ["--run-id", selector.runId]),
+    ...(selector.businessKey === undefined
+      ? []
+      : ["--business-key", selector.businessKey]),
+    ...(selector.json === false ? [] : ["--json"]),
+  ]);
+  assert.equal(
+    processResult.exitCode,
+    0,
+    processResult.stderr || processResult.stdout,
+  );
+  return {
+    process: processResult,
+    output: selector.json === false ? null : JSON.parse(processResult.stdout),
+  };
 }
 
 export async function runFlowNetNetwork(
@@ -529,7 +665,23 @@ export function m5ConfirmedBy(
 }
 
 export async function recoverM5JobLock(settings, evidenceRef, confirmedBy) {
-  const jobKey = `${settings.profile}:${M5_JOB_ID}`;
+  return recoverJobLock(
+    settings,
+    M5_JOB_ID,
+    evidenceRef,
+    confirmedBy,
+    "M5 kill試験の後始末",
+  );
+}
+
+export async function recoverJobLock(
+  settings,
+  jobId,
+  evidenceRef,
+  confirmedBy,
+  reason = "FlowNet E2E kill試験の後始末",
+) {
+  const jobKey = `${settings.profile}:${jobId}`;
   const commonArgs = [
     "--job-key",
     jobKey,
@@ -564,7 +716,7 @@ export async function recoverM5JobLock(settings, evidenceRef, confirmedBy) {
       "force-unlock-job",
       ...commonArgs.slice(0, -1),
       "--reason",
-      "M5 kill試験の後始末",
+      reason,
       "--confirmed-by",
       confirmedBy,
       "--evidence-ref",
@@ -683,6 +835,59 @@ export async function killKsqlFlowAttempt(attemptId, ksqlFlowCliPath, scope) {
   return rootProcessId;
 }
 
+export async function enumerateProcessTree(rootProcessId) {
+  if (process.platform !== "win32")
+    throw new Error(
+      "M6 process-tree drill is currently a Windows real-device test",
+    );
+  assert.ok(Number.isSafeInteger(rootProcessId) && rootProcessId > 0);
+  const command = [
+    `$rootId = ${rootProcessId}`,
+    "$all = @(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")",
+    "$selected = New-Object System.Collections.Generic.List[object]",
+    "$frontier = @($rootId)",
+    "$depth = 0",
+    "while ($frontier.Count -gt 0) { $next = @(); foreach ($id in $frontier) { $process = $all | Where-Object { $_.ProcessId -eq $id } | Select-Object -First 1; if ($process) { $selected.Add([pscustomobject]@{ processId = $process.ProcessId; parentProcessId = $process.ParentProcessId; depth = $depth }); $next += @($all | Where-Object { $_.ParentProcessId -eq $id } | ForEach-Object { $_.ProcessId }) } }; $frontier = @($next); $depth += 1 }",
+    "ConvertTo-Json -InputObject @($selected.ToArray()) -Compress",
+  ].join("; ");
+  const result = await startProcess(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", command],
+    { env: process.env },
+  ).completion;
+  assert.equal(result.exitCode, 0, result.stderr || result.stdout);
+  const matches = result.stdout.trim() === "" ? [] : JSON.parse(result.stdout);
+  assert.ok(
+    matches.some(({ processId }) => Number(processId) === rootProcessId),
+    `FlowNet root PID ${rootProcessId} is no longer running`,
+  );
+  return matches.map(({ processId, parentProcessId, depth }) => ({
+    processId: Number(processId),
+    parentProcessId: Number(parentProcessId),
+    depth: Number(depth),
+  }));
+}
+
+export function killProcessList(processes) {
+  const killErrors = [];
+  for (const { processId } of [...processes].sort(
+    (left, right) => right.depth - left.depth,
+  )) {
+    try {
+      process.kill(processId, "SIGKILL");
+    } catch (error) {
+      if (error.code !== "ESRCH")
+        killErrors.push({ processId, error: error.code ?? error.message });
+    }
+  }
+  assert.deepEqual(killErrors, [], "FlowNet process tree kill failed");
+  return processes;
+}
+
+export async function killProcessTree(rootProcessId) {
+  return killProcessList(await enumerateProcessTree(rootProcessId));
+}
+
 function chunks(values, size) {
   const result = [];
   for (let index = 0; index < values.length; index += size)
@@ -753,6 +958,21 @@ export async function cleanupM5Records(settings, prefix = M5_PREFIX) {
       )),
     );
   }
+  const operationAudits = await getPersistenceRecords(
+    settings,
+    "audit",
+    'record_type in ("OPERATION_AUDIT") and result_code in ("NETWORK_LOCK_FORCE_RELEASED") order by $id asc',
+  );
+  auditRecords.push(
+    ...operationAudits.filter((record) => {
+      try {
+        const value = JSON.parse(field(record, "reason") || "null");
+        return String(value?.network_id ?? "").startsWith(prefix);
+      } catch {
+        return false;
+      }
+    }),
+  );
   stateRecords = [
     ...new Map(
       stateRecords.map((record) => [field(record, "$id"), record]),
@@ -889,9 +1109,23 @@ async function writeResult(path, result) {
 }
 
 export async function runM5(importMetaUrl, name, test, options = {}) {
+  return runGate(importMetaUrl, name, test, {
+    ...options,
+    prefix: M5_PREFIX,
+  });
+}
+
+export async function runM6(importMetaUrl, name, test, options = {}) {
+  return runGate(importMetaUrl, name, test, {
+    ...options,
+    prefix: M6_PREFIX,
+  });
+}
+
+async function runGate(importMetaUrl, name, test, options) {
   const timing = createM5Timing();
   timing.mark("testStartedAt");
-  const scope = makeM5Scope(name);
+  const scope = makeScope(options.prefix, name);
   const resultPath = await allocateResultPath(importMetaUrl);
   const evidenceRef = pathToFileURL(resultPath).href;
   let settings;
@@ -903,6 +1137,12 @@ export async function runM5(importMetaUrl, name, test, options = {}) {
     settings = {
       ...baseSettings,
       workdir: join(baseSettings.workdirBase, scope),
+      ...(options.prefix === M6_PREFIX
+        ? {
+            servicePrincipal: "m6-e2e-service",
+            requestedBy: "m6-e2e-requester",
+          }
+        : {}),
     };
     timing.mark("scenarioStartedAt");
     detail = await test({

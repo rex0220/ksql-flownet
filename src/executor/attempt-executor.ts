@@ -10,6 +10,7 @@ import {
   type JobLogReader,
 } from "./job-log-reader.js";
 import {
+  NO_EXECUTION_RESULT,
   readAndClassifyResult,
   type ResultClassification,
   type ResultFileReader,
@@ -135,7 +136,7 @@ export class AttemptExecutor {
         resultCode = process.forced
           ? "FORCED_TERMINATION"
           : classification.kind === "NO_RESULT"
-            ? "NO_EXECUTION_RESULT"
+            ? NO_EXECUTION_RESULT
             : "INVALID_EXECUTION_RESULT";
         stateStatus = "UNKNOWN";
       }

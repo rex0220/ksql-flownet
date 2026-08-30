@@ -167,6 +167,7 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
         finalization.blocked_node_ids === undefined
           ? stored.value.blocked_node_ids
           : [...finalization.blocked_node_ids],
+      reason: finalization.reason ?? stored.value.reason,
     };
     return next(stored, value);
   }

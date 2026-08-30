@@ -60,3 +60,33 @@ test("JobLogReaderはapp/token注入のGETだけでattempt/executionを検索し
   assert.match(url.searchParams.get("query"), /attempt_id = "attempt_1"/);
   assert.match(url.searchParams.get("query"), /execution_id = "exec_1"/);
 });
+
+test("JobLogReaderはattempt_idだけで終端statusを読取専用照合する", async () => {
+  const reader = new KintoneJobLogReader({
+    baseUrl: "https://example.cybozu.com",
+    appId: 4249,
+    apiToken: "secret",
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          records: [
+            {
+              status: { value: "SUCCESS" },
+              runner_execution_started_at: {
+                value: "2026-08-30T00:01:00Z",
+              },
+              execution_id: { value: "exec_1" },
+              finished_at: { value: "2026-08-30T00:02:00Z" },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+  });
+  assert.deepEqual(await reader.findAttemptResult("attempt_1"), {
+    status: "SUCCESS",
+    runnerExecutionStartedAt: "2026-08-30T00:01:00Z",
+    executionId: "exec_1",
+    finishedAt: "2026-08-30T00:02:00Z",
+  });
+});

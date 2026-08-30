@@ -1,0 +1,28 @@
+schema_version: 1
+network_id: m6_drill
+description: M6 force-unlock and UNKNOWN isolation drill fixture
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 30
+  heartbeat_interval_sec: 10
+nodes:
+  - id: n1_longread
+    job_id: m6_longread
+    sql: jobs/m6-longread.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n2_independent
+    job_id: m6_read_deals
+    sql: jobs/m6-read-deals.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n3_join
+    job_id: m6_join
+    sql: jobs/m6-join.sql
+    depends_on: [n1_longread, n2_independent]
+    trigger_rule: all_success
+    idempotent: true

@@ -20,10 +20,15 @@ import type {
   AttemptExecutionOutcome,
   AttemptExecutorInput,
 } from "../executor/attempt-executor.js";
+import type { JobLogReader } from "../executor/job-log-reader.js";
 import type {
   PersistenceRepository,
   Versioned,
 } from "../persistence/repository.js";
+import {
+  adjudicateOrphanRunningAttempts,
+  orphanAdjudicationReason,
+} from "./orphan-attempt-adjudication.js";
 
 export interface SchedulerLeaseMonitor {
   canStartNewNode(): boolean;
@@ -46,6 +51,7 @@ export interface SchedulerCloseInput {
   readonly selectedNodeIds: readonly string[];
   readonly preservedNodeIds: readonly string[];
   readonly blockedNodeIds: readonly string[];
+  readonly reason?: string;
   readonly persistInvocation?: boolean;
 }
 
@@ -55,6 +61,7 @@ export interface SequentialSchedulerInput {
   readonly bundleBytes: Uint8Array;
   readonly repository: PersistenceRepository;
   readonly attemptExecutor: SchedulerAttemptExecutor;
+  readonly jobLogReader?: Pick<JobLogReader, "findAttemptResult">;
   readonly leaseMonitor: SchedulerLeaseMonitor;
   readonly profile: string;
   readonly configPath: string;
@@ -117,11 +124,23 @@ export async function runSequentialScheduler(
   let aggregateStatus: NetworkRunStatus = input.run.value.status;
   let closeInput: SchedulerCloseInput | null = null;
   let reconciliationRequired = false;
+  let adjudicationReason: string | undefined;
 
   input.leaseMonitor.start?.();
   try {
     extracted = await extractBundle(input.bundleBytes, input.executionRoot);
     let run = await ensureRunStarted(input, now);
+    if (input.invocation.value.mode !== "NEW") {
+      const adjudications = await adjudicateOrphanRunningAttempts({
+        runId: input.run.value.run_id,
+        invocationId: input.invocation.value.invocation_id,
+        repository: input.repository,
+        jobLogReader: input.jobLogReader ?? missingJobLogReader,
+        confirmWrite: () => confirmOrdinaryWrite(input.leaseMonitor),
+        now: () => now().toISOString(),
+      });
+      adjudicationReason = orphanAdjudicationReason(adjudications);
+    }
     const states = stateMap(
       await input.repository.getNodeStates(input.run.value.run_id),
     );
@@ -274,6 +293,7 @@ export async function runSequentialScheduler(
           selected,
           preserved,
           blocked,
+          adjudicationReason,
         );
         break;
       }
@@ -289,8 +309,10 @@ export async function runSequentialScheduler(
         selected,
         preserved,
         blocked,
+        adjudicationReason,
       );
     }
+    input.leaseMonitor.stop?.();
     await input.close(closeInput);
     return {
       nodeResults: order.map(
@@ -323,6 +345,7 @@ export async function runSequentialScheduler(
               selected,
               preserved,
               blocked,
+              adjudicationReason,
             ),
             persistInvocation: false,
           }
@@ -332,8 +355,10 @@ export async function runSequentialScheduler(
             selected,
             preserved,
             blocked,
+            adjudicationReason,
           );
       try {
+        input.leaseMonitor.stop?.();
         await input.close(closeInput);
       } catch (closeError) {
         throw new AggregateError(
@@ -516,6 +541,7 @@ function finalization(
   selected: ReadonlySet<string>,
   preserved: ReadonlySet<string>,
   blocked: ReadonlySet<string>,
+  reason?: string,
 ): SchedulerCloseInput {
   return {
     status,
@@ -523,8 +549,17 @@ function finalization(
     selectedNodeIds: [...selected],
     preservedNodeIds: [...preserved],
     blockedNodeIds: [...blocked],
+    ...(reason === undefined ? {} : { reason }),
   };
 }
+
+const missingJobLogReader: Pick<JobLogReader, "findAttemptResult"> = {
+  async findAttemptResult(): Promise<never> {
+    throw new Error(
+      "job log reader is required to adjudicate orphan RUNNING attempts",
+    );
+  },
+};
 
 function isTerminalAggregate(status: NetworkRunStatus): boolean {
   return status !== "CREATED" && status !== "RUNNING";

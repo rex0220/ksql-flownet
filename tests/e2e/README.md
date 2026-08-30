@@ -132,6 +132,31 @@ node tests\e2e\m5-cleanup.mjs
 
 `m5-cleanup.mjs`は上記FlowNetレコード、Network lock、ローカル作業ディレクトリを削除します。4249は読取専用トークンで照合し、削除APIを呼びません。4249に残るM5 JOBログは監査証跡として保持してください。
 
+## M6ゲートE2E
+
+M6のresume、UNKNOWN分離、非冪等Nodeの手動解決、Network lock回収、read-only status、Cloud Run停止確認のfail-closedを確認するハーネスです。上記の安全境界と実行前提・注意はM6にもそのまま適用されます。M6のジョブ論理名はすべて`m6_`プレフィックスで、SQL fixtureは参照系`SELECT`と`ASSERT`だけです。`KSQL_FLOWNET_SERVICE_PRINCIPAL`と`KSQL_FLOWNET_REQUESTED_BY`はハーネスがM6試験用主体へ設定します。
+
+追加fixtureは次のとおりです。
+
+| fixture                   | DAG                                          | 用途                                     |
+| ------------------------- | -------------------------------------------- | ---------------------------------------- |
+| `network-m6-midfail.yaml` | `n1_extract -> n2_fail -> n3_finalize`       | resume時のRun/Invocation identity        |
+| `network-nonidem.yaml`    | `n1_read -> n2_nonidem -> n3_finalize`       | 非冪等SQL_ERRORと手動完遂                |
+| `network-drill.yaml`      | `n1_longread`, `n2_independent` -> `n3_join` | UNKNOWN分離、30秒lease、force-unlock訓練 |
+
+E2E実機実行はレビュー担当者がPowerShellから直列に行ってください。各シナリオはprepare、検証、結果JSON保存、試験scopeのcleanupまで自己完結します。
+
+```powershell
+node tests\e2e\m6-01-resume-identity.mjs
+node tests\e2e\m6-02-unknown-isolation.mjs
+node tests\e2e\m6-03-nonidem-no-auto-rerun.mjs
+node tests\e2e\m6-04-force-unlock-drill.mjs
+node tests\e2e\m6-05-status-readonly.mjs
+node tests\e2e\m6-06-cloudrun-failclosed.mjs
+```
+
+`m6-04`は実行中のFlowNetプロセスツリーを子から親の順で停止し、30秒leaseの生存中拒否、失効、owner不一致、`local_pid`のESRCH確認、監査付き回収、statusが返した復旧識別子による裁定・解決・resumeを確認します。`m6-05`はstatus前後のstate/audit全レコードrevisionを比較します。`m6-06`は実GCP照会を行わず、形式不一致、アクセストークン未設定、未知stop methodをすべて`STOP_NOT_CONFIRMED`として検証します。
+
 ## SQL文法の根拠
 
 - `C:\Users\rex02\Projects\ksql-flow\docs\ksql_flow_spec.md` 3.1〜3.3: dialect 1ヘッダ、`SELECT COUNT(*)`、`ASSERT (<scalar subquery>) <comparison>, 'message'`。
