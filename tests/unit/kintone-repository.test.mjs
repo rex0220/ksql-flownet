@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { URL } from "node:url";
 
-import { nodeStateKey } from "../../dist/domain/canonical-record-key.js";
+import {
+  nodeStateKey,
+  runKey,
+} from "../../dist/domain/canonical-record-key.js";
 import { KintonePersistenceRepository } from "../../dist/persistence/kintone/repository.js";
 import { KINTONE_FIELD_MAP } from "../../dist/persistence/kintone/schema.js";
 import { RepositoryError } from "../../dist/persistence/repository.js";
@@ -67,12 +70,15 @@ function makeRun() {
 
 function createKintoneFake({
   loseFirstAttemptResponse = false,
+  loseFirstRunResponse = false,
   staleUpdateReturnsDa02 = false,
   failRereadAfterDa02 = false,
+  failRereadAfterRunLoss = false,
 } = {}) {
   const apps = new Map();
   const calls = [];
   let lost = false;
+  let runLost = false;
   let da02Returned = false;
   const recordsFor = (app) => {
     if (!apps.has(app)) apps.set(app, []);
@@ -90,6 +96,8 @@ function createKintoneFake({
     const body = init.body ? JSON.parse(init.body) : null;
     calls.push({ url, method, headers: init.headers, body });
     if (method === "GET") {
+      if (failRereadAfterRunLoss && runLost)
+        return response({ code: "GAIA_TM12" }, 503);
       if (failRereadAfterDa02 && da02Returned)
         return response({ code: "GAIA_TM12" }, 503);
       const app = Number(url.searchParams.get("app"));
@@ -119,6 +127,14 @@ function createKintoneFake({
         return response({ code: "CB_VA01", message: "duplicate" }, 400);
       const revision = "1";
       records.push({ ...body.record, $revision: { value: revision } });
+      if (
+        loseFirstRunResponse &&
+        body.record.record_type.value === "NETWORK_RUN" &&
+        !runLost
+      ) {
+        runLost = true;
+        throw new TypeError("synthetic run response loss after durable insert");
+      }
       if (
         loseFirstAttemptResponse &&
         body.record.record_type.value === "NODE_ATTEMPT" &&
@@ -234,22 +250,74 @@ test("kintone: token、2app、in query、POST/GET/PUT形状を守る", async () 
   const businessGet = fake.calls.find(
     ({ method, url }) =>
       method === "GET" &&
-      url.searchParams.get("query")?.includes("business_key"),
+      url.searchParams.get("query")?.includes(runKey("prod", "net", "net@1")),
   );
-  assert.match(
+  assert.equal(
     businessGet.url.searchParams.get("query"),
-    /record_type in \("NETWORK_RUN"\)/,
-  );
-  assert.doesNotMatch(
-    businessGet.url.searchParams.get("query"),
-    /record_type =/,
+    `record_key in ("${runKey("prod", "net", "net@1")}")`,
   );
   const put = fake.calls.find(({ method }) => method === "PUT");
   assert.deepEqual(put.body.updateKey, {
     field: "record_key",
-    value: "RUN:run_1",
+    value: runKey("prod", "net", "net@1"),
   });
   assert.equal(put.body.revision, 1);
+});
+
+test("kintone: RunのR1重複禁止INSERTを最終裁定にする", async () => {
+  const fake = createKintoneFake();
+  const repo = repository(fake);
+  const outcomes = await Promise.allSettled([
+    repo.createRun(makeRun()),
+    repo.createRun({ ...makeRun(), run_id: "run_2" }),
+  ]);
+  assert.equal(
+    outcomes.filter(({ status }) => status === "fulfilled").length,
+    1,
+  );
+  const rejected = outcomes.find(({ status }) => status === "rejected");
+  assert.ok(
+    rejected?.reason instanceof RepositoryError &&
+      rejected.reason.code === "DUPLICATE_RECORD",
+  );
+  const runPosts = fake.calls.filter(
+    ({ method, body }) =>
+      method === "POST" && body.record.record_type.value === "NETWORK_RUN",
+  );
+  assert.equal(runPosts.length, 2);
+  assert.equal(
+    runPosts[0].body.record.record_key.value,
+    runKey("prod", "net", "net@1"),
+  );
+  assert.equal(
+    runPosts[1].body.record.record_key.value,
+    runPosts[0].body.record.record_key.value,
+  );
+});
+
+test("kintone: Run INSERT成功応答消失はR1再GETで同一性を裁定する", async () => {
+  const fake = createKintoneFake({ loseFirstRunResponse: true });
+  const created = await repository(fake).createRun(makeRun());
+  assert.equal(created.value.run_id, "run_1");
+  assert.ok(
+    fake.calls.some(
+      ({ method, url }) =>
+        method === "GET" &&
+        url.searchParams.get("query")?.includes(runKey("prod", "net", "net@1")),
+    ),
+  );
+});
+
+test("kintone: Run INSERT応答消失後のR1再GET不能はfail-closed", async () => {
+  const fake = createKintoneFake({
+    loseFirstRunResponse: true,
+    failRereadAfterRunLoss: true,
+  });
+  await assert.rejects(
+    repository(fake).createRun(makeRun()),
+    (error) =>
+      error instanceof RepositoryError && error.code === "REMOTE_ERROR",
+  );
 });
 
 test("kintone: Attempt INSERT成功応答消失は再GETで同一性を裁定する", async () => {

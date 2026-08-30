@@ -43,7 +43,7 @@ test("M3の全派生キーは64文字以内になる", () => {
     "record_key.LOCK",
     "record_key.LOCKDONE",
     "record_key.OP",
-    "record_key.RUN",
+    "record_key.R1",
     "record_key.STATE",
     "run_id",
     "scope",
@@ -58,9 +58,9 @@ test("M3派生キーが64文字を超える場合は開始前エラーにする"
   assert.throws(
     () =>
       assertIntegrationKeySampleLengths([
-        { kind: "record_key.RUN", value: "x".repeat(65), length: 65 },
+        { kind: "record_key.R1", value: "x".repeat(65), length: 65 },
       ]),
-    /M3 integration key exceeds 64 characters: kind=record_key\.RUN actualLength=65/,
+    /M3 integration key exceeds 64 characters: kind=record_key\.R1 actualLength=65/,
   );
 });
 

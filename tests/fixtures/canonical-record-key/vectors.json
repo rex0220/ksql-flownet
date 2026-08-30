@@ -1,15 +1,67 @@
 {
   "metadata": {
-    "contract_version": "S1/A1",
+    "contract_version": "R1/S1/A1",
     "hash": "SHA-256",
     "encoding": "base64url without padding",
     "text_encoding": "UTF-8",
     "normalization": "Unicode NFC",
-    "canonical_input": "<version>\\0<NFC(run_id)>\\0<NFC(node_id)>[\\0<decimal attempt_no>]",
+    "canonical_input": "R1\\0<NFC(profile)>\\0<NFC(network_id)>\\0<NFC(business_key)> or <S1/A1 version>\\0<NFC(run_id)>\\0<NFC(node_id)>[\\0<decimal attempt_no>]",
     "generated_key_length": 46,
     "maximum_identifier_length_after_normalization": 128
   },
   "valid": [
+    {
+      "id": "run_ascii",
+      "kind": "run",
+      "profile": "prod",
+      "network_id": "network-a",
+      "business_key": "order-001",
+      "expected_key": "R1:hQ79__q9w3IfdLNDl2KmAzNBTImp5Xnnkno4srTxNPc"
+    },
+    {
+      "id": "run_nfc",
+      "pair": "run_nfc",
+      "kind": "run",
+      "profile": "café",
+      "network_id": "受注",
+      "business_key": "顧客é",
+      "expected_key": "R1:cwqds96SZlldW3a17j9w1W7t0mG-YNWbkFRK5fTmI9o"
+    },
+    {
+      "id": "run_nfd",
+      "pair": "run_nfc",
+      "kind": "run",
+      "profile": "café",
+      "network_id": "受注",
+      "business_key": "顧客é",
+      "expected_key": "R1:cwqds96SZlldW3a17j9w1W7t0mG-YNWbkFRK5fTmI9o"
+    },
+    {
+      "id": "run_case_upper",
+      "pair": "run_case",
+      "kind": "run",
+      "profile": "Prod",
+      "network_id": "Network",
+      "business_key": "Business",
+      "expected_key": "R1:hlQpYx4NFAQcrbgi-Vp09vwsAQxnfMu5KuFhm_rg2Kk"
+    },
+    {
+      "id": "run_case_lower",
+      "pair": "run_case",
+      "kind": "run",
+      "profile": "prod",
+      "network_id": "network",
+      "business_key": "business",
+      "expected_key": "R1:ZDLUjwUDtaPnI7gpkuFMwAV2GQ5GlLZV3EzqxVmEAdc"
+    },
+    {
+      "id": "run_boundary_128",
+      "kind": "run",
+      "profile": "p",
+      "network_id": "n",
+      "business_key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected_key": "R1:YhCgo6j8VFzlphqWaD9f1zcvGTdVg2wD-y9-nx1aT_Q"
+    },
     {
       "id": "state_ascii",
       "kind": "state",
@@ -74,6 +126,69 @@
     }
   ],
   "rejected": [
+    {
+      "id": "run_empty_profile",
+      "kind": "run",
+      "profile": "",
+      "network_id": "network",
+      "business_key": "business",
+      "expected_component": "profile",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_EMPTY"
+    },
+    {
+      "id": "run_empty_network",
+      "kind": "run",
+      "profile": "prod",
+      "network_id": "",
+      "business_key": "business",
+      "expected_component": "networkId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_EMPTY"
+    },
+    {
+      "id": "run_empty_business_key",
+      "kind": "run",
+      "profile": "prod",
+      "network_id": "network",
+      "business_key": "",
+      "expected_component": "businessKey",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_EMPTY"
+    },
+    {
+      "id": "run_nul_network",
+      "kind": "run",
+      "profile": "prod",
+      "network_id": "net\u0000work",
+      "business_key": "business",
+      "expected_component": "networkId",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_NUL"
+    },
+    {
+      "id": "run_colon_business_key",
+      "kind": "run",
+      "profile": "prod",
+      "network_id": "network",
+      "business_key": "business:key",
+      "expected_component": "businessKey",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_SEPARATOR"
+    },
+    {
+      "id": "run_reserved_profile",
+      "kind": "run",
+      "profile": "__net__",
+      "network_id": "network",
+      "business_key": "business",
+      "expected_component": "profile",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_RESERVED"
+    },
+    {
+      "id": "run_business_key_too_long",
+      "kind": "run",
+      "profile": "prod",
+      "network_id": "network",
+      "business_key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected_component": "businessKey",
+      "expected_error_code": "RECORD_KEY_IDENTIFIER_TOO_LONG"
+    },
     {
       "id": "empty_run",
       "kind": "state",

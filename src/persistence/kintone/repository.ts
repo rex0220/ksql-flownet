@@ -1,4 +1,4 @@
-import { attemptKey } from "../../domain/canonical-record-key.js";
+import { attemptKey, runKey } from "../../domain/canonical-record-key.js";
 import { MAX_KINTONE_UNIQUE_KEY_LENGTH } from "../../domain/canonical-lock-key.js";
 import type {
   AttemptResolution,
@@ -100,7 +100,7 @@ function versioned<T>(
 
 function runRecord(run: NetworkRun): KintoneRecord {
   return {
-    record_key: field(uniqueKey(`RUN:${run.run_id}`)),
+    record_key: field(uniqueKey(runRecordKey(run))),
     record_type: field("NETWORK_RUN"),
     run_id: field(run.run_id),
     network_id: field(run.network_id),
@@ -130,6 +130,14 @@ function runRecord(run: NetworkRun): KintoneRecord {
     finished_at: field(run.finished_at ?? ""),
     updated_at: field(run.updated_at),
   };
+}
+
+function runRecordKey(run: NetworkRun): string {
+  return runKey(
+    run.resolved_profile_snapshot.profile,
+    run.network_id,
+    run.business_key,
+  );
 }
 
 function decodeRun(record: KintoneRecord): NetworkRun {
@@ -329,9 +337,10 @@ export class KintonePersistenceRepository implements PersistenceRepository {
   }
 
   async createRun(run: NetworkRun): Promise<Versioned<NetworkRun>> {
+    const recordKey = runRecordKey(run);
     return this.createWithAdjudication(
       this.state,
-      `RUN:${run.run_id}`,
+      recordKey,
       runRecord(run),
       decodeRun,
       (found) => found.run_id === run.run_id,
@@ -343,26 +352,29 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     networkId: string,
     businessKey: string,
   ): Promise<Versioned<NetworkRun> | null> {
-    const records = await this.state.getRecords(
-      [
-        inQuery("record_type", "NETWORK_RUN"),
-        inQuery("network_id", networkId),
-        inQuery("business_key", businessKey),
-      ].join(" and "),
-    );
-    const matches = records
-      .map((record) => versioned(record, decodeRun))
-      .filter(
-        ({ value }) => value.resolved_profile_snapshot.profile === profile,
-      );
-    if (matches.length > 1) {
+    const recordKey = runKey(profile, networkId, businessKey);
+    let records: KintoneRecord[];
+    try {
+      records = await this.state.getRecords(inQuery("record_key", recordKey));
+    } catch (error) {
+      mapError(error);
+    }
+    if (records.length === 0) return null;
+    if (records.length !== 1) {
       throw new RepositoryError("MULTIPLE_RECORDS", "multiple runs matched");
     }
-    return matches[0] ?? null;
+    const found = versioned(records[0]!, decodeRun);
+    if (runRecordKey(found.value) !== recordKey) {
+      throw new RepositoryError(
+        "REMOTE_ERROR",
+        "run fields do not match canonical record key",
+      );
+    }
+    return found;
   }
 
   async getRun(runId: string): Promise<Versioned<NetworkRun>> {
-    return this.requiredByRecordKey(this.state, `RUN:${runId}`, decodeRun);
+    return this.requiredRunById(runId);
   }
 
   async updateRunAggregate(
@@ -370,19 +382,37 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     expectedRevision: number,
     update: RunAggregateUpdate,
   ): Promise<Versioned<NetworkRun>> {
-    const current = await this.requiredByRecordKey(
-      this.state,
-      `RUN:${runId}`,
-      decodeRun,
-    );
+    const current = await this.requiredRunById(runId);
+    const recordKey = runRecordKey(current.value);
     const value = { ...current.value, ...update };
-    await this.put(this.state, `RUN:${runId}`, expectedRevision, {
+    await this.put(this.state, recordKey, expectedRevision, {
       status: field(update.status),
       started_at: field(update.started_at ?? ""),
       finished_at: field(update.finished_at ?? ""),
       updated_at: field(update.updated_at),
     });
     return { value, revision: expectedRevision + 1 };
+  }
+
+  private async requiredRunById(runId: string): Promise<Versioned<NetworkRun>> {
+    let records: KintoneRecord[];
+    try {
+      records = await this.state.getRecords(
+        [inQuery("record_type", "NETWORK_RUN"), inQuery("run_id", runId)].join(
+          " and ",
+        ),
+      );
+    } catch (error) {
+      mapError(error);
+    }
+    if (records.length === 0)
+      throw new RepositoryError("RECORD_NOT_FOUND", `run ${runId} not found`);
+    if (records.length !== 1)
+      throw new RepositoryError(
+        "MULTIPLE_RECORDS",
+        `run_id ${runId} is not unique`,
+      );
+    return versioned(records[0]!, decodeRun);
   }
 
   async createInvocation(
@@ -746,7 +776,12 @@ export class KintonePersistenceRepository implements PersistenceRepository {
         )
       )
         mapError(error);
-      const records = await client.getRecords(inQuery("record_key", recordKey));
+      let records: KintoneRecord[];
+      try {
+        records = await client.getRecords(inQuery("record_key", recordKey));
+      } catch (rereadError) {
+        mapError(rereadError);
+      }
       if (records.length === 1) {
         const found = versioned(records[0]!, decode);
         if (same(found.value)) return found;
