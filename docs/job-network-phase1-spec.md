@@ -333,13 +333,15 @@ heartbeatが連続失敗するか残余leaseが安全閾値以下になった場
 | `RUNNING` | 停止確定 | `CANCELLED` | 同じ attempt を `CANCELLED` で確定 |
 | `RUNNING` | 結果確認不能 | `UNKNOWN` | 同じ attempt を `UNKNOWN` で確定 |
 | `BLOCKED` | resume で再評価対象 | `WAITING` | この時点では作らない |
-| `FAILED` / `CANCELLED` | resume かつ `idempotent = true` | `WAITING` | この時点では作らない |
+| `FAILED` / `CANCELLED` | resume かつ `idempotent = true` | `WAITING`(**連続失敗ブレーキ適用後**) | この時点では作らない |
 | `FAILED` / `CANCELLED` | `idempotent = false` | 状態維持 | 自動再実行しない |
 | `SUCCESS` | 通常 resume | `SUCCESS` のまま | 作らない |
 | `SUCCESS` | `--rerun-from` の対象 | `WAITING` | 実行開始時に次 attempt を作る |
 | `UNKNOWN` | 運用者が結果を確定 | `SUCCESS` / `FAILED` / `CANCELLED` | Attempt Resolutionイベントを追記 |
 
 非冪等`FAILED`を人手で復旧する場合、元Attemptは変更しない。本来の成果物を手動で完成させた証拠がある場合だけ`NODE_MANUAL_COMPLETION_CONFIRMED`を追記し、Node Stateを`SUCCESS`へ解決できる。部分書込みを取り消しただけの`NODE_COMPENSATION_COMPLETED`は`SUCCESS`を意味せず、下流を開始しない。
+
+**連続失敗ブレーキ(2026-08-31 Phase 1.1追補、FDR §13)**: 冪等`FAILED`ノードでも、Attempt履歴の末尾から連続する「`status = FAILED` かつ 同一`failure_kind`」のattemptが**3回以上**の場合、resumeは当該ノードを`WAITING`へ戻さず、非冪等`FAILED`と同じ除外系で扱う(下流は除外、独立系統は継続。`status_reason`へ`RETRY_BRAKE`系の理由を記録)。`CANCELLED / PREPARE_FAILED`(LOCK_CONFLICT等)は§8.2どおり回数に数えず連続の連鎖も切らない(透過)。`UNKNOWN`は連鎖を切る。解除は人の明示判断としての`--rerun-from`(冪等ノードは既存attemptがあっても許可)による。決定的に失敗するノードが定期resumeでattempt・API・レコードを無限に消費することを防ぐ安全装置であり、リトライ回数設定の一般化はPhase 2(P2-03残余)とする。
 
 確定済みNode Attemptの主要フィールドは上書きしない。`UNKNOWN` の解決は、元Attemptを改変せず、必ず `Attempt Resolution` イベントを追記してNode Stateを更新する。開始・終了時の限定的な更新と二重書込みの照合規則は、Freeze Decision RecordのD-07〜D-09を正とする。
 
@@ -562,6 +564,21 @@ Network Run 作成は、バンドル保存とハッシュ検証が完了して�
 
 同一ホストで PID 不在を確認できる場合は停止確認を自動化できる。別ホストや到達不能ホストでは、時刻超過だけを停止確認の代用にしない。
 
+### 7.4 `cancel-run`(Run単位の停止要求 — 2026-08-31 Phase 1.1追補、FDR §13)
+
+```bash
+ksql-flownet cancel-run --run-id <run_id> --reason-file <path>            # 停止要求
+ksql-flownet cancel-run --run-id <run_id> --release --reason-file <path>  # 解除
+```
+
+- 要求は実行管理アプリの独立レコード`CANCEL_REQUEST`(record_key = `CANCEL:<run_id>`、1 Run 1レコードを状態遷移で再利用)として永続化する。orchestratorが書き込むRun/Lockレコードへ相乗りしない。要求者は`KSQL_FLOWNET_REQUESTED_BY`環境変数から記録し、要求・解除とも理由を必須とする(レコード自体が監査を兼ねる)。
+- 状態機械: `REQUESTED`(CLI) → `ACCEPTED`(orchestratorがノード境界で受理) → `RELEASED`(CLIの`--release`)。全遷移はrevision fencing付き。
+- orchestratorは各ノード起動前とresume準備時に当該Runの要求を照合する。`REQUESTED`を検出したら`ACCEPTED`へ遷移し、**新しいノードを起動せず、実行中のsubprocessは完走を待ち**、Invocationを`CANCELLED / STOP_REQUESTED`で正常終端してlockを通常解放する。Node Stateは変更しない(`WAITING`のまま)。**停止は次のノード境界まで効かない**(実行中SQLの途中では止まらない)。
+- **hold**: 要求が`REQUESTED`/`ACCEPTED`の間、ensure-runはresumeを`RUN_ON_HOLD`(fail-closed、要求レコード参照を表示)で拒否する。定期resumeが停止したRunを勝手に再開しない。再開は`--release`後。
+- 要求照合の読取が到達不能の場合は特別扱いせず、既存のdrain規律に従う(同時にheartbeatも失敗しており新ノードは起動しない)。
+
+**activity導出(status --json、同追補)**: `status`は各Runへread-onlyの導出フィールド`activity`を付与する。終端status(SUCCESS/FAILED/CANCELLED/UNKNOWN)には付与しない。未終端Runは、`CANCEL_REQUEST`が`REQUESTED`/`ACCEPTED`なら`STOPPED`、lock ownerが当該Runに属しlease生存(分精度保守判定+60秒)なら`LIVE`、`started_at`がnullなら`IDLE`、それ以外は`INTERRUPTED`。導出定義の正本は本節と共有test vector(`tests/fixtures/status-activity/`)であり、画面実装(案A v1)も同一vectorへの合格を受入条件とする。
+
 ---
 
 ## 8. 排他制御
@@ -769,6 +786,12 @@ Phase 1では`SKIPPED`を生成せず、Network Run成功条件を全ノード`S
 26. kintone一時到達不能でheartbeatを更新できない場合、新しいNodeを開始せず、実行中subprocessを原則killしない。heartbeat再更新成功時だけ結果を保存してInvocationを`CANCELLED / NETWORK_LEASE_INTERRUPTED`で終端し、更新不能またはowner変更時は状態を書かない。
 27. `status --json`がNetwork lock owner、lease、Run、Node State、active Attemptと復旧識別子を返し、Networkロックや実行状態を変更しない。
 28. Cloud Run Job Executionのterminal状態だけを旧owner停止確認として受理し、RUNNING、PENDING、権限不足、通信失敗、未知状態では自動回収しない。heartbeatと停止確認のAPI callをControl Plane使用量として別計測する。
+
+Phase 1.1追補分(2026-08-31、FDR §13):
+
+29. `status --json`の`activity`が§7.4の導出定義と共有test vectorに一致し、終端Runには付与されない。
+30. 冪等ノードの同一`failure_kind`連続FAILED 3回でresumeが当該ノードを`WAITING`へ戻さず(下流除外・独立系統継続)、`CANCELLED / PREPARE_FAILED`は回数に透過で、`--rerun-from`により再実行できる。
+31. `cancel-run`の要求がノード境界で受理されて実行中subprocessの完走後にInvocationが`CANCELLED / STOP_REQUESTED`で正常終端し、`REQUESTED`/`ACCEPTED`の間はresumeが`RUN_ON_HOLD`で拒否され、`--release`後にresumeできる。停止済みRunの`activity`は`STOPPED`になる。
 
 ---
 

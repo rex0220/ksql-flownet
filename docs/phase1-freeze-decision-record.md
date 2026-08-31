@@ -1138,3 +1138,15 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 決定: 拒否条件を「`idempotent = false` **かつ** 既存attemptを持つ(`latest_attempt_no > 0`)」へ精緻化する。`--rerun-from`が`--resume`へ追加するリスクは実行済みノードの強制再実行のみであり、未実行ノードの初回実行に二重実行リスクはない。SQL未到達(`PREPARE_FAILED`のみ)のattemptを持つ非冪等ノードは保守側(拒否)に倒し、`--resume`での継続に委ねる。耐久開始マーカー基準へのさらなる精緻化はPhase 2判断。
 
 反映: 仕様§7.2・§12受入12、`ensure-run.ts`、unit回帰、E2E m7-05実機検証、受入マトリクス受入12。承認記録: `spikes/fdr-update-proposal-2026-08-31b-rerun.md`。同時に意味論を変えない文書明確化8件(§10 RUNNING の意味、§4.2冪等検査の位置づけ、§4.3並列度注記、§7.1 reconciliation手順、§14、as_of決定、本書履歴注記、runbook注記)とPhase 2バックログP2-02〜04を実施した。
+
+### R3: PREラウンド — activity導出・連続失敗ブレーキ・cancel-run(2026-08-31承認)
+
+契機: 運用UI討論(`docs/kintone-ops-roadmap-discussion.md` §10.2/§13)とvision確定。3件は相互依存(activityの`STOPPED`はcancel-runのhold状態から導出)のため同一ラウンドで審議し、共有test vectorを一度に確定する。
+
+決定:
+
+1. **activity 4値導出**(`LIVE`/`IDLE`/`INTERRUPTED`/`STOPPED`、終端Runへは付与しない)をread-only出力として追加。保存意味論は不変。定義の正本は仕様§7.4と`tests/fixtures/status-activity/`の共有vector
+2. **連続失敗ブレーキ**: 冪等FAILEDでも同一`failure_kind`の末尾連続FAILED 3回で除外系へ(§8.2どおり`CANCELLED / PREPARE_FAILED`は透過、UNKNOWNは連鎖を切る)。解除は既存`--rerun-from`。設定一般化はP2-03残余
+3. **cancel-run**: 独立record_type `CANCEL_REQUEST`(`CANCEL:<run_id>`、orchestrator書込レコードへ非相乗り)、状態機械`REQUESTED→ACCEPTED→RELEASED`、**hold既定**(`RUN_ON_HOLD`でresume拒否、`--release`で解除)。ノード境界でのみ受理し実行中subprocessは完走待ち、Invocationは`CANCELLED / STOP_REQUESTED`終端。読取到達不能は既存drain規律に従う
+
+反映: 仕様§5.3・§7.4・受入29〜31(Phase 1.1追補)、実装・unit・実機E2E(m8-01〜03)、受入マトリクス。承認記録: `spikes/fdr-update-proposal-2026-08-31c-pre-round.md`。
