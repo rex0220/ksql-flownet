@@ -1,9 +1,13 @@
 # kSQL-FlowNet Phase 1 Freeze Decision Record
 
-- 状態: **PROPOSED**
+- 状態: **ACCEPTED**(2026-08-31凍結。承認記録: `spikes/fdr-update-proposal-2026-08-31-freeze.md`)
 - 対象: ジョブネット管理 Phase 1
 - 作成日: 2026-08-29
-- Accepted への昇格条件: 本書「12. 凍結ゲート」をすべて満たすこと
+- Accepted への昇格条件: 本書「12. 凍結ゲート」をすべて満たすこと(2026-08-31全項目充足)
+- version記録: 実装 `@rex0220/ksql-flownet` 0.1.0 / レコード構成 schema_version 1 / JOBログ相関 kSQL-Flow M1(対応表: `templates/README.md`)
+- 受入試験結果: `docs/acceptance-phase1.md`(28/28)、証跡 `docs/test-results/`(m3〜m7ゲート)
+- 復旧訓練記録: m6-04実機ドリル(`docs/test-results/m6-gate-20260830/`)、手順正本 `docs/runbook-phase1-recovery.md`・`docs/runbook-phase1-migration.md`
+- 凍結後の変更: 実装都合で本書・仕様を黙って変更せず、FDR再審議手続きによる
 - 関連仕様: [ジョブネット管理仕様書](./job-network-phase1-spec.md)
 - 実行境界: [kSQL-Flow Execution Contract v1](./execution-contract-v1.md)
 - 分離判断: [プロジェクト分離ADR](./architecture-separation-adr.md)
@@ -34,14 +38,14 @@
 | D-04 | `DECIDED` | UNKNOWNの履歴 | 元Attemptを上書きせず、Attempt Resolutionを追記 |
 | D-05 | `DECIDED` | 実行バンドル | Network Runへ関連付け、resume可能な間は取得可能に保つ |
 | D-06 | `DECIDED` | 現行status移行 | status名ではなく現行の発生原因から新status/result_codeへ対応付け |
-| D-07 | `PROPOSED` | 永続化の正本 | Node Stateをスケジューラの正、Node Attemptを物理実行の耐久履歴とする |
+| D-07 | `DECIDED` | 永続化の正本 | Node Stateをスケジューラの正、Node Attemptを物理実行の耐久履歴とする(2026-08-31凍結時確定、受入4/16/22実証) |
 | D-08 | `DECIDED` | アプリ構成 | FlowNetの実行管理／監査2アプリと既存kSQL-Flow JOBログアプリの構成を第一候補とし、FlowNet 1アプリ案とスパイク比較（2アプリ構成を採用） |
-| D-09 | `PROPOSED` | 二重書込み | SQL開始前ゲートとrevision付き照合・修復プロトコルを採用 |
+| D-09 | `DECIDED` | 二重書込み | SQL開始前ゲートとrevision付き照合・修復プロトコルを採用(2026-08-31確定、M3/M4ゲート+m6-04/m7-02障害注入実証) |
 | D-10 | `DECIDED` | canonical lock key | `N1:` / `J1:`等のversion付きbase64url SHA-256形式 |
 | D-11 | `DECIDED` | 重複禁止INSERT競合 | 複数プロセス・可能なら複数ホストの実機contract testを実施 |
-| D-12 | `OPERATIONS_REQUIRED` | bundle保持 | resume可能期間、archive、外部退避、容量上限を決定 |
-| D-13 | `OPERATIONS_REQUIRED` | Node手動解決権限 | UNKNOWN／非冪等FAILEDの認証主体、承認者、証拠、権限分離を決定 |
-| D-14 | `OPERATIONS_REQUIRED` | 新旧ロック移行 | 一括切替、二重取得、最低version拒否のいずれかを決定 |
+| D-12 | `DECIDED` | bundle保持 | 保持はRunレコードと同寿命(削除しない=監査保持)。復元はSpike B実測の添付再取得手順。容量閾値見直しはPhase 2(2026-08-31決定) |
+| D-13 | `DECIDED` | Node手動解決権限 | 認証主体は環境変数(配備単位割当)、非冪等SUCCESSは別主体`--approved-by`必須、全操作監査必須。担当者割当は導入時運用設定(2026-08-31決定) |
+| D-14 | `DECIDED` | 新旧ロック移行 | 段階移行なし。業務(ジョブ群)単位で一括切替し新旧並走を残さない。同一job_idの防波堤はkSQL-Flow所有Node lockが新旧共通で担う(2026-08-31決定) |
 | D-15 | `DECIDED` | CLI所有境界 | Control Planeは`ksql-flownet`、Execution Planeは`ksql-flow` |
 | D-16 | `DECIDED` | Nodeとjobの識別 | `node_id`と`job_id`を分離し、Nodeロックは`job_id`から生成 |
 | D-17 | `DECIDED` | profile照合 | kSQL-Flowの`describe-profile --json`を正とし、orchestratorはconfigを独自解釈しない |
@@ -248,6 +252,13 @@ M6ゲートE2E(devenxyfi実機、実kSQL-Flow subprocess、実process tree kill)
 5. 実測環境値: API呼出~35ms/call(devenxyfi)、kSQLバッチ上限は20文・temp table 16個(長時間ジョブの構成制約)。
 
 残余リスク1(実運用値)・2(実Cloud Run照会)・3(複数ホスト)・6(schema v2)は変更なし。4・5は「実process kill・実subprocess・実kintone」で上書きされた(実運用スケールの長時間Runのみ未実施)。8は解消。復旧手順の正本は`docs/runbook-phase1-recovery.md`とする。
+
+2026-08-31の追記(QA-01実機判定)。参照: `docs/acceptance-phase1.md`(受入28/28済)、`docs/test-results/m7-qa01-20260831/`。
+
+1. **受入26のdrain配線を実装・実機注入で確認した。** node実行中のcontrol-plane到達不能(ジョブログ読取・結果永続化を含む)は即時abortせず`LEASE_UNCERTAIN`へ遷移し、2秒間隔・`lease_duration_sec`上限でlease再確認(GET→PUT)をリトライする。再確認成功時のみ結果を保存し、Invocationを`CANCELLED / NETWORK_LEASE_INTERRUPTED`で終端する。上限まで不能なら状態を書かず終了する(m7-02: 回復系・非回復系の両分岐を実kSQL-Flow subprocessで実測)。API裁定エラー(409等)は従来どおり即時fail-closed。
+2. **放棄Invocationのreconciliation終端を実装した(spec 424行後段)。** resume時、孤児Attempt裁定に続き、旧invocationの未終端レコードを`CANCELLED / NETWORK_LEASE_INTERRUPTED`+`INVOCATION_FINALIZED`監査でrevision fencing付き終端する(m7-04 SIGBREAK実機で確認)。
+3. control_plane_api_calls計測をm7-03証跡へ記録した(通常Run・status・force-unlock fail-closedのURL分類別呼出数)。
+4. lease再確認は内部的にGET($id解決)→PUTの2段であり、遮断観測・監視設計ではGET段の失敗も到達不能として扱う。
 
 ### D-30: 外部ジョブスケジューラとの責務境界
 
@@ -620,6 +631,8 @@ D-10のversion付きcanonical keyファミリを、lock identityのN1/J1から�
 
 二重取得を選ぶ場合は、全コマンドで同じ取得順序を使用し、deadlock回避と片側取得後のロールバックを試験する。
 
+2026-08-31の決定(凍結)。**案1(一括切替)を採用**し、D-14を`DECIDED`とする。段階移行・二重取得・最低version拒否は実装しない。切替は業務(ジョブ群)単位で行い、切替前に未完了の旧run-allバッチ0件を確認し、同一業務の新旧並走を残さない(手順正本: `docs/runbook-phase1-migration.md`)。同一`job_id`に対する最終防波堤はkSQL-Flow所有のNode lockが新旧共通で担う(m5-lock-conflictで実証)。
+
 ---
 
 ## 6. kintone重複禁止制約への依存
@@ -748,6 +761,10 @@ node --env-file=.env spikes/b-bundle/scripts/bundle-corruption.mjs
 
 これはbundle容量、保持期間、archive、復元の運用判断を閉じるものではない。D-12は`OPERATIONS_REQUIRED`を維持し、bundle添付プロトコルの前提だけを追記する。Supersededはない。参照: `docs/test-results/m3-gate-20260830/`、`src/persistence/kintone/design-notes.ts`、`tests/fixtures/canonical-record-key/vectors.json`、`tests/fixtures/canonical-lock-key/vectors.json`。
 
+#### 2026-08-31の決定(凍結)
+
+D-12を`DECIDED`とする。bundle容量はSpike B実測(10MiB実用域、通常bundleは数KB〜数十KB)を基準とし、独自上限候補10MiBを維持する。**保持はRunレコードと同寿命とし、削除しない(監査保持)** — 最低規則「`resume_allowed = true`のRunのbundle削除禁止」はこれに包含される。archiveはkintoneアプリ/スペース標準のバックアップ運用に従い、復元はSpike B実測の添付再取得手順(レコード再GET→新`fileKey`→download→SHA-256照合)を正とする。大容量化時の閾値見直し・外部immutable storage・定期復元試験の定例化はPhase 2事項として引き継ぐ。
+
 ---
 
 ## 8. UNKNOWN解決の運用決定
@@ -789,6 +806,8 @@ ksql-flownet resolve-node \
 ```
 
 対象は`UNKNOWN`または非冪等`FAILED`とする。元Attemptは変更しない。本来の成果物を手動で完成させた`NODE_MANUAL_COMPLETION_CONFIRMED`だけがNode Stateを`SUCCESS`へ進められる。取消・巻戻しだけを表す`NODE_COMPENSATION_COMPLETED`は`SUCCESS`を意味せず、下流を開始しない。非冪等Nodeの`SUCCESS`解決は一者操作を禁止する。
+
+2026-08-31の決定(凍結)。D-13を`DECIDED`とする。認証主体は`KSQL_FLOWNET_SERVICE_PRINCIPAL`/`KSQL_FLOWNET_REQUESTED_BY`環境変数(配備単位で運用者へ割当。自由記述の`--resolved-by`引数は存在しない)。非冪等`SUCCESS`解決はrequested_by・service_principalと異なる`--approved-by`を必須とする(FN-12実装、DISTINCT_APPROVER_REQUIRED)。理由・証拠参照・停止確認・実行時刻は全操作で必須記録(m6-03実機で監査全項目を検証済み)。具体的な担当者割当は導入時の運用設定とし、二者承認基盤の高度化はPhase 2事項とする。
 
 ## 8.1 Phase 1レビュー反映判断
 
@@ -1069,34 +1088,34 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 
 次のすべてを満たすまで、本ADRを`ACCEPTED`へ変更しない。
 
-- [ ] D-07: Source of TruthとNode Attempt lifecycleをレビュー承認
+- [x] D-07: Source of TruthとNode Attempt lifecycleをレビュー承認 (2026-08-31凍結承認。仕様§5/§6実装+受入4/16/22)
 - [x] D-08: 1アプリ／2アプリのスパイク結果から構成を決定 (2026-08-29実測により2アプリ案を決定。ACL実地・通知・archive運用・テンプレート配布は残余の手動確認。詳細はD-08節)
-- [ ] D-09: 開始・終了・reconciliationの障害注入試験に合格
+- [x] D-09: 開始・終了・reconciliationの障害注入試験に合格 (M3/M4実機ゲート+m6-04 kill+m7-02一時断。`docs/test-results/`)
 - [x] D-10: canonical bytesとキーversionをtest vectorで固定 (2026-08-29 test vector固定。詳細はD-10節)
 - [x] D-11: kintone実環境の同時INSERT contract testを完了 (2026-08-29実測、単一ホスト。詳細はD-11節)
-- [ ] D-12: bundle容量、保持、archive、復元試験を決定
-- [ ] D-13: UNKNOWN解決権限と監査主体を決定
-- [ ] D-14: 新旧lock protocolの移行方式を決定
-- [ ] D-15: 全文書とCLI helpのControl Plane／Execution Planeコマンド所有境界を統一
-- [ ] D-16: `node_id != job_id`を含む単体runとのNodeロック競合試験に合格
-- [ ] D-17: `describe-profile`のsnapshot照合と不一致fail-closed試験に合格
-- [ ] D-18: 非冪等FAILEDの手動完遂と取消補償を区別し、SKIPPED予約化を状態表・移行・試験へ反映
-- [ ] D-19: 終端SUCCESS Runへの`--rerun-from`拒否試験に合格
-- [ ] D-20: 月跨ぎ・年跨ぎ・timezone境界と`max_active_runs`試験に合格
-- [ ] D-21: UNKNOWN経路停止、独立系統継続、集約UNKNOWNの試験に合格
+- [x] D-12: bundle容量、保持、archive、復元試験を決定 (2026-08-31決定: Run同寿命保持、Spike B実測復元手順。D-12節参照)
+- [x] D-13: UNKNOWN解決権限と監査主体を決定 (2026-08-31決定: 環境変数主体+別主体承認+全操作監査。D-13/D-18節参照)
+- [x] D-14: 新旧lock protocolの移行方式を決定 (2026-08-31決定: 一括切替・並走禁止。D-14節参照)
+- [x] D-15: 全文書とCLI helpのControl Plane／Execution Planeコマンド所有境界を統一 (2026-08-31確認: CLI help=Control Plane 7コマンドのみ、Execution Plane非混入)
+- [x] D-16: `node_id != job_id`を含む単体runとのNodeロック競合試験に合格 (m5-lock-conflict、受入10/24)
+- [x] D-17: `describe-profile`のsnapshot照合と不一致fail-closed試験に合格 (preflight unit実出力fixture、受入20)
+- [x] D-18: 非冪等FAILEDの手動完遂と取消補償を区別し、SKIPPED予約化を状態表・移行・試験へ反映 (m6-03+resolve-node unit+移行fixture)
+- [x] D-19: 終端SUCCESS Runへの`--rerun-from`拒否試験に合格 (FN-11 unit、受入12)
+- [x] D-20: 月跨ぎ・年跨ぎ・timezone境界と`max_active_runs`試験に合格 (business-key/ensure-run unit、受入11/15)
+- [x] D-21: UNKNOWN経路停止、独立系統継続、集約UNKNOWNの試験に合格 (m6-02、受入17)
 - [x] D-22: 耐久`EXECUTION_STARTED`の障害注入試験に合格 (2026-08-30、順序・失敗・応答消失の全分岐、実kintone E2E、Windows／Linux実signalを確認。詳細はD-22決定記録)
-- [ ] D-23: `inspect-job`のjob ID・非決定要素検査と例外manifestを確定
+- [x] D-23: `inspect-job`のjob ID・非決定要素検査と例外manifestを確定 (preflight unit、KSQL1306超過承認ガード、受入21)
 - [x] D-24: revision採番、canonical key、集約状態の単一更新主体を障害注入試験で確認 (2026-08-30 M3実機ゲート合格。集約単一主体のInvocation配線はM5で検証、詳細はD-24節)
-- [ ] D-26: kSQL-Flowのforce-unlock回復契約、旧保持者停止確認、FlowNet監査、応答消失時のfail-closed試験に合格
-- [ ] D-27: 旧`batch_id`が`run_id`へ変換されず、監査参照からresumeできないことを確認
-- [ ] D-28: `validate`／`plan`／`status`が外部状態を変更せず、`status`が復旧に必要な識別子を返すことを確認
+- [x] D-26: kSQL-Flowのforce-unlock回復契約、旧保持者停止確認、FlowNet監査、応答消失時のfail-closed試験に合格 (kSQL-Flow M1 contract test+m6/m7実機での回復実施+record-job-unlock監査=FN-12)
+- [x] D-27: 旧`batch_id`が`run_id`へ変換されず、監査参照からresumeできないことを確認 (ensure-runはR1/NETWORK_RUNのみ検索し監査参照は構造上resume判定に入らない。手順正本: `docs/runbook-phase1-migration.md`)
+- [x] D-28: `validate`／`plan`／`status`が外部状態を変更せず、`status`が復旧に必要な識別子を返すことを確認 (m6-05 $revision全件前後比較。validate/planはkintone接続を持たない)
 - [x] D-29: 正常な長時間RunでNetwork leaseを維持し、heartbeat障害時はdrainし、FlowNetプロセスkill後はruntime停止確認と監査を伴って安全に回収できる (2026-08-29縮小値実測でプロトコル全分岐成立。実運用値・実Cloud Run等は限定条件、詳細はD-29節)
-- [ ] 現行status移行fixtureの全ケースに合格 (2026-08-29変換試作はD-06 fixture全14ケースに合格し、原因情報が欠落・矛盾する4ケースと未知status 1ケースのfail-closedを確認。本実装（M7）で全件実行後に閉じる)
-- [ ] ensure-runの0件／未完了1件／完了1件／複数件試験に合格
-- [ ] snapshot破損・取得不能時のfail-closed試験に合格
+- [x] 現行status移行fixtureの全ケースに合格 (本実装unitで全14ケース+fail-closed 5ケースを毎PR実行: tests/unit/status-migration.test.mjs)
+- [x] ensure-runの0件／未完了1件／完了1件／複数件試験に合格 (unit+M3/M4ゲート+m6-01実機)
+- [x] snapshot破損・取得不能時のfail-closed試験に合格 (bundle tamper unit+m7-01b実機、受入5/6)
 - [x] stale検知から旧保持者停止確認、突合、解決、resumeまでの復旧訓練に合格 (2026-08-30 M6ゲートm6-04実機ドリル。`docs/test-results/m6-gate-20260830/`、手順正本は`docs/runbook-phase1-recovery.md`)
-- [ ] ジョブネット経由と単体実行経由のNodeロック競合試験に合格
-- [ ] 未保証事項と残余リスクを仕様・runbookへ反映
+- [x] ジョブネット経由と単体実行経由のNodeロック競合試験に合格 (m5-lock-conflict、受入10/24)
+- [x] 未保証事項と残余リスクを仕様・runbookへ反映 (`docs/acceptance-phase1.md`残余リスク節+runbook 2冊+本書各節の限定事項)
 
 全項目完了後、次を同じ変更で行う。
 
@@ -1104,3 +1123,5 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 2. 関連仕様を「Phase 1 凍結版」へ変更する。
 3. 実装version、schema version、log app template versionを記録する。
 4. 受入試験結果と復旧訓練記録への参照を追加する。
+
+2026-08-31、上記1〜4を同一コミットで実施した(冒頭のヘッダおよび`docs/job-network-phase1-spec.md`冒頭を参照)。

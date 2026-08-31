@@ -1,11 +1,13 @@
 # kSQL-FlowNet ジョブネット管理仕様書
 
-## Phase 1 推奨仕様案（設計凍結候補）
+## Phase 1 凍結版
 
-- 文書状態: **設計凍結候補**（受入試験の完了前は「凍結版」と呼ばない）
+- 文書状態: **Phase 1 凍結版**(2026-08-31。FDR `ACCEPTED`、受入28/28合格: `./acceptance-phase1.md`)
+- version: 実装 `@rex0220/ksql-flownet` 0.1.0 / レコード構成 schema_version 1 / JOBログ相関 kSQL-Flow M1
 - 対象: ジョブネットの定義、直列実行、再開、監査履歴、排他制御
 - 対象外: 並列ワーカー、任意の trigger rule、SQL 文途中からの汎用再開
 - 作成日: 2026-08-29
+- 凍結後の変更: 本仕様を実装都合で黙って変更せず、[FDR](./phase1-freeze-decision-record.md)の再審議手続きによる
 
 ## プロジェクト境界
 
