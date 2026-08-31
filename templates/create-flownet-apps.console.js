@@ -51,6 +51,8 @@
 
   const FIELD_SIZES = {
     record_key: { width: "620" },
+    result_code: { width: "340" },
+    event_type: { width: "340" },
     lock_key: { width: "620" },
     attempt_key: { width: "620" },
     run_id: { width: "460" },
@@ -157,6 +159,7 @@
             type: "LABEL",
             label: `■ ${label}`,
             elementId: `label_${sectionIndex}`,
+            size: { width: "300" },
           },
         ],
       });
@@ -192,6 +195,7 @@
               type: "LABEL",
               label: "■ System",
               elementId: `label_${sectionIndex}`,
+              size: { width: "300" },
             },
           ],
         },

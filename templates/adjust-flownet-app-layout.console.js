@@ -12,6 +12,8 @@
 
   const FIELD_SIZES = {
     record_key: { width: "620" },
+    result_code: { width: "340" },
+    event_type: { width: "340" },
     lock_key: { width: "620" },
     attempt_key: { width: "620" },
     run_id: { width: "460" },
@@ -58,13 +60,18 @@
     const changedCodes = [];
 
     function resizeField(field) {
-      const desired = field.code ? FIELD_SIZES[field.code] : undefined;
+      const desired =
+        field.type === "LABEL"
+          ? { width: "300" }
+          : field.code
+            ? FIELD_SIZES[field.code]
+            : undefined;
       if (!desired) return field;
       const needsChange = Object.entries(desired).some(
         ([key, value]) => field.size?.[key] !== value,
       );
       if (!needsChange) return field;
-      changedCodes.push(field.code);
+      changedCodes.push(field.code ?? `LABEL:${field.elementId ?? "?"}`);
       return { ...field, size: { ...(field.size ?? {}), ...desired } };
     }
 
