@@ -102,21 +102,31 @@
       );
     }
 
+    // 既存一覧のindexは新規3件分だけ後ろへシフトする(相対順は維持)。
+    // indexは全一覧で一意でなければならず、既存値のまま残すと新規0〜2と衝突する。
+    const shiftedIndex = (view) =>
+      String(Number(view.index) + additions.length);
     const viewsForUpdate = Object.fromEntries(
       Object.entries(existingViews).map(([name, view]) => {
         if (view.builtinType) {
-          return [name, { type: view.type, index: view.index }];
+          return [name, { type: view.type, index: shiftedIndex(view) }];
         }
         const settings = Object.fromEntries(
           Object.entries(view).filter(
             ([key]) => key !== "id" && key !== "builtinType",
           ),
         );
-        return [name, settings];
+        return [name, { ...settings, index: shiftedIndex(view) }];
       }),
     );
     const mergedViews = {
-      ...Object.fromEntries(additions.map((view) => [view.name, view])),
+      // 新規分は実際に追加する件数で0から振り直す(一部のみ追加の場合の衝突防止)
+      ...Object.fromEntries(
+        additions.map((view, position) => [
+          view.name,
+          { ...view, index: String(position) },
+        ]),
+      ),
       ...viewsForUpdate,
     };
     const response = await api("/preview/app/views", "PUT", {
