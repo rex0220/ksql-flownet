@@ -25,6 +25,22 @@ export interface RequestResult {
   readonly message: string;
 }
 
+export interface InvalidRequestRecord {
+  readonly id: string;
+  readonly revision: number;
+  readonly issues: readonly {
+    readonly code: string;
+    readonly field: string;
+    readonly message: string;
+  }[];
+}
+
+export interface RequestedRecords {
+  readonly valid: readonly RequestRecord[];
+  readonly invalid: readonly InvalidRequestRecord[];
+  readonly skipped: number;
+}
+
 function field(value: string): { value: string } {
   return { value };
 }
@@ -38,7 +54,10 @@ function conflict(error: unknown): boolean {
   );
 }
 
-function terminalMatches(record: RequestRecord, result: RequestResult): boolean {
+function terminalMatches(
+  record: RequestRecord,
+  result: RequestResult,
+): boolean {
   return (
     record.requestState === result.state &&
     record.resultCode === result.code &&
@@ -74,11 +93,52 @@ export class KintoneRequestStore {
     this.client = new KintoneClient(config);
   }
 
-  async listRequested(): Promise<readonly RequestRecord[]> {
+  async listRequested(): Promise<RequestedRecords> {
     const records = await this.client.getRecords(
       `request_state in ("REQUESTED") order by 作成日時 asc, $id asc limit ${this.fetchLimit}`,
     );
+    const valid: RequestRecord[] = [];
+    const invalid: InvalidRequestRecord[] = [];
+    let skipped = 0;
+    for (const record of records) {
+      const identity = this.readIdentity(record);
+      if (identity === null) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        valid.push(parseRequestRecord(record));
+      } catch (error) {
+        if (!(error instanceof RequestValidationError)) throw error;
+        invalid.push({ ...identity, issues: error.issues });
+      }
+    }
+    return { valid, invalid, skipped };
+  }
+
+  async listAccepted(): Promise<readonly RequestRecord[]> {
+    const records = await this.client.getRecords(
+      `request_state in ("ACCEPTED") order by claim_heartbeat_at asc, $id asc limit ${this.fetchLimit}`,
+    );
     return records.map(parseRequestRecord);
+  }
+
+  async rejectInvalid(
+    request: Pick<InvalidRequestRecord, "id" | "revision">,
+    result: RequestResult,
+  ): Promise<void> {
+    if (result.state !== "REJECTED") {
+      throw new Error("invalid requests can only be REJECTED");
+    }
+    try {
+      await this.client.putRecordById(request.id, request.revision, {
+        request_state: field("REJECTED"),
+        result_code: field(result.code),
+        result_message: field(result.message),
+      });
+    } catch (error) {
+      if (!conflict(error)) throw error;
+    }
   }
 
   async claim(
@@ -160,7 +220,8 @@ export class KintoneRequestStore {
     }
 
     const current = await this.getById(request.id);
-    if (current === null) throw new Error("request record disappeared after conflict");
+    if (current === null)
+      throw new Error("request record disappeared after conflict");
     if (terminalMatches(current, result)) return current;
     const revision = await this.client.putRecordById(
       current.id,
@@ -190,5 +251,24 @@ export class KintoneRequestStore {
       },
       revision,
     );
+  }
+
+  private readIdentity(
+    record: KintoneRecord,
+  ): Pick<InvalidRequestRecord, "id" | "revision"> | null {
+    const id = record.$id?.value;
+    const revision = record.$revision?.value;
+    if (
+      typeof id !== "string" ||
+      !/^\d+$/.test(id) ||
+      typeof revision !== "string" ||
+      !/^\d+$/.test(revision)
+    ) {
+      return null;
+    }
+    const parsedRevision = Number(revision);
+    if (!Number.isSafeInteger(parsedRevision) || parsedRevision < 1)
+      return null;
+    return { id, revision: parsedRevision };
   }
 }

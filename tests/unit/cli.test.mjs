@@ -133,9 +133,11 @@ Commands:
                       display the business key and stable execution plan (read-only)
   run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
                         [--resume] [--resume-run <run_id>] [--rerun-from <node_id>]
+                        [--json]
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
+  poll-requests       claim and process app operation requests (one-shot)
   resolve-node --run-id <run_id> --node-id <node_id> --to <status>
                --reason-file <path> --evidence-ref <ref>
                --stop-confirmed-by <subject> --stop-evidence-ref <ref>
@@ -296,6 +298,128 @@ test("run-networkは--rerun-fromをresume経路だけで受理してensure-run�
   );
   assert.equal(received.resumeRunId, "run-1");
   assert.equal(received.rerunFrom, "child");
+});
+
+test("poll-requests is dispatched as a known one-shot command", () => {
+  const result = runCli("poll-requests", "unexpected");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Invalid poll-requests arguments/u);
+  assert.doesNotMatch(result.stderr, /unknown command/u);
+});
+
+test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", async (context) => {
+  const stdout = [];
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  const failed = await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-1", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        return {
+          outcome: "RESUME",
+          run: { value: { run_id: "run-1" } },
+          invocation: { value: { invocation_id: "invoke-1" } },
+          blockedBy: [],
+          businessKey: "net@one",
+          bundleBytes: Buffer.from("bundle"),
+          async close() {},
+        };
+      },
+      async schedule() {
+        return {
+          aggregateStatus: "FAILED",
+          invocationResultCode: "RETRY_BRAKE",
+        };
+      },
+    },
+  );
+  assert.equal(failed, 1);
+  assert.deepEqual(JSON.parse(stdout.pop()), {
+    outcome: "RESUME",
+    run_id: "run-1",
+    invocation_id: "invoke-1",
+    aggregate_status: "FAILED",
+    invocation_result_code: "RETRY_BRAKE",
+  });
+
+  await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-2", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        return {
+          outcome: "NOOP",
+          run: { value: { run_id: "run-2" } },
+          invocation: null,
+          blockedBy: [],
+          businessKey: "net@two",
+        };
+      },
+    },
+  );
+  assert.equal(JSON.parse(stdout.pop()).invocation_id, null);
+
+  const rejected = await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-3", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        const error = new Error("blocked");
+        error.code = "LOCK_CONFLICT";
+        throw error;
+      },
+    },
+  );
+  assert.equal(rejected, 1);
+  assert.deepEqual(JSON.parse(stdout.pop()), {
+    outcome: "REJECTED",
+    run_id: "run-3",
+    invocation_id: null,
+    aggregate_status: null,
+    invocation_result_code: "LOCK_CONFLICT",
+  });
+
+  const postInvocationFailure = await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-4", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        return {
+          outcome: "RESUME",
+          run: { value: { run_id: "run-4" } },
+          invocation: { value: { invocation_id: "invoke-4" } },
+          blockedBy: [],
+          businessKey: "net@four",
+          bundleBytes: Buffer.from("bundle"),
+          async close() {},
+        };
+      },
+      async schedule() {
+        const error = new Error("scheduler failed");
+        error.code = "NETWORK_LEASE_INTERRUPTED";
+        throw error;
+      },
+    },
+  );
+  assert.equal(postInvocationFailure, 1);
+  assert.deepEqual(JSON.parse(stdout.pop()), {
+    outcome: "RESUME",
+    run_id: "run-4",
+    invocation_id: "invoke-4",
+    aggregate_status: null,
+    invocation_result_code: "NETWORK_LEASE_INTERRUPTED",
+  });
 });
 
 test("run-network reports max_active_runs blockers and exits 1", async (context) => {

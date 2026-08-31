@@ -122,7 +122,9 @@ test("REQUESTED取得は作成日時asc,$id ascと上限を固定する", async 
     return response({ records: [rawRecord()] });
   }, 17);
   const found = await requests.listRequested();
-  assert.equal(found.length, 1);
+  assert.equal(found.valid.length, 1);
+  assert.deepEqual(found.invalid, []);
+  assert.equal(found.skipped, 0);
   assert.equal(
     calls[0].url.searchParams.get("query"),
     'request_state in ("REQUESTED") order by 作成日時 asc, $id asc limit 17',
@@ -132,6 +134,45 @@ test("REQUESTED取得は作成日時asc,$id ascと上限を固定する", async 
     () => store(async () => response({}), MAX_REQUEST_FETCH_LIMIT + 1),
     RangeError,
   );
+});
+
+test("REQUESTED取得は不正recordを識別可能/不能に分離する", async () => {
+  const requests = store(async () =>
+    response({
+      records: [
+        rawRecord(),
+        rawRecord({ $id: "43", reason: " " }),
+        rawRecord({ $id: "", $revision: "", reason: " " }),
+      ],
+    }),
+  );
+  const found = await requests.listRequested();
+  assert.deepEqual(
+    found.valid.map(({ id }) => id),
+    ["42"],
+  );
+  assert.equal(found.invalid.length, 1);
+  assert.equal(found.invalid[0].id, "43");
+  assert.match(
+    found.invalid[0].issues.map(({ code }) => code).join(","),
+    /REQUIRED/,
+  );
+  assert.equal(found.skipped, 1);
+});
+
+test("識別可能な不正要求はrevision指定で直接REJECTEDにする", async () => {
+  let body;
+  const requests = store(async (_input, init) => {
+    body = JSON.parse(init.body);
+    return response({ revision: "4" });
+  });
+  await requests.rejectInvalid(
+    { id: "43", revision: 3 },
+    { state: "REJECTED", code: "REQUEST_INVALID", message: "invalid fields" },
+  );
+  assert.equal(body.id, "43");
+  assert.equal(body.revision, 3);
+  assert.equal(body.record.request_state.value, "REJECTED");
 });
 
 test("REQUESTED取得失敗は書込みへ進まずそのまま失敗する", async () => {
@@ -202,18 +243,29 @@ test("結果競合は再GET後に新revisionで1回だけ再適用する", async
   let putCount = 0;
   const requests = store(async (input, init) => {
     const method = init.method;
-    calls.push({ method, url: new URL(input), body: init.body && JSON.parse(init.body) });
-    if (method === "GET") return response({ records: [acceptedRecord({ $revision: "4" })] });
+    calls.push({
+      method,
+      url: new URL(input),
+      body: init.body && JSON.parse(init.body),
+    });
+    if (method === "GET")
+      return response({ records: [acceptedRecord({ $revision: "4" })] });
     putCount += 1;
     if (putCount === 1) return response({ code: "GAIA_DA02" }, 400);
     return response({ revision: "5" });
   });
-  const result = await requests.writeResult(parseRequestRecord(acceptedRecord()), {
-    state: "DONE",
-    code: "OK",
-    message: "invocation invoke_1",
-  });
-  assert.deepEqual(calls.map(({ method }) => method), ["PUT", "GET", "PUT"]);
+  const result = await requests.writeResult(
+    parseRequestRecord(acceptedRecord()),
+    {
+      state: "DONE",
+      code: "OK",
+      message: "invocation invoke_1",
+    },
+  );
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    ["PUT", "GET", "PUT"],
+  );
   assert.equal(calls[2].body.revision, 4);
   assert.equal(result.revision, 5);
   assert.equal(result.requestState, "DONE");
@@ -235,11 +287,14 @@ test("再GETで同一終端値なら再PUTせず成功扱いにする", async ()
       ],
     });
   });
-  const result = await requests.writeResult(parseRequestRecord(acceptedRecord()), {
-    state: "REJECTED",
-    code: "RUN_NOT_FOUND",
-    message: "run was not found",
-  });
+  const result = await requests.writeResult(
+    parseRequestRecord(acceptedRecord()),
+    {
+      state: "REJECTED",
+      code: "RUN_NOT_FOUND",
+      message: "run was not found",
+    },
+  );
   assert.deepEqual(methods, ["PUT", "GET"]);
   assert.equal(result.revision, 4);
 });

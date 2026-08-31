@@ -21,9 +21,11 @@ Commands:
                       display the business key and stable execution plan (read-only)
   run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
                         [--resume] [--resume-run <run_id>] [--rerun-from <node_id>]
+                        [--json]
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
+  poll-requests       claim and process app operation requests (one-shot)
   resolve-node --run-id <run_id> --node-id <node_id> --to <status>
                --reason-file <path> --evidence-ref <ref>
                --stop-confirmed-by <subject> --stop-evidence-ref <ref>
@@ -103,6 +105,13 @@ async function main(args: readonly string[]): Promise<void> {
   if (command === "run-network") {
     const { runRunNetworkCommand } = await import("./run-network-command.js");
     process.exitCode = await runRunNetworkCommand(commandArgs);
+    return;
+  }
+
+  if (command === "poll-requests") {
+    const { runPollRequestsCommand } =
+      await import("./poll-requests-command.js");
+    process.exitCode = await runPollRequestsCommand(commandArgs);
     return;
   }
 
