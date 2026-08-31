@@ -1,0 +1,122 @@
+[
+  {
+    "name": "terminal-success",
+    "status": "SUCCESS",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": null,
+    "cancel_state": null,
+    "expected": null
+  },
+  {
+    "name": "terminal-failed-precedes-cancel",
+    "status": "FAILED",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": null,
+    "cancel_state": "REQUESTED",
+    "expected": null
+  },
+  {
+    "name": "terminal-cancelled",
+    "status": "CANCELLED",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": null,
+    "cancel_state": null,
+    "expected": null
+  },
+  {
+    "name": "terminal-unknown",
+    "status": "UNKNOWN",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": null,
+    "cancel_state": null,
+    "expected": null
+  },
+  {
+    "name": "stopped-requested-precedes-live",
+    "status": "RUNNING",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": { "owner_belongs": true, "lease_relative_seconds": 120 },
+    "cancel_state": "REQUESTED",
+    "expected": "STOPPED"
+  },
+  {
+    "name": "stopped-accepted",
+    "status": "CREATED",
+    "started_at": null,
+    "lock": null,
+    "cancel_state": "ACCEPTED",
+    "expected": "STOPPED"
+  },
+  {
+    "name": "released-does-not-stop",
+    "status": "CREATED",
+    "started_at": null,
+    "lock": null,
+    "cancel_state": "RELEASED",
+    "expected": "IDLE"
+  },
+  {
+    "name": "live-future-lease",
+    "status": "RUNNING",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": { "owner_belongs": true, "lease_relative_seconds": 1 },
+    "cancel_state": null,
+    "expected": "LIVE"
+  },
+  {
+    "name": "live-truncation-minus-59",
+    "status": "RUNNING",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": { "owner_belongs": true, "lease_relative_seconds": -59 },
+    "cancel_state": null,
+    "expected": "LIVE"
+  },
+  {
+    "name": "live-truncation-boundary-minus-60",
+    "status": "RUNNING",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": { "owner_belongs": true, "lease_relative_seconds": -60 },
+    "cancel_state": null,
+    "expected": "LIVE"
+  },
+  {
+    "name": "interrupted-expired-minus-61",
+    "status": "RUNNING",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": { "owner_belongs": true, "lease_relative_seconds": -61 },
+    "cancel_state": null,
+    "expected": "INTERRUPTED"
+  },
+  {
+    "name": "interrupted-foreign-owner",
+    "status": "RUNNING",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": { "owner_belongs": false, "lease_relative_seconds": 120 },
+    "cancel_state": null,
+    "expected": "INTERRUPTED"
+  },
+  {
+    "name": "idle-no-lock",
+    "status": "CREATED",
+    "started_at": null,
+    "lock": null,
+    "cancel_state": null,
+    "expected": "IDLE"
+  },
+  {
+    "name": "idle-expired-lock",
+    "status": "CREATED",
+    "started_at": null,
+    "lock": { "owner_belongs": true, "lease_relative_seconds": -61 },
+    "cancel_state": null,
+    "expected": "IDLE"
+  },
+  {
+    "name": "interrupted-no-lock",
+    "status": "RUNNING",
+    "started_at": "2026-08-31T00:00:00Z",
+    "lock": null,
+    "cancel_state": null,
+    "expected": "INTERRUPTED"
+  }
+]

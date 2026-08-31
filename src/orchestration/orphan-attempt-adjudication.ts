@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type {
+  NodeAttempt,
   NodeAttemptStatus,
   NodeState,
   ReconciliationOperationAudit,
@@ -11,6 +12,7 @@ import type {
 } from "../executor/job-log-reader.js";
 import { NO_EXECUTION_RESULT } from "../executor/result-classifier.js";
 import type { PersistenceRepository } from "../persistence/repository.js";
+import type { Versioned } from "../persistence/repository.js";
 
 export interface OrphanAttemptAdjudicationInput {
   readonly runId: string;
@@ -19,6 +21,7 @@ export interface OrphanAttemptAdjudicationInput {
   readonly jobLogReader: Pick<JobLogReader, "findAttemptResult">;
   readonly confirmWrite: () => Promise<boolean>;
   readonly now?: () => string;
+  readonly attempts?: readonly Versioned<NodeAttempt>[];
 }
 
 export interface OrphanAttemptAdjudication {
@@ -48,7 +51,7 @@ export async function adjudicateOrphanRunningAttempts(
 ): Promise<readonly OrphanAttemptAdjudication[]> {
   const [states, attempts] = await Promise.all([
     input.repository.getNodeStates(input.runId),
-    input.repository.getAttempts(input.runId),
+    input.attempts ?? input.repository.getAttempts(input.runId),
   ]);
   const attemptsById = new Map(
     attempts.map((attempt) => [attempt.value.node_attempt_id, attempt]),

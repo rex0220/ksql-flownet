@@ -19,6 +19,20 @@ export type NetworkRunStatus =
 export type RunInvocationStatus =
   "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED" | "UNKNOWN";
 
+export type CancelRequestState = "REQUESTED" | "ACCEPTED" | "RELEASED";
+
+export interface CancelRequest {
+  run_id: string;
+  state: CancelRequestState;
+  requested_by: string;
+  reason: string;
+  requested_at: string;
+  accepted_at: string | null;
+  released_at: string | null;
+  release_reason: string | null;
+  release_requested_by: string | null;
+}
+
 export interface ResolvedProfileSnapshot {
   profile: string;
   base_url: string;

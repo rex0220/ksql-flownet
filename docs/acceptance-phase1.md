@@ -34,6 +34,9 @@
 | 26 | kintone一時断でdrain(新Node開始なし・subprocess非kill・再更新成功時のみ保存・不能時無書込) | E2E | m7-02(回復系=保存+NETWORK_LEASE_INTERRUPTED終端、非回復系=無書込) | 済 |
 | 27 | status --jsonの復旧識別子返却・無変更 | E2E | m6-05($revision全件前後比較) | 済 |
 | 28 | Cloud Run terminal限定受理・fail-closed・control_plane_api_calls別計測 | unit+E2E | 判定表unit、m6-06、m7-03(URL分類別呼出数を証跡へ記録) | 済 |
+| 29 | activity導出が§7.4定義・共有vectorに一致し終端Runに付与されない(Phase1.1) | unit+E2E | vector 15件unit全件+m8-03実機(LIVE/INTERRUPTED/STOPPED/終端省略) | 済 |
+| 30 | 同一failure_kind連続FAILED 3回でブレーキ・PREPARE_FAILED透過・rerun-fromで再実行(Phase1.1) | unit+E2E | scheduler unit境界+m8-02実機(4回目抑止・独立系統継続・rerun-from解除) | 済 |
+| 31 | cancel-runのノード境界受理・STOP_REQUESTED終端・RUN_ON_HOLD・release後resume・activity=STOPPED(Phase1.1) | unit+E2E | cancel-run/ensure-run unit+m8-01実機 | 済 |
 
 ## 判定(2026-08-31)
 

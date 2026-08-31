@@ -44,6 +44,12 @@ export const KINTONE_FIELD_MAP = {
     blocked_by: "blocked_by",
     status_reason: "status_reason",
   },
+  CANCEL_REQUEST: {
+    record_key: "record_key",
+    record_type: "record_type",
+    run_id: "run_id",
+    status_reason: "status_reason",
+  },
   RUN_INVOCATION: {
     record_key: "record_key",
     record_type: "record_type",

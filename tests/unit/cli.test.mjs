@@ -151,6 +151,8 @@ Commands:
                     --stop-confirmed-by <subject> --stop-evidence-ref <ref>
                     --stop-method <method>
                       force-release a stale Network lock with an audit record
+  cancel-run --run-id <run_id> [--release] --reason-file <path>
+                      request or release a Run hold at the next node boundary
   status <network_id> --profile <profile>
          [--run-id <run_id> | --business-key <key>] [--json]
                       inspect lock and Run recovery state (read-only)

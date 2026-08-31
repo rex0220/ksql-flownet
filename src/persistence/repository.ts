@@ -1,5 +1,6 @@
 import type {
   AttemptResolution,
+  CancelRequest,
   NetworkRun,
   NetworkRunStatus,
   NodeAttempt,
@@ -121,6 +122,15 @@ export interface PersistenceRepository {
     profile: string,
     networkId: string,
   ): Promise<Versioned<NetworkRun>[]>;
+  getCancelRequest(runId: string): Promise<Versioned<CancelRequest> | null>;
+  createCancelRequest(
+    request: CancelRequest,
+  ): Promise<Versioned<CancelRequest>>;
+  updateCancelRequest(
+    runId: string,
+    expectedRevision: number,
+    request: CancelRequest,
+  ): Promise<Versioned<CancelRequest>>;
   updateRunAggregate(
     runId: string,
     expectedRevision: number,
@@ -169,4 +179,5 @@ export type StatusReadRepository = Pick<
   | "getNodeStates"
   | "getAttempts"
   | "getResolutions"
+  | "getCancelRequest"
 >;

@@ -4,6 +4,7 @@ import { attemptKey, runKey } from "../../domain/canonical-record-key.js";
 import { MAX_KINTONE_UNIQUE_KEY_LENGTH } from "../../domain/canonical-lock-key.js";
 import type {
   AttemptResolution,
+  CancelRequest,
   NetworkRun,
   NodeAttempt,
   NodeState,
@@ -255,6 +256,59 @@ function decodeRun(record: KintoneRecord): NetworkRun {
   };
 }
 
+function cancelRequestRecord(value: CancelRequest): KintoneRecord {
+  const details = {
+    state: value.state,
+    requested_by: value.requested_by,
+    reason: value.reason,
+    requested_at: value.requested_at,
+    accepted_at: value.accepted_at,
+    released_at: value.released_at,
+    release_reason: value.release_reason,
+    release_requested_by: value.release_requested_by,
+  };
+  return {
+    record_key: field(uniqueKey(`CANCEL:${value.run_id}`)),
+    record_type: field("CANCEL_REQUEST"),
+    run_id: field(value.run_id),
+    status_reason: field(JSON.stringify(details)),
+  };
+}
+
+function decodeCancelRequest(record: KintoneRecord): CancelRequest {
+  let details: unknown;
+  try {
+    details = JSON.parse(text(record, "status_reason"));
+  } catch (error) {
+    throw new RepositoryError(
+      "REMOTE_ERROR",
+      "CANCEL_REQUEST status_reason is not valid JSON",
+      error,
+    );
+  }
+  if (
+    details === null ||
+    typeof details !== "object" ||
+    !("state" in details) ||
+    !["REQUESTED", "ACCEPTED", "RELEASED"].includes(String(details.state))
+  ) {
+    throw new RepositoryError(
+      "REMOTE_ERROR",
+      "CANCEL_REQUEST status_reason has an invalid state",
+    );
+  }
+  const value = details as Omit<CancelRequest, "run_id">;
+  return { run_id: text(record, "run_id"), ...value };
+}
+
+function allowedCancelTransition(from: string, to: string): boolean {
+  return (
+    (from === "REQUESTED" && (to === "ACCEPTED" || to === "RELEASED")) ||
+    (from === "ACCEPTED" && to === "RELEASED") ||
+    (from === "RELEASED" && to === "REQUESTED")
+  );
+}
+
 function invocationRecord(value: RunInvocation): KintoneRecord {
   return {
     record_key: field(uniqueKey(`INV:${value.invocation_id}`)),
@@ -426,6 +480,68 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       decodeRun,
       (found) => found.run_id === run.run_id,
     );
+  }
+
+  async getCancelRequest(
+    runId: string,
+  ): Promise<Versioned<CancelRequest> | null> {
+    try {
+      const records = await this.state.getRecords(
+        inQuery("record_key", `CANCEL:${runId}`),
+      );
+      if (records.length === 0) return null;
+      if (records.length !== 1)
+        throw new RepositoryError(
+          "MULTIPLE_RECORDS",
+          `cancel request for run_id ${runId} is not unique`,
+        );
+      return versioned(records[0]!, decodeCancelRequest);
+    } catch (error) {
+      if (error instanceof RepositoryError) throw error;
+      mapError(error);
+    }
+  }
+
+  async createCancelRequest(
+    request: CancelRequest,
+  ): Promise<Versioned<CancelRequest>> {
+    if (request.state !== "REQUESTED")
+      throw new RepositoryError(
+        "INVALID_STATE_TRANSITION",
+        "a new cancel request must be REQUESTED",
+      );
+    return this.createWithAdjudication(
+      this.state,
+      `CANCEL:${request.run_id}`,
+      cancelRequestRecord(request),
+      decodeCancelRequest,
+      (found) => found.run_id === request.run_id,
+    );
+  }
+
+  async updateCancelRequest(
+    runId: string,
+    expectedRevision: number,
+    request: CancelRequest,
+  ): Promise<Versioned<CancelRequest>> {
+    const key = `CANCEL:${runId}`;
+    const current = await this.requiredByRecordKey(
+      this.state,
+      key,
+      decodeCancelRequest,
+    );
+    if (
+      request.run_id !== runId ||
+      !allowedCancelTransition(current.value.state, request.state)
+    )
+      throw new RepositoryError(
+        "INVALID_STATE_TRANSITION",
+        `${current.value.state} -> ${request.state} is not allowed`,
+      );
+    await this.put(this.state, key, expectedRevision, {
+      status_reason: cancelRequestRecord(request).status_reason!,
+    });
+    return { value: request, revision: expectedRevision + 1 };
   }
 
   async getRunByBusinessKey(

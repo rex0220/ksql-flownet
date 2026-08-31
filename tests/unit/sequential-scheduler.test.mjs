@@ -3,7 +3,10 @@ import test from "node:test";
 
 import { buildBundle } from "../../dist/bundle/index.js";
 import { nodeStateKey } from "../../dist/domain/canonical-record-key.js";
-import { runSequentialScheduler } from "../../dist/orchestration/sequential-scheduler.js";
+import {
+  retryBrakeForNode,
+  runSequentialScheduler,
+} from "../../dist/orchestration/sequential-scheduler.js";
 import { InMemoryPersistenceRepository } from "../../dist/persistence/in-memory-repository.js";
 import {
   KintoneApiError,
@@ -359,6 +362,7 @@ function fakeExecutor(repository, outcomes, calls, concurrency) {
 
 async function execute(nodes, options = {}) {
   const seeded = await seed(nodes, options);
+  await options.afterSeed?.(seeded);
   const calls = [];
   const closeCalls = [];
   const concurrency = { active: 0, max: 0 };
@@ -400,6 +404,158 @@ async function execute(nodes, options = {}) {
   });
   return { ...seeded, summary, calls, closeCalls, concurrency };
 }
+
+test("retry brake counts equal trailing failures and treats PREPARE_FAILED as transparent", () => {
+  const attempt = (attemptNo, status, resultCode) => ({
+    revision: 1,
+    value: {
+      node_id: "a",
+      attempt_no: attemptNo,
+      status,
+      result_code: resultCode,
+    },
+  });
+  assert.deepEqual(
+    retryBrakeForNode(
+      [
+        attempt(1, "FAILED", "SQL_ERROR"),
+        attempt(2, "CANCELLED", "PREPARE_FAILED"),
+        attempt(3, "FAILED", "SQL_ERROR"),
+        attempt(4, "FAILED", "SQL_ERROR"),
+      ],
+      "a",
+    ),
+    { failureKind: "SQL_ERROR", count: 3 },
+  );
+  for (const breaker of [
+    attempt(4, "UNKNOWN", "SQL_ERROR"),
+    attempt(4, "FAILED", "API_ERROR"),
+    attempt(4, "FAILED", ""),
+  ]) {
+    assert.equal(
+      retryBrakeForNode(
+        [
+          attempt(1, "FAILED", "SQL_ERROR"),
+          attempt(2, "FAILED", "SQL_ERROR"),
+          attempt(3, "FAILED", "SQL_ERROR"),
+          breaker,
+        ],
+        "a",
+      ),
+      null,
+    );
+  }
+});
+
+test("CANCEL_REQUEST is accepted before node launch and closes STOP_REQUESTED", async () => {
+  const result = await execute([{ id: "a", dependsOn: [] }], {
+    afterSeed: async ({ repository }) => {
+      await repository.createCancelRequest({
+        run_id: "run_1",
+        state: "REQUESTED",
+        requested_by: "operator",
+        reason: "maintenance",
+        requested_at: T0,
+        accepted_at: null,
+        released_at: null,
+        release_reason: null,
+        release_requested_by: null,
+      });
+    },
+  });
+  assert.deepEqual(result.calls, []);
+  assert.equal(result.summary.invocationStatus, "CANCELLED");
+  assert.equal(result.summary.invocationResultCode, "STOP_REQUESTED");
+  assert.equal(
+    (await result.repository.getCancelRequest("run_1")).value.state,
+    "ACCEPTED",
+  );
+  assert.equal(
+    (await result.repository.getNodeStates("run_1"))[0].value.status,
+    "WAITING",
+  );
+});
+
+test("RESUME retry brake excludes the failed branch after three equal failures", async () => {
+  const nodes = [
+    { id: "failed", dependsOn: [] },
+    { id: "child", dependsOn: ["failed"] },
+    { id: "independent", dependsOn: [] },
+  ];
+  const result = await execute(nodes, {
+    mode: "RESUME",
+    runStatus: "RUNNING",
+    afterSeed: async ({ repository }) => {
+      let state = (await repository.getNodeStates("run_1")).find(
+        ({ value }) => value.node_id === "failed",
+      );
+      for (let number = 1; number <= 3; number += 1) {
+        const attempt = await repository.createAttempt({
+          node_state: state,
+          node_attempt_id: `failed_${number}`,
+          invocation_id: `old_${number}`,
+        });
+        state = await repository.upsertNodeState({
+          expected_revision: state.revision,
+          value: {
+            ...state.value,
+            status: "RUNNING",
+            latest_attempt_no: number,
+            active_attempt_id: attempt.value.node_attempt_id,
+          },
+        });
+        await repository.finalizeAttempt(
+          attempt.value.node_attempt_id,
+          attempt.revision,
+          {
+            status: "FAILED",
+            result_code: "SQL_ERROR",
+            runner_execution_started_at: T0,
+            execution_id: `exec_${number}`,
+            finished_at: T0,
+            duration_sec: 0,
+            error_message: "deterministic",
+            read_count: 0,
+            written_count: 0,
+            last_successful_chunk_no: null,
+            last_written_key: null,
+          },
+        );
+        state = await repository.upsertNodeState({
+          expected_revision: state.revision,
+          value: {
+            ...state.value,
+            status: "FAILED",
+            active_attempt_id: null,
+            status_reason: "SQL_ERROR",
+          },
+        });
+        if (number < 3)
+          state = await repository.upsertNodeState({
+            expected_revision: state.revision,
+            value: { ...state.value, status: "WAITING" },
+          });
+      }
+    },
+  });
+  assert.deepEqual(result.calls, ["independent"]);
+  const states = new Map(
+    (await result.repository.getNodeStates("run_1")).map(({ value }) => [
+      value.node_id,
+      value,
+    ]),
+  );
+  assert.equal(states.get("failed").status, "FAILED");
+  assert.equal(states.get("failed").status_reason, "RETRY_BRAKE:SQL_ERRORx3");
+  assert.equal(states.get("child").status, "BLOCKED");
+  assert.equal(states.get("independent").status, "SUCCESS");
+  assert.equal(
+    (await result.repository.getAttempts("run_1")).filter(
+      ({ value }) => value.node_id === "failed",
+    ).length,
+    3,
+  );
+});
 
 test("3ノード直列成功は安定順かつ同時AttemptなしでSUCCESSになる", async () => {
   const nodes = [

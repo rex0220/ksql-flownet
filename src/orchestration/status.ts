@@ -1,5 +1,6 @@
 import type {
   NetworkRun,
+  CancelRequestState,
   NodeAttempt,
   NodeState,
   RunInvocation,
@@ -47,6 +48,18 @@ export interface RunSummaryOutput {
   readonly started_at: string | null;
   readonly finished_at: string | null;
   readonly updated_at: string;
+  readonly activity?: RunActivity;
+}
+
+export type RunActivity = "LIVE" | "IDLE" | "INTERRUPTED" | "STOPPED";
+
+export interface ActivityInput {
+  readonly status: NetworkRun["status"];
+  readonly startedAt: string | null;
+  readonly invocationIds: readonly string[];
+  readonly lock: NetworkLockStatus | null;
+  readonly cancelState: CancelRequestState | null;
+  readonly nowMs: number;
 }
 
 export interface RunStatusOutput extends RunSummaryOutput {
@@ -97,7 +110,10 @@ interface NodeStateOutput {
   readonly active_attempt: ActiveAttemptOutput | null;
 }
 
-function summary(run: NetworkRun): RunSummaryOutput {
+function summary(
+  run: NetworkRun,
+  activity: RunActivity | null,
+): RunSummaryOutput {
   return {
     run_id: run.run_id,
     business_key: run.business_key,
@@ -108,7 +124,23 @@ function summary(run: NetworkRun): RunSummaryOutput {
     started_at: run.started_at,
     finished_at: run.finished_at,
     updated_at: run.updated_at,
+    ...(activity === null ? {} : { activity }),
   };
+}
+
+export function deriveRunActivity(input: ActivityInput): RunActivity | null {
+  if (["SUCCESS", "FAILED", "CANCELLED", "UNKNOWN"].includes(input.status))
+    return null;
+  if (input.cancelState === "REQUESTED" || input.cancelState === "ACCEPTED")
+    return "STOPPED";
+  if (
+    input.lock !== null &&
+    input.invocationIds.includes(input.lock.owner_invocation_id) &&
+    input.nowMs <=
+      Date.parse(input.lock.lease_expires_at) + KINTONE_DATETIME_TRUNCATION_MS
+  )
+    return "LIVE";
+  return input.startedAt === null ? "IDLE" : "INTERRUPTED";
 }
 
 function requireMatchingRun(
@@ -131,19 +163,32 @@ async function detail(
   run: Versioned<NetworkRun>,
   lock: StatusOutput["lock"],
   repository: StatusReadRepository,
+  currentTime: number,
 ): Promise<RunStatusOutput> {
   const runId = run.value.run_id;
-  const [invocations, states, attempts, reconciliation] = await Promise.all([
-    repository.getInvocations(runId),
-    repository.getNodeStates(runId),
-    repository.getAttempts(runId),
-    detectReconciliation(repository, runId),
-  ]);
+  const [invocations, states, attempts, reconciliation, cancelRequest] =
+    await Promise.all([
+      repository.getInvocations(runId),
+      repository.getNodeStates(runId),
+      repository.getAttempts(runId),
+      detectReconciliation(repository, runId),
+      repository.getCancelRequest(runId),
+    ]);
   const attemptsById = new Map(
     attempts.map((attempt) => [attempt.value.node_attempt_id, attempt.value]),
   );
   return {
-    ...summary(run.value),
+    ...summary(
+      run.value,
+      deriveRunActivity({
+        status: run.value.status,
+        startedAt: run.value.started_at,
+        invocationIds: invocations.map(({ value }) => value.invocation_id),
+        lock,
+        cancelState: cancelRequest?.value.state ?? null,
+        nowMs: currentTime,
+      }),
+    ),
     invocations: invocations.map(({ value }) => ({
       invocation_id: value.invocation_id,
       mode: value.mode,
@@ -246,7 +291,7 @@ export async function inspectStatus(
       network_id: input.networkId,
       profile: input.profile,
       lock,
-      runs: [await detail(run, lock, dependencies.repository)],
+      runs: [await detail(run, lock, dependencies.repository, currentTime)],
     };
   }
 
@@ -254,10 +299,29 @@ export async function inspectStatus(
     input.profile,
     input.networkId,
   );
+  const summaries = await Promise.all(
+    runs.map(async (run) => {
+      const [invocations, cancelRequest] = await Promise.all([
+        dependencies.repository.getInvocations(run.value.run_id),
+        dependencies.repository.getCancelRequest(run.value.run_id),
+      ]);
+      return summary(
+        run.value,
+        deriveRunActivity({
+          status: run.value.status,
+          startedAt: run.value.started_at,
+          invocationIds: invocations.map(({ value }) => value.invocation_id),
+          lock,
+          cancelState: cancelRequest?.value.state ?? null,
+          nowMs: currentTime,
+        }),
+      );
+    }),
+  );
   return {
     network_id: input.networkId,
     profile: input.profile,
     lock,
-    runs: runs.map(({ value }) => summary(value)),
+    runs: summaries,
   };
 }

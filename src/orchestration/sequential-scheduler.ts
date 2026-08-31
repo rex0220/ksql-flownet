@@ -8,8 +8,10 @@ import { stableTopologicalSort } from "../dag/topological-sort.js";
 import { loadNetworkDefinitionSource } from "../domain/load-network.js";
 import type { NetworkDefinition } from "../domain/network-definition.js";
 import type {
+  CancelRequest,
   NetworkRun,
   NetworkRunStatus,
+  NodeAttempt,
   NodeState,
   NodeStateStatus,
   RunInvocation,
@@ -32,6 +34,7 @@ import {
   finalizeAbandonedInvocations,
   orphanAdjudicationReason,
 } from "./orphan-attempt-adjudication.js";
+import { isCancelHold } from "./cancel-request.js";
 
 export interface SchedulerLeaseMonitor {
   canStartNewNode(): boolean;
@@ -148,7 +151,11 @@ export async function runSequentialScheduler(
       input.controlPlaneDrain,
     );
     let run = await ensureRunStarted(input, now);
+    let attempts: readonly Versioned<NodeAttempt>[] = [];
     if (input.invocation.value.mode !== "NEW") {
+      attempts = await runControlPlaneOperation(() =>
+        input.repository.getAttempts(input.run.value.run_id),
+      );
       const adjudications = await adjudicateOrphanRunningAttempts({
         runId: input.run.value.run_id,
         invocationId: input.invocation.value.invocation_id,
@@ -156,7 +163,26 @@ export async function runSequentialScheduler(
         jobLogReader: input.jobLogReader ?? missingJobLogReader,
         confirmWrite: () => confirmOrdinaryWrite(input.leaseMonitor),
         now: () => now().toISOString(),
+        attempts,
       });
+      if (adjudications.length > 0) {
+        const byId = new Map(
+          adjudications.map((item) => [item.attemptId, item]),
+        );
+        attempts = attempts.map((attempt) => {
+          const adjudicated = byId.get(attempt.value.node_attempt_id);
+          return adjudicated === undefined
+            ? attempt
+            : {
+                value: {
+                  ...attempt.value,
+                  status: adjudicated.status,
+                  result_code: adjudicated.resultCode,
+                },
+                revision: attempt.revision + 1,
+              };
+        });
+      }
       adjudicationReason = orphanAdjudicationReason(adjudications);
       await finalizeAbandonedInvocations({
         runId: input.run.value.run_id,
@@ -176,7 +202,15 @@ export async function runSequentialScheduler(
       preserved,
       blocked,
       now,
+      attempts,
     );
+    const brakeReasons = [...blocked]
+      .map((nodeId) => states.get(nodeId)?.value.status_reason)
+      .filter((reason) => reason?.startsWith("RETRY_BRAKE:"));
+    if (brakeReasons.length > 0)
+      adjudicationReason = [adjudicationReason, ...brakeReasons]
+        .filter((value) => value !== undefined)
+        .join("; ");
 
     const order = stableTopologicalSort(extracted.definition.nodes).order;
     const nodes = new Map(
@@ -257,6 +291,48 @@ export async function runSequentialScheduler(
         continue;
       }
       selected.add(nodeId);
+      const cancelRequest = await runControlPlaneOperation(() =>
+        input.repository.getCancelRequest(input.run.value.run_id),
+      );
+      if (isCancelHold(cancelRequest)) {
+        let effective: Versioned<CancelRequest> | null = cancelRequest;
+        if (cancelRequest.value.state === "REQUESTED") {
+          try {
+            effective = await runControlPlaneOperation(() =>
+              input.repository.updateCancelRequest(
+                input.run.value.run_id,
+                cancelRequest.revision,
+                {
+                  ...cancelRequest.value,
+                  state: "ACCEPTED",
+                  accepted_at: now().toISOString(),
+                },
+              ),
+            );
+          } catch (error) {
+            if (
+              !(error instanceof RepositoryError) ||
+              error.code !== "REVISION_CONFLICT"
+            )
+              throw error;
+            effective = await runControlPlaneOperation(() =>
+              input.repository.getCancelRequest(input.run.value.run_id),
+            );
+          }
+        }
+        if (isCancelHold(effective)) {
+          results.set(nodeId, nodeResult(nodeId, "DEFERRED", state));
+          closeInput = finalization(
+            "CANCELLED",
+            "STOP_REQUESTED",
+            selected,
+            preserved,
+            blocked,
+            `cancel request CANCEL:${input.run.value.run_id} accepted`,
+          );
+          break;
+        }
+      }
       if (!input.leaseMonitor.canStartNewNode()) {
         results.set(nodeId, nodeResult(nodeId, "DEFERRED", state));
         break;
@@ -429,6 +505,7 @@ async function prepareResumeStates(
   preserved: Set<string>,
   blocked: Set<string>,
   now: () => Date,
+  attempts: readonly Versioned<NodeAttempt>[],
 ): Promise<Set<string>> {
   const excludedRoots = new Set<string>();
   for (const node of definition.nodes) {
@@ -451,6 +528,21 @@ async function prepareResumeStates(
       input.invocation.value.mode === "RESUME" &&
       (state.value.status === "FAILED" || state.value.status === "CANCELLED") &&
       state.value.idempotent;
+    if (resetRetryable) {
+      const brake = retryBrakeForNode(attempts, node.id);
+      if (brake !== null) {
+        if (!(await confirmOrdinaryWrite(input.leaseMonitor)))
+          throw new SchedulerLeaseInterruptedError(true);
+        state = await writeNodeState(input.repository, state, {
+          status_reason: `RETRY_BRAKE:${brake.failureKind}x${brake.count}`,
+          updated_at: now().toISOString(),
+        });
+        states.set(node.id, state);
+        excludedRoots.add(node.id);
+        blocked.add(node.id);
+        continue;
+      }
+    }
     if (resetBlocked || resetRetryable) {
       if (!(await confirmOrdinaryWrite(input.leaseMonitor)))
         throw new SchedulerLeaseInterruptedError(true);
@@ -468,6 +560,29 @@ async function prepareResumeStates(
   const excluded = descendantsIncludingRoots(definition, excludedRoots);
   for (const id of excludedRoots) blocked.add(id);
   return excluded;
+}
+
+export function retryBrakeForNode(
+  attempts: readonly Versioned<NodeAttempt>[],
+  nodeId: string,
+): { failureKind: string; count: number } | null {
+  const history = attempts
+    .filter(({ value }) => value.node_id === nodeId)
+    .slice()
+    .sort((left, right) => right.value.attempt_no - left.value.attempt_no);
+  let failureKind: string | null = null;
+  let count = 0;
+  for (const { value } of history) {
+    if (value.status === "CANCELLED" && value.result_code === "PREPARE_FAILED")
+      continue;
+    if (value.status !== "FAILED") break;
+    const current = value.result_code.trim();
+    if (current === "") break;
+    failureKind ??= current;
+    if (current !== failureKind) break;
+    count += 1;
+  }
+  return failureKind !== null && count >= 3 ? { failureKind, count } : null;
 }
 
 function descendantsIncludingRoots(

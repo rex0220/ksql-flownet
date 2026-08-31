@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import { runStatusCommand } from "../../dist/cli/status-command.js";
-import { inspectStatus } from "../../dist/orchestration/status.js";
+import {
+  deriveRunActivity,
+  inspectStatus,
+} from "../../dist/orchestration/status.js";
 
 const T0 = "2026-08-30T00:00:00.000Z";
 
@@ -111,6 +115,9 @@ function repositoryFixture() {
     async getResolutions() {
       return [];
     },
+    async getCancelRequest() {
+      return null;
+    },
     async upsertNodeState(value) {
       writes.push(value);
       throw new Error("status must not write");
@@ -125,6 +132,51 @@ function repositoryFixture() {
     },
   };
 }
+
+test("shared status-activity vectors cover every activity and lease boundary", () => {
+  const vectors = JSON.parse(
+    readFileSync(
+      new globalThis.URL(
+        "../fixtures/status-activity/vectors.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const nowMs = Date.parse("2026-08-31T01:00:00Z");
+  for (const vector of vectors) {
+    const owner = vector.lock?.owner_belongs ? "invoke_1" : "invoke_other";
+    const lock =
+      vector.lock === null
+        ? null
+        : {
+            record_id: "lock_1",
+            owner_invocation_id: owner,
+            owner_instance_id: "host",
+            heartbeat_at: T0,
+            lease_expires_at: new Date(
+              nowMs + vector.lock.lease_relative_seconds * 1000,
+            ).toISOString(),
+            revision: 1,
+          };
+    assert.equal(
+      deriveRunActivity({
+        status: vector.status,
+        startedAt: vector.started_at,
+        invocationIds: ["invoke_1"],
+        lock,
+        cancelState: vector.cancel_state,
+        nowMs,
+      }),
+      vector.expected,
+      vector.name,
+    );
+  }
+  assert.deepEqual(
+    new Set(vectors.map(({ expected }) => expected)),
+    new Set([null, "STOPPED", "LIVE", "IDLE", "INTERRUPTED"]),
+  );
+});
 
 function lockReader(value) {
   return {

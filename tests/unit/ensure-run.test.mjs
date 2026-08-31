@@ -10,6 +10,7 @@ import {
 } from "../../dist/orchestration/ensure-run.js";
 import { InMemoryPersistenceRepository } from "../../dist/persistence/in-memory-repository.js";
 import { RepositoryError } from "../../dist/persistence/repository.js";
+import { changeCancelRequest } from "../../dist/orchestration/cancel-request.js";
 
 const T0 = "2026-08-30T01:02:03.004Z";
 
@@ -359,6 +360,29 @@ test("D-02 未完了1件RESUME: 保存bundleだけを検証し作業ツリーSQL
   assert.ok(h.events.some((event) => event.startsWith("download:")));
   assert.ok(!h.events.includes("inspect"));
   await resumed.close({ status: "CANCELLED", resultCode: "TEST_DONE" });
+});
+
+test("CANCEL_REQUEST hold中のRESUMEはRUN_ON_HOLDで拒否する", async (context) => {
+  const { networkPath } = fixture(context);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  await changeCancelRequest({
+    repository: h.repository,
+    runId: created.run.value.run_id,
+    requestedBy: "operator",
+    reason: "maintenance",
+    release: false,
+    now: () => new Date(T0),
+  });
+  await assert.rejects(
+    ensureRun(input(networkPath, h, { resume: true })),
+    (error) => {
+      assert.equal(error.code, "RUN_ON_HOLD");
+      assert.match(error.message, /CANCEL:/u);
+      return true;
+    },
+  );
 });
 
 test("D-02 完了済1件NOOPとSUCCESS --resume-runは再オープンしない", async (context) => {
