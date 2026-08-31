@@ -243,7 +243,7 @@ nodes:
 - 生成したロックキーが kintone のフィールド制約を満たすこと
 - `business_key_policy`のtype、period、timezone、formatと`max_active_runs`が対応値であること
 - `network_lock.lease_duration_sec`と`heartbeat_interval_sec`が正の整数で、heartbeatがleaseより短く、推奨上限`lease_duration_sec / 3`以下であること
-- `idempotent = true`のSQLに、as-ofで固定されない時刻関数、乱数など明確な非決定要素がないこと。検出時は検証エラーまたは承認済み例外をmanifestへ記録すること
+- `idempotent = true`のSQLに、as-ofで固定されない時刻関数、乱数など明確な非決定要素がないこと。検出時は検証エラーまたは承認済み例外をmanifestへ記録すること。**この検査は決定性の補助検査であり、冪等性の証明ではない**。キー指定のないINSERTや外部への通知は完全に決定的でも非冪等であり、逆に時刻関数を含んでもキー指定UPSERTなら冪等でありうる。`idempotent`宣言の正しさは定義作成者の責務とする(2026-08-31明確化。操作種別による自動分類はPhase 2検討)
 
 複数のノードが同時に実行可能な場合、Phase 1 は定義順を tie-breaker とする安定トポロジカル順で直列実行する。
 
@@ -256,7 +256,7 @@ Phase 1で受理するtypeは次の2つとする。
 | `scheduled_period` | 日次・月次等の定期業務 | `period`、`timezone`、`format`。起動時に`--scheduled-for` |
 | `explicit` | 不定期、backfill、correction | 起動時に`--business-key` |
 
-`scheduled_period`の`period`はPhase 1では`day`または`month`とする。formatは許可済みplaceholderだけを使用し、同じ入力から常に同じ文字列を生成する。`max_active_runs`は1以上の整数で、Phase 1の既定値は1とする。active Runは`resume_allowed = true`かつNetwork Run statusが`SUCCESS`以外のRunと定義する。`ARCHIVED`または`resume_allowed = false`のRunはactive数へ含めない。
+`scheduled_period`の`period`はPhase 1では`day`または`month`とする。formatは許可済みplaceholderだけを使用し、同じ入力から常に同じ文字列を生成する。`max_active_runs`は1以上の整数で、Phase 1の既定値は1とする。active Runは`resume_allowed = true`かつNetwork Run statusが`SUCCESS`以外のRunと定義する。`ARCHIVED`または`resume_allowed = false`のRunはactive数へ含めない。**`max_active_runs`は並列度ではない** — 同時に「未完了のまま存在できるRun(別business key)の本数」の上限であり、Phase 1の実行はNetworkロック(D-03)により常に直列である(2026-08-31明確化)。
 
 ### 4.4 外部ジョブスケジューラとの責務境界
 
@@ -529,13 +529,14 @@ Network Run 作成は、バンドル保存とハッシュ検証が完了して�
 2. Network Run ロックを取得する。
 3. 保存済み実行バンドルを取得し、SHA-256 と接続先 snapshot を検証する。
 4. `Run Invocation(mode = RESUME)` を作成する。
-5. `SUCCESS` は保持する。
-6. `BLOCKED` を `WAITING` に戻して依存を再評価する。
-7. `FAILED` / `CANCELLED` は `idempotent = true` のノードだけを `WAITING` に戻す。`idempotent = false`は状態を維持し、そのノードと子孫を対象から除外する。依存しない系統の評価と実行は継続する。
-8. `WAITING` の未着手ノードを評価する。
-9. `UNKNOWN`が1件でもあれば、そのノードと子孫を対象から除外する。依存しない系統の評価と実行は継続する。
-10. 安定トポロジカル順に直列実行し、各物理実行で Node Attempt を追記する。
-11. 全 Node State から Network Run の集約状態を更新する。
+5. reconciliation(D-09 の六検査と修復)を実施し、一意に修復できない場合は SQL を開始せず fail-closed で停止する(受入18)。旧 Invocation が残した孤児 RUNNING Attempt はジョブログ突合で裁定し、放棄 Invocation を終端する(受入25)。
+6. `SUCCESS` は保持する。
+7. `BLOCKED` を `WAITING` に戻して依存を再評価する。
+8. `FAILED` / `CANCELLED` は `idempotent = true` のノードだけを `WAITING` に戻す。`idempotent = false`は状態を維持し、そのノードと子孫を対象から除外する。依存しない系統の評価と実行は継続する。
+9. `WAITING` の未着手ノードを評価する。
+10. `UNKNOWN`が1件でもあれば、そのノードと子孫を対象から除外する。依存しない系統の評価と実行は継続する。
+11. 安定トポロジカル順に直列実行し、各物理実行で Node Attempt を追記する。
+12. 全 Node State から Network Run の集約状態を更新する。
 
 ### 7.2 `--rerun-from`
 
@@ -543,7 +544,7 @@ Network Run 作成は、バンドル保存とハッシュ検証が完了して�
 
 終端`SUCCESS`のNetwork Runは再オープンしない。終端`SUCCESS` Runへの`--rerun-from`は検証エラーとし、correction用の新しいbusiness keyで新しいNetwork Runを作成する。
 
-指定ノードが存在しない、snapshot の DAG に対して子孫集合を計算できない、対象集合に未解決 `UNKNOWN` が含まれる、または対象集合に `idempotent = false` のノードが含まれる場合は実行しない。非冪等ノードの再実行は、業務固有の突合・補償手順を伴う専用の運用フローとして Phase 1 の汎用 CLI から分離する。
+指定ノードが存在しない、snapshot の DAG に対して子孫集合を計算できない、対象集合に未解決 `UNKNOWN` が含まれる、または対象集合に **`idempotent = false` かつ既存の Node Attempt を持つ(`latest_attempt_no > 0`)** ノードが含まれる場合は実行しない。未実行(`latest_attempt_no = 0`)の非冪等ノードは、`--resume` と同様に初回 attempt として実行できる — `--rerun-from` が `--resume` に対して追加するリスクは「実行済みノードの強制再実行」だけであり、attempt を持たないノードの初回実行に二重実行リスクは存在しないためである(2026-08-31 FDR再審議で精緻化)。実行済み非冪等ノードの再実行は、業務固有の突合・補償手順を伴う専用の運用フローとして Phase 1 の汎用 CLI から分離する。なお `PREPARE_FAILED` 等の SQL 未到達 attempt のみを持つ非冪等ノードも保守側(拒否)に倒す。この場合は `--resume` で自然に継続できる。
 
 ### 7.3 `UNKNOWN`と非冪等`FAILED`の手動解決
 
@@ -674,6 +675,7 @@ ksql-flownet force-unlock-network monthly_close \
 - `--rerun-from` は `--resume-run` または既存 Run を特定できる `--resume` と併用する。
 - 終端`SUCCESS` Runへの`--rerun-from`は拒否する。
 - resume 中に `--as-of`、現在の SQL、現在の DAG を上書き適用してはならない。
+- NEW時の`as_of`は、`--scheduled-for`指定時はその値をRunへ固定し、未指定時はフィールドをnullとして実行時に`created_at`(Run作成時刻、不変)を用いる。以降のresume・rerunはこの固定値だけを使用する(2026-08-31明確化。実装: ensure-run/scheduler)。
 - 定義や as-of を変えたい場合は、変更理由を識別できる異なる `business_key` で新しい Network Run を作る。
 
 既存の`run-all --resume`／`--resume-batch`を、Phase 1のNetwork Runへ透過的にresume移行しない。旧実行にはbusiness key、不変bundle、Node Stateがなく、安全な同一Run継続を保証できないためである。旧履歴を参照する必要がある場合は、`legacy_batch_id`を持つ監査専用データとして取り込み、`run_id`へ変換せず、resume判定にも使用しない。FlowNetへ移行する業務は新しいNetwork Runとして開始する。
@@ -693,6 +695,11 @@ ksql-flownet force-unlock-network monthly_close \
 | 上記以外かつ`started_at`が非null | `RUNNING` |
 
 Phase 1では`SKIPPED`を生成せず、Network Run成功条件を全ノード`SUCCESS`に限定する。`started_at`は、開始前検証とreconciliationを完了し、最初のInvocationがノード評価へ進む直前に一度だけ設定する。Network Run集約状態は、Networkロックを保持するInvocationだけが全Node Stateから計算し、revision付きで更新する。
+
+注意(2026-08-31明確化):
+
+- Run集約`RUNNING`は「未完了」の意であり、**生きた実行の存在を意味しない**。lease drain後(`NODES_DEFERRED`)や`LOCK_CONFLICT`で`WAITING`へ戻した後は、プロセスが存在しなくてもRunは`RUNNING`を維持する。実行中かどうかの判別は`status`コマンドのNetwork lock owner/`stale_candidate`で行う。
+- 優先順位が`UNKNOWN` > `RUNNING` > `FAILED`であることは意図的な安全側設計である。`UNKNOWN`は他の何よりも先に人の注意を要求し、`RUNNING`中の`FAILED`はまだRun全体の結論ではない。
 
 ---
 
@@ -745,7 +752,7 @@ Phase 1では`SKIPPED`を生成せず、Network Run成功条件を全ノード`S
 9. `idempotent = false` の UNKNOWN/FAILED ノードが自動リランされない。
 10. `node_id != job_id`の定義でも、ジョブネット内ノードと同じ`job_id`の単体ジョブが同時起動したとき、Nodeロックで一方が停止する。
 11. cronの`--resume`が`--scheduled-for`から月跨ぎ・年跨ぎ・timezone境界でも同じbusiness keyを決定的に生成し、未完了Run 1件を継続し、0件なら新規作成し、完了済みなら二重実行せずExit 0になる。
-12. `--rerun-from`が指定ノードと全子孫だけに新しいattemptを作り、対象集合に`idempotent = false`があれば拒否する。終端`SUCCESS` Runも拒否する。
+12. `--rerun-from`が指定ノードと全子孫だけに新しいattemptを作り、対象集合に`idempotent = false`かつ既存attemptを持つ(`latest_attempt_no > 0`)ノードがあれば拒否する。未実行の非冪等ノードは初回attemptとして実行できる。終端`SUCCESS` Runも拒否する。
 13. 同じ `profile + network_id + business_key` の Run を、完了・未完了を問わず重複作成できない。
 14. ロック取得不能、snapshot 取得不能、ログ永続化不能の各開始時エラーが fail-closed になる。
 15. 別business keyの未完了Runが`max_active_runs`に達している場合、新しいRunを作らず阻害する`run_id`を返す。
@@ -786,16 +793,7 @@ Phase 1では`SKIPPED`を生成せず、Network Run成功条件を全ノード`S
 
 ## 14. 凍結前に残る確認事項
 
-凍結判断の正本は、[Phase 1 Freeze Decision Record](./phase1-freeze-decision-record.md) とする。同ADRが`PROPOSED`の間、本書も「設計凍結候補」を維持する。
-
-| 分類 | 主な項目 |
-| --- | --- |
-| `DECIDED` | 同一Run継続、ensure-run、Network単位ロック、UNKNOWN Resolution、status移行原則、旧run-all移行境界、read-only CLI、外部ジョブスケジューラとの責務境界 |
-| `PROPOSED` | Source of Truth、FlowNet新規1／2アプリ構成（既存kSQL-Flow JOBログアプリは別所有）、Network Lock配置、二重書込み・reconciliation、canonical lock key、Job／Network lockのforce-unlock回復契約 |
-| `VALIDATION_REQUIRED` | kintone重複禁止INSERTの同時競合、bundle upload/download、障害注入 |
-| `OPERATIONS_REQUIRED` | bundle保持・archive、UNKNOWN解決権限、新旧lock protocol移行 |
-
-同ADRの凍結ゲートをすべて満たし、受入試験と復旧訓練が完了した時点で「Phase 1 凍結版」へ昇格する。
+凍結判断の正本は、[Phase 1 Freeze Decision Record](./phase1-freeze-decision-record.md) とする。**2026-08-31、同ADRの凍結ゲート全項目を満たし`ACCEPTED`となり、本書は「Phase 1 凍結版」へ昇格した**。全確認事項は`DECIDED`である(現在状態はFDR §2判断表が正)。以降の本節は凍結までの管理経緯の記録であり、凍結後の変更はFDR再審議手続きによる。
 
 ---
 

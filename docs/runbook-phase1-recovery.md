@@ -97,6 +97,11 @@ ksql-flownet run-network <network_id> --resume-run <run_id> ...
 - run_idは変わらず、invocation_idだけが増える。SUCCESS済みNodeは再実行されない。
 - 非冪等のFAILED Nodeは自動再実行されない(手順5で解決してから進める)。
 
+## 運用上の注意(2026-08-31追記)
+
+- **ノード実行時間の上限**は現状kSQL-Flow側の`batch_timeout_sec`と、FlowNetのrun-subprocessのgraceful→forced kill経路に依存する。FlowNet側のノード単位上限時間はPhase 2(P2-04)。ハング疑い時は`status --json`のlock heartbeatとジョブログで生存を判別する。
+- **決定的に失敗するノードの定期resume**はattemptを蓄積し続ける(連続失敗ブレーキはPhase 2=P2-03)。cron等で`--resume`を定期実行する構成では、失敗が継続するRunを検知したらcron側で一時停止するか、当該Runの`resume_allowed`をfalse化して蓄積を止める。
+
 ## 残余リスク(FDR記載の再掲)
 
 - lock照合から状態更新までのTOCTOU窓(D-29)。Job lockが最終防波堤だが、Network集約の整合はfencing頼み。

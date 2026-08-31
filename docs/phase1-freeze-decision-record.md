@@ -7,7 +7,8 @@
 - version記録: 実装 `@rex0220/ksql-flownet` 0.1.0 / レコード構成 schema_version 1 / JOBログ相関 kSQL-Flow M1(対応表: `templates/README.md`)
 - 受入試験結果: `docs/acceptance-phase1.md`(28/28)、証跡 `docs/test-results/`(m3〜m7ゲート)
 - 復旧訓練記録: m6-04実機ドリル(`docs/test-results/m6-gate-20260830/`)、手順正本 `docs/runbook-phase1-recovery.md`・`docs/runbook-phase1-migration.md`
-- 凍結後の変更: 実装都合で本書・仕様を黙って変更せず、FDR再審議手続きによる
+- 凍結後の変更: 実装都合で本書・仕様を黙って変更せず、FDR再審議手続きによる(記録: 「13. 凍結後の再審議記録」)
+- 読み方の注意: 本文中の日付付き追記にある「`PROPOSED`を維持する」等の文言は**追記時点の履歴**であり、各判断の現在状態は「2. 判断の一覧」表と本ヘッダが正である
 - 関連仕様: [ジョブネット管理仕様書](./job-network-phase1-spec.md)
 - 実行境界: [kSQL-Flow Execution Contract v1](./execution-contract-v1.md)
 - 分離判断: [プロジェクト分離ADR](./architecture-separation-adr.md)
@@ -1125,3 +1126,15 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 4. 受入試験結果と復旧訓練記録への参照を追加する。
 
 2026-08-31、上記1〜4を同一コミットで実施した(冒頭のヘッダおよび`docs/job-network-phase1-spec.md`冒頭を参照)。
+
+---
+
+## 13. 凍結後の再審議記録
+
+### R2-1: `--rerun-from`非冪等拒否条件の精緻化(2026-08-31承認)
+
+契機: 凍結直後の外部評価(`docs/phase1-spec-review-2.md`)。現行規則「対象集合に`idempotent = false`が含まれれば拒否」は実行履歴を見ず、§4.1例の非冪等終端ノード(`send_invoice`)を持つDAGで§9のCLI例が常に拒否される。`--resume`は同じ未実行非冪等ノードを初回実行するため非対称。
+
+決定: 拒否条件を「`idempotent = false` **かつ** 既存attemptを持つ(`latest_attempt_no > 0`)」へ精緻化する。`--rerun-from`が`--resume`へ追加するリスクは実行済みノードの強制再実行のみであり、未実行ノードの初回実行に二重実行リスクはない。SQL未到達(`PREPARE_FAILED`のみ)のattemptを持つ非冪等ノードは保守側(拒否)に倒し、`--resume`での継続に委ねる。耐久開始マーカー基準へのさらなる精緻化はPhase 2判断。
+
+反映: 仕様§7.2・§12受入12、`ensure-run.ts`、unit回帰、E2E m7-05実機検証、受入マトリクス受入12。承認記録: `spikes/fdr-update-proposal-2026-08-31b-rerun.md`。同時に意味論を変えない文書明確化8件(§10 RUNNING の意味、§4.2冪等検査の位置づけ、§4.3並列度注記、§7.1 reconciliation手順、§14、as_of決定、本書履歴注記、runbook注記)とPhase 2バックログP2-02〜04を実施した。
