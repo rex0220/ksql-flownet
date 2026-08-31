@@ -27,4 +27,4 @@ run-network flownet/network-monthly-summary.yaml --resume --scheduled-for 2026-0
 
 ## 発見事項(切替ブロッカー→解消)
 
-**my-ksql-jobsのnode_modules内`@rex0220/ksql-flow`は0.6.0でM1実行契約(`capabilities`等)未対応**。初回起動は`KSQL_FLOW_EXIT_MISMATCH`でfail-closed停止した(契約プローブが正しく機能)。`KSQL_FLOW_BIN_ARGS`をgit cloneしたksql-flowリポジトリのdist(0.7.0)へ向けて解消。**npmへ0.7.0を公開するまで、本番環境設定はcloneしたksql-flow distを指すこと**(my-ksql-jobs返信§4-4の`node_modules/...`推奨値は0.7.0公開後に有効)。
+**my-ksql-jobsのnode_modules内`@rex0220/ksql-flow`は0.6.0でM1実行契約(`capabilities`等)未対応**。初回起動は`KSQL_FLOW_EXIT_MISMATCH`でfail-closed停止した(契約プローブが正しく機能)。`KSQL_FLOW_BIN_ARGS`をgit cloneしたksql-flowリポジトリのdist(0.7.0)へ向けて解消。**追記(同日)**: 実施時点で0.7.0は**npm公開済みだった**(dist-tags latest=0.7.0を実測確認 — 「未公開」は当方の旧情報)。したがって恒久策は`npm install @rex0220/ksql-flow@0.7.0`でnode_modules方式へ戻すことで、clone版dist指定は必須ではない。要件の本質は「**ksql-flow 0.7.0以上(M1実行契約対応)を起動すること**」。
