@@ -23,6 +23,7 @@ export const M5_PREFIX = "M5";
 export const M5_JOB_ID = "m5_shared_read";
 export const M6_PREFIX = "M6";
 export const M7_PREFIX = "M7";
+export const M8_PREFIX = "M8";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -88,6 +89,10 @@ export function makeM6Scope(label) {
 
 export function makeM7Scope(label) {
   return makeScope(M7_PREFIX, label);
+}
+
+export function makeM8Scope(label) {
+  return makeScope(M8_PREFIX, label);
 }
 
 function makeScope(prefix, label) {
@@ -1134,6 +1139,13 @@ export async function runM7(importMetaUrl, name, test, options = {}) {
   });
 }
 
+export async function runM8(importMetaUrl, name, test, options = {}) {
+  return runGate(importMetaUrl, name, test, {
+    ...options,
+    prefix: M8_PREFIX,
+  });
+}
+
 async function runGate(importMetaUrl, name, test, options) {
   const timing = createM5Timing();
   timing.mark("testStartedAt");
@@ -1149,7 +1161,7 @@ async function runGate(importMetaUrl, name, test, options) {
     settings = {
       ...baseSettings,
       workdir: join(baseSettings.workdirBase, scope),
-      ...(options.prefix === M6_PREFIX || options.prefix === M7_PREFIX
+      ...([M6_PREFIX, M7_PREFIX, M8_PREFIX].includes(options.prefix)
         ? {
             servicePrincipal: `${options.prefix.toLowerCase()}-e2e-service`,
             requestedBy: `${options.prefix.toLowerCase()}-e2e-requester`,

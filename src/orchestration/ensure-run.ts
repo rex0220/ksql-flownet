@@ -41,6 +41,7 @@ import type {
 } from "../persistence/repository.js";
 import { RepositoryError } from "../persistence/repository.js";
 import { reconcileRun } from "./reconciliation.js";
+import { isCancelHold } from "./cancel-request.js";
 
 export type EnsureRunOutcome = "NEW" | "RESUME" | "NOOP";
 
@@ -51,6 +52,7 @@ export type EnsureRunErrorCode =
   | "RUN_NOT_FOUND"
   | "RUN_ID_MISMATCH"
   | "RUN_NOT_RESUMABLE"
+  | "RUN_ON_HOLD"
   | "MAX_ACTIVE_RUNS"
   | "PROFILE_DESCRIPTION_INVALID"
   | "BUNDLE_INPUT_CHANGED"
@@ -234,6 +236,15 @@ export async function ensureRun(
       outcome = "NEW";
     } else {
       assertRunIdentity(run.value, input.profile, definition.network_id);
+      const cancelRequest = await input.repository.getCancelRequest(
+        run.value.run_id,
+      );
+      if (isCancelHold(cancelRequest)) {
+        throw new EnsureRunError(
+          "RUN_ON_HOLD",
+          `run '${run.value.run_id}' is on hold by CANCEL:${run.value.run_id} (${cancelRequest.value.state}, revision ${cancelRequest.revision})`,
+        );
+      }
       if (run.value.status === "SUCCESS" && input.rerunFrom === undefined) {
         await input.lockManager.release(lock, "SUCCESS", "ALREADY_SUCCESS");
         lock = null;

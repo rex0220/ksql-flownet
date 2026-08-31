@@ -227,7 +227,7 @@
       dropdown(
         "record_type",
         "レコード種別",
-        ["NETWORK_RUN", "NODE_STATE", "NETWORK_LOCK"],
+        ["NETWORK_RUN", "NODE_STATE", "NETWORK_LOCK", "CANCEL_REQUEST"],
         true,
       ),
       text("run_id", "Network Run ID"),

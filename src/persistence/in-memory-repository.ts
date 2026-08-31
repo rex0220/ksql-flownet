@@ -1,6 +1,7 @@
 import { attemptKey, runKey } from "../domain/canonical-record-key.js";
 import type {
   AttemptResolution,
+  CancelRequest,
   NetworkRun,
   NodeAttempt,
   NodeState,
@@ -48,11 +49,20 @@ function assertRevision<T>(stored: Stored<T>, expected: number): void {
   }
 }
 
+function isAllowedCancelTransition(from: string, to: string): boolean {
+  return (
+    (from === "REQUESTED" && (to === "ACCEPTED" || to === "RELEASED")) ||
+    (from === "ACCEPTED" && to === "RELEASED") ||
+    (from === "RELEASED" && to === "REQUESTED")
+  );
+}
+
 /** A deterministic component-test fake. It intentionally models unique keys and revisions. */
 export class InMemoryPersistenceRepository implements PersistenceRepository {
   private readonly runs = new Map<string, Stored<NetworkRun>>();
   private readonly runKeys = new Map<string, string>();
   private readonly invocations = new Map<string, Stored<RunInvocation>>();
+  private readonly cancelRequests = new Map<string, Stored<CancelRequest>>();
   private readonly states = new Map<string, Stored<NodeState>>();
   private readonly attempts = new Map<string, Stored<NodeAttempt>>();
   private readonly attemptIds = new Map<string, string>();
@@ -107,6 +117,46 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
       .sort((left, right) =>
         left.value.run_id.localeCompare(right.value.run_id),
       );
+  }
+
+  async getCancelRequest(
+    runId: string,
+  ): Promise<Versioned<CancelRequest> | null> {
+    const stored = this.cancelRequests.get(runId);
+    return stored === undefined ? null : copy(stored);
+  }
+
+  async createCancelRequest(
+    request: CancelRequest,
+  ): Promise<Versioned<CancelRequest>> {
+    if (this.cancelRequests.has(request.run_id))
+      throw new RepositoryError("DUPLICATE_RECORD", "cancel request exists");
+    if (request.state !== "REQUESTED")
+      throw new RepositoryError(
+        "INVALID_STATE_TRANSITION",
+        "a new cancel request must be REQUESTED",
+      );
+    const stored = { value: structuredClone(request), revision: 1 };
+    this.cancelRequests.set(request.run_id, stored);
+    return copy(stored);
+  }
+
+  async updateCancelRequest(
+    runId: string,
+    expectedRevision: number,
+    request: CancelRequest,
+  ): Promise<Versioned<CancelRequest>> {
+    const stored = this.required(this.cancelRequests, runId, "cancel request");
+    assertRevision(stored, expectedRevision);
+    if (
+      request.run_id !== runId ||
+      !isAllowedCancelTransition(stored.value.state, request.state)
+    )
+      throw new RepositoryError(
+        "INVALID_STATE_TRANSITION",
+        `${stored.value.state} -> ${request.state} is not allowed`,
+      );
+    return next(stored, request);
   }
 
   async updateRunAggregate(
