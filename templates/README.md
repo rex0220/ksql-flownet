@@ -23,6 +23,8 @@ kSQL-FlowNetのControl Planeで使用する「実行管理」「監査履歴」�
 
 既存の実行管理アプリには、先に`add-cancel-request-option.console.js`を実行して`CANCEL_REQUEST`選択肢を追加してください。
 
+確認ボード用の3一覧を追加する場合は、`add-triage-views.console.js`を実行し、既存一覧を保持したまま内容を確認してデプロイしてください。
+
 開発者ツールのConsoleで`adjust-flownet-app-layout.console.js`を実行し、promptへ実行管理と監査履歴のアプリIDを入力します。スクリプトは既存フィールドの`size`だけを変更し、フィールドの追加・削除・並び替えは行いません。内容を確認してからデプロイしてください。
 
 ## 環境変数とAPIトークン権限

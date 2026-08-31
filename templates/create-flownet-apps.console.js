@@ -402,6 +402,48 @@
 
   function createExecutionViews() {
     return [
+      {
+        name: "01_要対応ノード",
+        type: "LIST",
+        fields: [
+          "node_id",
+          "job_id",
+          "status",
+          "status_reason",
+          "blocked_by",
+          "run_id",
+          "latest_attempt_no",
+          "updated_at",
+        ],
+        filterCond:
+          'record_type in ("NODE_STATE") and status in ("FAILED","UNKNOWN","BLOCKED")',
+        sort: "updated_at desc",
+        index: "0",
+      },
+      {
+        name: "02_未完了Run",
+        type: "LIST",
+        fields: [
+          "run_id",
+          "network_id",
+          "business_key",
+          "status",
+          "started_at",
+          "updated_at",
+        ],
+        filterCond:
+          'record_type in ("NETWORK_RUN") and status not in ("SUCCESS")',
+        sort: "updated_at desc",
+        index: "1",
+      },
+      {
+        name: "03_停止要求",
+        type: "LIST",
+        fields: ["record_key", "run_id", "status_reason", "更新日時"],
+        filterCond: 'record_type in ("CANCEL_REQUEST")',
+        sort: "更新日時 desc",
+        index: "2",
+      },
       listView(
         "Network Run",
         "NETWORK_RUN",
@@ -419,7 +461,7 @@
           "updated_at",
         ],
         "updated_at desc",
-        0,
+        3,
       ),
       listView(
         "Node State",
@@ -437,7 +479,7 @@
           "updated_at",
         ],
         "updated_at desc",
-        1,
+        4,
       ),
       listView(
         "Network Lock",
@@ -453,7 +495,7 @@
           "revision",
         ],
         "lease_expires_at desc",
-        2,
+        5,
       ),
       listView(
         "全レコード",
@@ -467,7 +509,7 @@
           "lease_expires_at",
         ],
         "record_key desc",
-        3,
+        6,
       ),
     ];
   }
