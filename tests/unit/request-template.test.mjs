@@ -108,6 +108,10 @@ test("一覧2件は重複しないindexと正しいfilter・安定sortを持つ"
     views["01_未処理要求"].filterCond,
     'request_state in ("REQUESTED", "ACCEPTED")',
   );
+  // 各viewはキーと同値のnameが必須(GAIA_VI03 — 2026-09-01実機の回帰固定)
+  for (const [key, view] of Object.entries(views)) {
+    assert.equal(view.name, key, `view nameはキーと同値必須: ${key}`);
+  }
   // 一覧sortは$id・複数キー不可(2026-09-01実機で一覧設定PUTが失敗した回帰固定)
   for (const view of Object.values(views)) {
     assert.match(
