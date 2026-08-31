@@ -1,7 +1,7 @@
 # P2-01: アプリ起点リラン(案B) 仕様書
 
-- 文書状態: **DRAFT**(Phase 2 最初の作業単位。凍結仕様の変更ではなく外付け追加のためFDR再審議は不要 — ただし本仕様の受入合格まで本番profileへ載せない)
-- 起案日: 2026-08-31
+- 文書状態: **REVIEWED**(Phase 2 最初の作業単位。凍結仕様の変更ではなく外付け追加のためFDR再審議は不要 — ただし本仕様の受入合格まで本番profileへ載せない)
+- 起案日: 2026-08-31 / 改訂: 2026-08-31 Codexレビュー([実装計画](./p2-01-implementation-plan.md)§2)の指摘G-01〜G-08を反映(初版DRAFTの実装不能3点 — network定義パス不足・Invocation ID取得不能・30分固定stale — を解消)
 - 正本参照: [implementation-plan.md](./implementation-plan.md) P2-01/P2-02、[job-network-phase1-spec.md](./job-network-phase1-spec.md) §7.4(PRE-06 = 要求モデルのプロトタイプ)・§7.2(rerun-from)・§5.3(ブレーキ)、[討論記録](./kintone-ops-roadmap-discussion.md) §13.2(設計条件)、my-ksql-jobs `docs/poll_control_setup.md`(旧ポーラーの設計資産)
 
 ## 1. 目的と非目的
@@ -34,7 +34,8 @@
 | `rerun_from_node` | 文字列1行(任意) | 人 | RERUN時のみ有効。`--rerun-from`対象ノード |
 | `reason` | 文字列複数行(必須) | 人 | 理由(PRE-06と同じく必須) |
 | `request_state` | ドロップダウン | 機械 | `REQUESTED`(初期値) → `ACCEPTED` → `DONE` / `REJECTED` |
-| `claimed_at` / `claimed_host` | 日時/文字列 | 機械 | 受理時に記録(stale判定用) |
+| `claimed_at` / `claimed_host` | 日時/文字列 | 機械 | 受理時に記録 |
+| `claim_heartbeat_at` | 日時 | 機械 | 子プロセス実行中にポーラー親が定期更新(stale判定の主材料 — G-05) |
 | `result_code` / `result_message` | 文字列 | 機械 | 実行結果(拒否理由・起動したInvocation ID・Exit Code) |
 | 作成者/作成日時 | システム | — | **要求者の真正性の根拠**(偽装不可。専用フィールドで自己申告させない) |
 
@@ -47,25 +48,26 @@
 
 **受理範囲(fail-closed・固定)** — 範囲外は`REJECTED`+理由:
 
-| request_type | 受理条件 | 実行内容 |
+| request_type | 受理条件(一次審査) | 実行内容 |
 | --- | --- | --- |
-| `RERUN` | 対象Runが存在し未終端(`FAILED`集約含む再開可能状態)、`activity`が`LIVE`でない、holdされていない(`CANCEL_REQUEST`が`REQUESTED/ACCEPTED`でない) | `run-network --resume-run <run_id>`(`rerun_from_node`指定時は`--rerun-from`付与) |
+| `RERUN` | 対象Runの`status`が`CREATED / RUNNING / FAILED / CANCELLED`のいずれか(**G-01**: `SUCCESS / UNKNOWN`は拒否)、`resume_allowed = true`かつ`lifecycle_status = ACTIVE`、live ownerなし(**G-02**: `activity != LIVE`に加え、詳細statusのlock ownerが当該RunのInvocationに属しlease生存(分精度+60秒保守)なら拒否 — 終端statusにはactivityが付かないため)、holdされていない(`activity = STOPPED`でない) | `run-network <定義パス> --resume-run <run_id> --json`(`rerun_from_node`指定時は`--rerun-from`付与) |
 | `STOP` | 対象Runが存在し未終端 | `cancel-run --run-id <run_id> --reason-file <一時ファイル>` |
-| `RELEASE` | 対象Runに`ACCEPTED/REQUESTED`のCANCEL_REQUESTがある | `cancel-run --run-id <run_id> --release --reason-file <一時ファイル>` |
+| `RELEASE`(**G-06: 採用**) | 対象Runに`REQUESTED/ACCEPTED`のCANCEL_REQUESTがある(一次審査は`activity = STOPPED`) — holdなしは`REJECTED / RUN_NOT_ON_HOLD` | `cancel-run --run-id <run_id> --release --reason-file <一時ファイル>`。**hold解除のみで自動再開しない**(次の定期`--resume`が再開し得ることを画面・手順へ明記) |
 
-- ポーラーの事前チェックは**一次審査**(親切な拒否理由のため)であり、正の検証はCLI側の既存規則(終端SUCCESS拒否、R2-1の非冪等×既存attempt拒否、RETRY_BRAKE解除は--rerun-fromのみ等)。CLIがExit≠0を返したら`DONE`ではなく`REJECTED`+stderr要約。
-- `RELEASE`はバックログ文言(再開+停止)への追加。理由: アプリからSTOPできてRELEASEにSSHが要るのは非対称で、一次対応が完結しない。**採否は本仕様のレビューで決定**(却下ならRELEASE行を削るだけで他へ波及しない)。
+- **対象解決(G-03)**: 要求には`run_id`しかなく、`status`/`run-network`は`network_id`・network定義パスを必須とする。ポーラーは**非秘密のallowlist設定(`network_id → network定義パス`の対応表)**を持ち、allowlist内の各networkへ`status --json`検索して一意解決する。0件は`RUN_NOT_FOUND`、複数件は`RUN_ID_AMBIGUOUS`で拒否(fail-closed)。要求者にnetwork_idを手入力させない。
+- ポーラーの事前チェックは**一次審査**(親切な拒否理由のため)であり、正の検証・排他はCLI側の既存規則(終端SUCCESS拒否、R2-1の非冪等×既存attempt拒否、RETRY_BRAKE解除は--rerun-fromのみ、lock競合等)。
+- **結果の意味論(G-04/G-07)**: `run-network`へ後方互換の`--json`出力を追加し(`outcome / run_id / invocation_id / aggregate_status / invocation_result_code`。NO-OPは`invocation_id = null`。orchestration本体は無改修 — CLI表示境界のみの拡張として本体無改修原則から明示的に分離)、ポーラーはこれで結果分類する: **`REJECTED`は事前審査拒否・spawn不能・Invocation作成前のCLI検証拒否に限定**。Invocation作成後はaggregateが非SUCCESSでも要求自体は`DONE`とし、`result_code`へInvocation result code(RETRY_BRAKE作動時は`DONE / RETRY_BRAKE`)、`result_message`へaggregateと`invocation_id`を記録する。
 
 ## 5. ポーラー `poll-requests`
 
 - 新CLIコマンド `ksql-flownet poll-requests`(one-shot: 1回の起動で未処理要求を処理して終了 — cron `*/5`起動。常駐しない。旧poll_controlと同運用)。
 - 処理順: `REQUESTED`を作成日時昇順にGET → 1件ずつ: revision fencingで`ACCEPTED`へ更新(競合したらスキップ=多重ポーラー安全) → 事前チェック → 子プロセス起動(逐次。並列起動しない) → 結果を`DONE/REJECTED`へ書き戻し。
-- **相関**: 子プロセスへ `KSQL_FLOWNET_REQUESTED_BY=app-request:<record_id>:<作成者ログイン名>`(形式固定)。監査4262から要求レコードへ辿れる。
+- **相関(G-08)**: 子プロセスへ `KSQL_FLOWNET_REQUESTED_BY=app-request:<record_id>:<作成者ログイン名(UTF-8 percent-encode)>`(形式固定。record_idは10進文字列。作成者は偽装不能なシステムフィールドのログイン名/コード。最大長超過は実行せず拒否)。監査4262から要求レコードへ辿れる。
 - **fail-closed規律**(旧ポーラーの資産を踏襲):
   - 要求GET失敗(5xx/メンテ) → 何も書かず終了。次回cronが再試行
-  - `ACCEPTED`のまま残った要求(ポーラー死亡)は、`claimed_at`+受理期限(既定30分)超過で次回ポーラーが`REJECTED`(`result_code=STALE`)へ倒す。**自動再実行はしない**(人が再要求 — 旧poll_controlのstale→UNKNOWN+チェック解除と同思想)
-  - 結果書き戻しの競合は再GET+1回再適用まで
-- 環境変数: `KSQL_FLOWNET_REQUEST_APP_ID` / `KSQL_FLOWNET_REQUEST_API_TOKEN`(既存の`.ksql-flownet.env`方式に追記)。子プロセスには親の環境をそのまま継承(cron行の`. /root/.ksql-flownet.env`が正本)。
+  - **stale判定(G-05)**: 子プロセス実行中はポーラー親が`claim_heartbeat_at`を定期更新する(heartbeat更新失敗だけでは子をkillしない)。stale回収は「`claim_heartbeat_at`が既定15分(ポーリング間隔5分×3。設定可能)+kintone DATETIME分精度余裕60秒を超過」**かつ**「status詳細JSONで当該Runのlive ownerを確認できない」場合のみ、`REJECTED`(`result_code=STALE`)へ倒す。status取得不能時は何も更新しない。**STALEは「実行有無・結果を確定不能」を意味し、自動再実行はしない**(Run/監査を人が照合するまで再要求禁止 — 文言固定。旧poll_controlのstale→UNKNOWN+チェック解除と同思想。固定30分期限は長時間Network実行と整合しないため不採用)
+  - 結果書き戻しの競合は再GET+1回再適用まで(再GETで既に同じ終端値なら成功扱い)
+- 環境変数: `KSQL_FLOWNET_REQUEST_APP_ID` / `KSQL_FLOWNET_REQUEST_API_TOKEN`(既存の`.ksql-flownet.env`方式に追記)+allowlist設定(非秘密ファイル)。子プロセスには親の環境をそのまま継承し、`KSQL_FLOWNET_REQUESTED_BY`のみ要求相関値で上書き(cron行の`. /root/.ksql-flownet.env`が正本)。
 
 ## 6. 通知(最小)
 
@@ -79,8 +81,11 @@ Phase 1の確認ボード方針を踏襲し、**アプリの一覧**で運用す
 4. STOP要求 → CANCEL_REQUEST作成 → 次ノード境界で停止(`CANCELLED/STOP_REQUESTED`)、要求`DONE`
 5. RELEASE要求(採用時) → hold解除 → 後続RERUNが受理される
 6. 多重ポーラー模擬(同一要求へ同時claim) → 一方だけが実行、他方はスキップ
-7. `ACCEPTED`のまま放置した要求が受理期限後に`REJECTED(STALE)`へ倒れ、自動再実行されない
+7. heartbeatが停止した`ACCEPTED`要求が(非LIVE確認のうえ)`REJECTED(STALE)`へ倒れ、自動再実行されない。**実行済み・未実行の両方を模擬**する。逆に、heartbeat継続中の長時間実行はSTALEにならない
 8. 要求GET失敗時(トークン無効で模擬)に何も書かず終了する
+9. RETRY_BRAKE作動ノードを含むRERUNが`DONE / RETRY_BRAKE`で記録され、`rerun_from_node`指定の再要求で解除・再実行できる
+
+追加の判定matrix(拒否系の網羅・境界値・情報漏えい防止)は[実装計画](./p2-01-implementation-plan.md)§2.4を正本とし、単体/実機E2Eで満たす。
 
 ## 8. 作業分割(想定)
 
