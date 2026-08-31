@@ -178,7 +178,12 @@
     error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   const api = async (endpoint, method, body = {}) => {
     try {
-      return await kintone.api(kintone.api.url(endpoint, true), method, body);
+      // kintone.api.url(..., true) により要求トークン付与とゲストスペースURLをkintone側へ任せる。
+      return await kintone.api(
+        kintone.api.url(`/k/v1${endpoint}.json`, true),
+        method,
+        body,
+      );
     } catch (error) {
       throw new Error(
         `${method} /k/v1${endpoint}.json -> ${errorText(error)}`,

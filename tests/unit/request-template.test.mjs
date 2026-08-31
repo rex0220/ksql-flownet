@@ -31,7 +31,17 @@ async function evaluateTemplate({ existing = [] } = {}) {
       throw new Error(`unexpected API call: ${method} ${url}`);
     },
   };
-  kintone.api.url = (endpoint) => endpoint;
+  // 実機同様に /k/v1/...json 形式だけを受け付ける(2026-09-01実機不具合の回帰固定:
+  // kintone.api.url へ生パス "/apps" を渡すと同名確認の最初の呼出しで失敗する)
+  kintone.api.url = (endpoint, detectGuestSpace) => {
+    assert.equal(detectGuestSpace, true, "kintone.api.urlは第2引数trueで呼ぶ");
+    assert.match(
+      endpoint,
+      /^\/k\/v1\/[a-z/]+\.json$/u,
+      `kintone.api.urlへは/k/v1プレフィックスと.json付きで渡す: ${endpoint}`,
+    );
+    return endpoint.replace(/^\/k\/v1/u, "").replace(/\.json$/u, "");
+  };
   await vm.runInNewContext(script, {
     confirm: () => false,
     console: { log() {}, warn() {}, error() {}, table() {} },
