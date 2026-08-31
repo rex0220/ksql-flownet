@@ -30,6 +30,14 @@
 - APIトークン: 実行管理・監査履歴とも追加/読取/編集(**削除なし** — templates/README.md権限表どおり)。値はOS環境変数のみ(リポジトリ・.env平文へ置かない)
 - 業務アプリ(顧客管理4246/案件管理4247)・JOBログ(4249)は現行トークンのまま
 
+## 3.5 my-ksql-jobs側の受け入れ準備(2026-08-31完了 — 返信: my-ksql-jobs/docs/kSQL-FlowNetへの返信-20260831-初回導入.md、コミットb33a9d4)
+
+- network-monthly-summary.yamlレビュー・コミット済み。**idempotent宣言3件をジョブ実装オーナーが承認**(棚卸しと独立にSQL突合+UPSERTキー「会社名」の重複禁止=YESを4246実測で確認)
+- 起動スクリプトrun_flownet.sh/.bat新設(git cloneしたksql-flownetのdist直接起動、KSQL_FLOWNET_DIR既定../ksql-flownet、当月初+09:00自動計算、SCHEDULED_FORで上書き)
+- 切替準備手順をmy-ksql-jobs/docs/runbook.md §5へ整理(旧run_batch.shは削除せず参照除去で無効化)
+- **実態訂正**: 現VPSに日次run_batch cronは未設定(稼働はリランポーラーのみ)。切替は「cron差替え」ではなく**「ポーラー停止+FlowNet cron行の新設」**
+- 注意: run_flownet.batの当月初自動計算はホストJST前提(JST以外はSCHEDULED_FOR明示)
+
 ## 4. 切替チェックリスト(移行runbook準拠)
 
 - [ ] 本番2アプリへ追補2本(CANCEL_REQUEST選択肢・確認ボード3一覧)をConsole適用
@@ -37,7 +45,7 @@
 - [ ] `validate`/`plan`で定義検証、`run-network`を試験business key(過去月バックフィル)で1回実行し完走確認
 - [ ] 一次対応1ページの連絡先欄を記入
 - [ ] **未完了の旧run-allバッチ0件を確認**(4249でRUNNINGなし)
-- [ ] リランポーラー(`--resume-batch`)を停止し、cronを`run_batch.sh`から`ksql-flownet run-network ... --resume --scheduled-for`へ切替(旧経路は無効化 — 並走禁止)
+- [ ] **ポーラー停止+FlowNet cron行の新設**(run_flownet.sh経由。現VPSにrun_batch日次cronは元々なし — my-ksql-jobs返信§4-1の実態訂正)。旧run_batch.shは削除せず全スケジューラからの参照除去で無効化
 - [ ] 張り付き期間開始(推奨: 月次2サイクル)。撤退条件はvision §5のとおり(二重書込み1件/一次対応が回らない/FlowNet起因の締切逸失 → 切戻し手順)
 
 ## 5. 導入後の観測
