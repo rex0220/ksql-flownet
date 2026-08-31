@@ -1,11 +1,12 @@
 # E2E環境変数セットアップ(dot-source用)。トークン値は表示しない。
 foreach ($f in @("$PSScriptRoot\..\..\.env", 'C:\Users\rex02\Projects\my-ksql-jobs\.env')) {
   foreach ($line in (Get-Content $f)) {
-    if ($line -match '^([A-Z_]+)=(.+)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
+    if ($line -match '^([A-Z][A-Z0-9_]*)=(.+)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
   }
 }
-foreach ($n in 'KSQL_SPIKE_TOKEN_EXEC','KSQL_SPIKE_TOKEN_AUDIT') {
+foreach ($n in 'KSQL_SPIKE_TOKEN_EXEC','KSQL_SPIKE_TOKEN_AUDIT','KSQL_E2E_TOKEN_LOGS','KSQL_E2E_TOKEN_LOGS_RO') {
   Set-Item -Path "env:$n" -Value ([Environment]::GetEnvironmentVariable($n,'User'))
 }
+$env:KSQL_FLOWNET_PROFILE = 'e2e'
 $env:KSQL_FLOW_BIN = 'node.exe'
 $env:KSQL_FLOW_BIN_ARGS = '["C:\\Users\\rex02\\Projects\\ksql-flow\\dist\\cli.js"]'

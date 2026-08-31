@@ -21,7 +21,7 @@ await runM5(
       prefix: M5_PREFIX,
       removed,
       localWorkdirs,
-      jobLogApp4249: "NOT_DELETED",
+      e2eJobLogApp: "NOT_DELETED",
     };
   },
   { selfCleanup: false },

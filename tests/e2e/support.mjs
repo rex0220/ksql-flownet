@@ -53,19 +53,22 @@ export function requireM5Environment(environment = process.env) {
   );
   if (baseUrl.protocol !== "https:")
     throw new Error("KSQL_SPIKE_BASE_URL は https URLで指定してください。");
-  const logAppId = positiveInteger(environment, "KSQL_FLOW_LOG_APP_ID", "4249");
-  assert.equal(logAppId, 4249, "M5 E2EのJOBログ読取先は4249に固定です");
+  const logAppId = positiveInteger(environment, "KSQL_E2E_LOG_APP_ID");
+  assert.notEqual(logAppId, 4249, "E2Eは本番ログアプリ4249を使用できません");
+  const profile = environment.KSQL_FLOWNET_PROFILE?.trim() || "e2e";
+  assert.notEqual(profile, "prod", "E2Eはprodプロファイルを使用できません");
   const ksqlFlowBin = required(environment, "KSQL_FLOW_BIN");
   const ksqlFlowBinArgs = ksqlFlowBinArgsEnvironment(environment);
   return {
     baseUrl: baseUrl.href.replace(/\/$/u, ""),
-    profile: environment.KSQL_FLOWNET_PROFILE?.trim() || "prod",
+    profile,
     stateAppId: positiveInteger(environment, "KSQL_SPIKE_APP_EXEC"),
     auditAppId: positiveInteger(environment, "KSQL_SPIKE_APP_AUDIT"),
     stateApiToken: required(environment, "KSQL_SPIKE_TOKEN_EXEC"),
     auditApiToken: required(environment, "KSQL_SPIKE_TOKEN_AUDIT"),
     jobLogAppId: logAppId,
-    jobLogReadToken: required(environment, "KSQL_TOKEN_LOGS_RO"),
+    jobLogWriteToken: required(environment, "KSQL_E2E_TOKEN_LOGS"),
+    jobLogReadToken: required(environment, "KSQL_E2E_TOKEN_LOGS_RO"),
     ksqlFlowBin,
     ksqlFlowBinArgs,
     configPath: resolve(
@@ -423,6 +426,7 @@ export function childEnvironment(settings, overrides = {}) {
     KSQL_FLOW_WORKDIR: settings.workdir,
     KSQL_FLOW_LOG_APP_ID: String(settings.jobLogAppId),
     KSQL_FLOW_LOG_API_TOKEN: settings.jobLogReadToken,
+    KSQL_E2E_TOKEN_LOGS: settings.jobLogWriteToken,
     KSQL_FLOWNET_SERVICE_PRINCIPAL:
       settings.servicePrincipal ?? "m6-e2e-service",
     KSQL_FLOWNET_REQUESTED_BY: settings.requestedBy ?? "m6-e2e-requester",

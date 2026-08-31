@@ -207,7 +207,7 @@ await runM6(
       assert.equal(adjudicatedState?.status, "UNKNOWN");
       assert.equal(adjudicatedAttempt?.status, "UNKNOWN");
       assert.equal(adjudicatedAttempt?.resultCode, "NO_EXECUTION_RESULT");
-      // FlowNet側の耐久開始マーカー。runner側マーカーは4249ログ(kill前にRUNNING確認済み)
+      // FlowNet側の耐久開始マーカー。runner側マーカーはE2Eログ(kill前にRUNNING確認済み)
       assert.ok(
         adjudicatedAttempt?.executionStartedAt,
         "killed Attempt must keep its durable execution-started marker",

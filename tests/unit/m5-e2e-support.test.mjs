@@ -3,22 +3,80 @@ import test from "node:test";
 
 import {
   assertDistinctProcessCwds,
+  childEnvironment,
   createM5Timing,
   describeRunIdentity,
   m5ConfirmedBy,
+  requireM5Environment,
   resolveKsqlFlowCliPath,
   resolveProcessTreeRootId,
 } from "../e2e/support.mjs";
 
 test("M5 run identity fixes all R1 inputs and exposes the generated key", () => {
-  const first = describeRunIdentity("prod", "network-one", "business-one");
-  const second = describeRunIdentity("prod", "network-one", "business-one");
+  const first = describeRunIdentity("e2e", "network-one", "business-one");
+  const second = describeRunIdentity("e2e", "network-one", "business-one");
   assert.deepEqual(second, first);
   assert.match(first.r1Key, /^R1:[A-Za-z0-9_-]{43}$/u);
   assert.notEqual(
     describeRunIdentity("other", "network-one", "business-one").r1Key,
     first.r1Key,
   );
+});
+
+function e2eEnvironment(overrides = {}) {
+  return {
+    KSQL_SPIKE_BASE_URL: "https://example.cybozu.com",
+    KSQL_SPIKE_APP_EXEC: "4257",
+    KSQL_SPIKE_APP_AUDIT: "4258",
+    KSQL_SPIKE_TOKEN_EXEC: "state-token",
+    KSQL_SPIKE_TOKEN_AUDIT: "audit-token",
+    KSQL_E2E_LOG_APP_ID: "4264",
+    KSQL_E2E_TOKEN_LOGS: "write-token",
+    KSQL_E2E_TOKEN_LOGS_RO: "read-token",
+    KSQL_FLOW_BIN: "node.exe",
+    ...overrides,
+  };
+}
+
+test("M5 environment defaults to the isolated E2E profile and log app", () => {
+  const settings = requireM5Environment(e2eEnvironment());
+  assert.equal(settings.profile, "e2e");
+  assert.equal(settings.jobLogAppId, 4264);
+  assert.equal(settings.jobLogWriteToken, "write-token");
+  assert.equal(settings.jobLogReadToken, "read-token");
+
+  const child = childEnvironment(settings);
+  assert.equal(child.KSQL_FLOWNET_PROFILE, "e2e");
+  assert.equal(child.KSQL_FLOW_LOG_APP_ID, "4264");
+  assert.equal(child.KSQL_FLOW_LOG_API_TOKEN, "read-token");
+  assert.equal(child.KSQL_E2E_TOKEN_LOGS, "write-token");
+});
+
+test("M5 environment rejects production log and profile settings", () => {
+  assert.throws(
+    () => requireM5Environment(e2eEnvironment({ KSQL_E2E_LOG_APP_ID: "4249" })),
+    /E2Eは本番ログアプリ4249を使用できません/u,
+  );
+  assert.throws(
+    () =>
+      requireM5Environment(e2eEnvironment({ KSQL_FLOWNET_PROFILE: "prod" })),
+    /E2Eはprodプロファイルを使用できません/u,
+  );
+});
+
+test("M5 environment requires isolated E2E log variables", () => {
+  for (const name of [
+    "KSQL_E2E_LOG_APP_ID",
+    "KSQL_E2E_TOKEN_LOGS",
+    "KSQL_E2E_TOKEN_LOGS_RO",
+  ]) {
+    const environment = e2eEnvironment();
+    delete environment[name];
+    assert.throws(
+      () => requireM5Environment(environment),
+      new RegExp(name, "u"),
+    );
+  }
 });
 
 test("M5 timing records ISO events and measured milliseconds", () => {
