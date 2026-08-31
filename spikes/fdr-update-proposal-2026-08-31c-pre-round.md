@@ -1,6 +1,6 @@
 # FDR再審議提案 2026-08-31c: PREラウンド(PRE-01 activity / PRE-02 ブレーキ / PRE-06 cancel-run)
 
-状態: PROPOSED(承認待ち)
+状態: REFLECTED(2026-08-31承認・実施済み。m8-01〜03実機合格+回帰3本(m6-01/m6-04/m7-05)合格、受入29〜31追加)
 契機: 運用UI討論の合意(討論§10.2/§13)とvision確定。3件は相互依存(activityのSTOPPED値はcancel-runのhold状態から導出)のため同一ラウンドで審議・実装し、test vectorを一度に確定する。
 
 ## A. PRE-01: `status --json`のactivity導出(4値)
