@@ -175,8 +175,12 @@
     },
   };
 
+  // kintone.apiの失敗はErrorではなく{code,id,message,errors}のplain objectで届くため、
+  // 詳細をJSONで出す(String()では[object Object]になり原因調査が不能 — 2026-09-01実機)
   const errorText = (error) =>
-    error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : JSON.stringify(error);
   const api = async (endpoint, method, body = {}) => {
     try {
       // kintone.api.url(..., true) により要求トークン付与とゲストスペースURLをkintone側へ任せる。
