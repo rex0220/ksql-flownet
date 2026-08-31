@@ -1,6 +1,6 @@
 # kSQL-FlowNet app templates
 
-kSQL-FlowNetのControl Planeで使用する「実行管理」「監査履歴」の2アプリを作成・調整するConsoleスクリプトです。kSQL-Flowが所有するJOBログアプリは対象に含みません。
+kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「監査履歴」と、人とポーラーが共有する「操作要求」の3アプリを作成・調整するConsoleスクリプトです。kSQL-Flowが所有するJOBログアプリは対象に含みません。
 
 ## バージョン対応
 
@@ -16,6 +16,10 @@ kSQL-FlowNetのControl Planeで使用する「実行管理」「監査履歴」�
 2. 開発者ツールのConsoleへ`create-flownet-apps.console.js`の内容を貼り付けて実行します。
 3. 表示されたアプリ名、アプリID、フィールド数、レイアウト、一覧数を確認し、確認ダイアログでデプロイを承認します。
 4. 完了後、表示されたアプリIDを環境変数へ設定し、各アプリの画面でAPIトークンを発行して環境変数へ設定します。トークン値はConsoleやリポジトリへ貼り付けないでください。
+
+操作要求アプリは、同じスペースで`create-flownet-request-app.console.js`を実行して別に作成します。テンプレートは本番用とE2E用で共通ですが、アプリinstanceとAPIトークンは分離し、破壊的な競合・stale試験を本番要求へ混在させないでください。同名の「kSQL-FlowNet 操作要求」が存在する場合も、既存アプリを変更せず中止します。
+
+操作要求アプリには`request_type`、`run_id`、`rerun_from_node`、`reason`、`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`を作成します。`request_state`の初期値は`REQUESTED`です。一覧は`01_未処理要求`（`REQUESTED`/`ACCEPTED`）と`02_拒否された要求`（`REJECTED`）の2件です。
 
 同名の「kSQL-FlowNet 実行管理」または「kSQL-FlowNet 監査履歴」が存在する場合、スクリプトは既存アプリを変更せず中止します。確認ダイアログでキャンセルした場合は、各アプリの管理画面からpreviewの「変更を中止」してください。
 
@@ -33,10 +37,13 @@ kSQL-FlowNetのControl Planeで使用する「実行管理」「監査履歴」�
 | --------------------- | --------------------------- | ------------------------------ | ------------------------ |
 | kSQL-FlowNet 実行管理 | `KSQL_FLOWNET_STATE_APP_ID` | `KSQL_FLOWNET_STATE_API_TOKEN` | レコード追加・閲覧・編集 |
 | kSQL-FlowNet 監査履歴 | `KSQL_FLOWNET_AUDIT_APP_ID` | `KSQL_FLOWNET_AUDIT_API_TOKEN` | レコード追加・閲覧・編集 |
+| kSQL-FlowNet 操作要求 | `KSQL_FLOWNET_REQUEST_APP_ID` | `KSQL_FLOWNET_REQUEST_API_TOKEN` | レコード閲覧・編集 |
 
 本番トークンにレコード削除権限は不要です。ロック解放はキークリアまたはtombstoneのUPDATE方式で行います。試験データの清掃で削除権限が必要な場合は、本番トークンと分離した別トークンを発行してください。
 
-アプリのアクセス権はアプリ管理者とサービスアカウントに限定し、一般ユーザーには閲覧権限のみを付与する構成を推奨します。
+実行管理・監査履歴アプリのアクセス権はアプリ管理者とサービスアカウントに限定し、一般ユーザーには閲覧権限のみを付与する構成を推奨します。
+
+操作要求アプリでは、要求者にレコード追加・閲覧を許可し、機械所有の状態・claim・結果フィールドは編集させないでください。ポーラー用トークンはレコード閲覧・編集のみ（追加・削除なし）とします。作成者・作成日時のkintoneシステムフィールドを要求者の真正性と順序の根拠に使うため、自己申告の要求者フィールドは追加しません。
 
 ## 既知の制約
 
