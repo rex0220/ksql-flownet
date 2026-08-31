@@ -189,3 +189,7 @@ node tests\e2e\m7-04-windows-sigbreak.mjs
 - `C:\Users\rex02\Projects\kintone-sql-tools\src\__tests__\b105UnionCountTotalCount.test.ts`: 複数アプリの`COUNT(*) ... UNION ALL`実装例。
 
 これらは文法根拠の机上確認です。実kSQL-Flowの`validate`と本実行結果は、実行担当者のゲート結果として別途保存してください。
+
+## 本番パイロットとの同居条件(2026-08-31)
+
+本番パイロット(4261/4262、月次案件集計バッチ)とE2E(4257/4258)はJOBログアプリ4249を共有する。E2Eは**本番のjob_id(`intake_count` / `test_data_gate` / `monthly_deal_summary`)を絶対に使用しない**こと(lock名前空間の分離。既存のm5_〜m8_プレフィックス規約を厳守)。4249の読取専用・直接編集禁止・rerun_request不触の既存規律も従来どおり。ログ混在ノイズが運用の支障になった場合はE2E専用プロファイル(別ログアプリ)への分離を検討する。
