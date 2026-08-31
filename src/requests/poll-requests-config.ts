@@ -168,7 +168,9 @@ export function definitionPathForNetwork(
   config: PollRequestsConfig,
   networkId: string,
 ): string {
-  const match = config.networks.find((network) => network.networkId === networkId);
+  const match = config.networks.find(
+    (network) => network.networkId === networkId,
+  );
   if (match === undefined) {
     throw new PollRequestsConfigError(
       "NETWORK_NOT_ALLOWED",

@@ -140,7 +140,11 @@ export function validateRequestRecord(
 ): readonly RequestValidationIssue[] {
   const issues: RequestValidationIssue[] = [];
   if (!/^\d+$/.test(record.id)) {
-    issues.push({ code: "ID_INVALID", field: "$id", message: "must be decimal" });
+    issues.push({
+      code: "ID_INVALID",
+      field: "$id",
+      message: "must be decimal",
+    });
   }
   if (!Number.isSafeInteger(record.revision) || record.revision < 1) {
     issues.push({
@@ -157,13 +161,25 @@ export function validateRequestRecord(
     });
   }
   if (record.runId.trim() === "") {
-    issues.push({ code: "REQUIRED", field: "run_id", message: "must not be blank" });
+    issues.push({
+      code: "REQUIRED",
+      field: "run_id",
+      message: "must not be blank",
+    });
   }
   if (record.reason.trim() === "") {
-    issues.push({ code: "REQUIRED", field: "reason", message: "must not be blank" });
+    issues.push({
+      code: "REQUIRED",
+      field: "reason",
+      message: "must not be blank",
+    });
   }
   if (record.creatorCode.trim() === "") {
-    issues.push({ code: "REQUIRED", field: "作成者", message: "must not be blank" });
+    issues.push({
+      code: "REQUIRED",
+      field: "作成者",
+      message: "must not be blank",
+    });
   }
   addLengthIssue(issues, "run_id", record.runId, REQUEST_VALUE_LIMITS.runId);
   addLengthIssue(
@@ -230,7 +246,11 @@ export function validateRequestRecord(
     ["claim_heartbeat_at", record.claimHeartbeatAt],
   ] as const) {
     if (value !== null && !isIsoDateTime(value)) {
-      issues.push({ code: "DATETIME_INVALID", field, message: "must be ISO UTC" });
+      issues.push({
+        code: "DATETIME_INVALID",
+        field,
+        message: "must be ISO UTC",
+      });
     }
   }
 

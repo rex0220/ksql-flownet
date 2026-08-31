@@ -33,11 +33,11 @@ kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「�
 
 ## 環境変数とAPIトークン権限
 
-| アプリ                | アプリID環境変数            | APIトークン環境変数            | 本番トークン権限         |
-| --------------------- | --------------------------- | ------------------------------ | ------------------------ |
-| kSQL-FlowNet 実行管理 | `KSQL_FLOWNET_STATE_APP_ID` | `KSQL_FLOWNET_STATE_API_TOKEN` | レコード追加・閲覧・編集 |
-| kSQL-FlowNet 監査履歴 | `KSQL_FLOWNET_AUDIT_APP_ID` | `KSQL_FLOWNET_AUDIT_API_TOKEN` | レコード追加・閲覧・編集 |
-| kSQL-FlowNet 操作要求 | `KSQL_FLOWNET_REQUEST_APP_ID` | `KSQL_FLOWNET_REQUEST_API_TOKEN` | レコード閲覧・編集 |
+| アプリ                | アプリID環境変数              | APIトークン環境変数              | 本番トークン権限         |
+| --------------------- | ----------------------------- | -------------------------------- | ------------------------ |
+| kSQL-FlowNet 実行管理 | `KSQL_FLOWNET_STATE_APP_ID`   | `KSQL_FLOWNET_STATE_API_TOKEN`   | レコード追加・閲覧・編集 |
+| kSQL-FlowNet 監査履歴 | `KSQL_FLOWNET_AUDIT_APP_ID`   | `KSQL_FLOWNET_AUDIT_API_TOKEN`   | レコード追加・閲覧・編集 |
+| kSQL-FlowNet 操作要求 | `KSQL_FLOWNET_REQUEST_APP_ID` | `KSQL_FLOWNET_REQUEST_API_TOKEN` | レコード閲覧・編集       |
 
 本番トークンにレコード削除権限は不要です。ロック解放はキークリアまたはtombstoneのUPDATE方式で行います。試験データの清掃で削除権限が必要な場合は、本番トークンと分離した別トークンを発行してください。
 

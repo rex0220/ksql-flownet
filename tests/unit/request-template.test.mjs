@@ -19,7 +19,10 @@ async function evaluateTemplate({ existing = [] } = {}) {
       if (url === "/preview/app/form/layout" && method === "GET") {
         return {
           layout: [
-            { type: "ROW", fields: [{ type: "RECORD_NUMBER", code: "レコード番号" }] },
+            {
+              type: "ROW",
+              fields: [{ type: "RECORD_NUMBER", code: "レコード番号" }],
+            },
           ],
         };
       }
@@ -41,7 +44,8 @@ async function evaluateTemplate({ existing = [] } = {}) {
 test("操作要求テンプレートは仕様§3の全10フィールドと型・必須を生成する", async () => {
   const calls = await evaluateTemplate();
   const properties = calls.find(
-    ({ url, method }) => url === "/preview/app/form/fields" && method === "POST",
+    ({ url, method }) =>
+      url === "/preview/app/form/fields" && method === "POST",
   ).body.properties;
   assert.deepEqual(Object.keys(properties), [
     "request_type",
@@ -65,8 +69,8 @@ test("操作要求テンプレートは仕様§3の全10フィールドと型・
 
 test("dropdown値を固定しrequest_state初期値をREQUESTEDにする", async () => {
   const calls = await evaluateTemplate();
-  const properties = calls.find(({ url }) => url === "/preview/app/form/fields").body
-    .properties;
+  const properties = calls.find(({ url }) => url === "/preview/app/form/fields")
+    .body.properties;
   assert.deepEqual(Object.keys(properties.request_type.options), [
     "RERUN",
     "STOP",
@@ -83,9 +87,13 @@ test("dropdown値を固定しrequest_state初期値をREQUESTEDにする", async
 
 test("一覧2件は重複しないindexと正しいfilter・安定sortを持つ", async () => {
   const calls = await evaluateTemplate();
-  const views = calls.find(({ url }) => url === "/preview/app/views").body.views;
+  const views = calls.find(({ url }) => url === "/preview/app/views").body
+    .views;
   assert.deepEqual(Object.keys(views), ["01_未処理要求", "02_拒否された要求"]);
-  assert.deepEqual(Object.values(views).map(({ index }) => index), ["0", "1"]);
+  assert.deepEqual(
+    Object.values(views).map(({ index }) => index),
+    ["0", "1"],
+  );
   assert.equal(
     views["01_未処理要求"].filterCond,
     'request_state in ("REQUESTED", "ACCEPTED")',
@@ -101,5 +109,8 @@ test("同名アプリがあればpreview作成前に中止する", async () => {
   const calls = await evaluateTemplate({
     existing: [{ appId: "777", name: "kSQL-FlowNet 操作要求" }],
   });
-  assert.deepEqual(calls.map(({ url }) => url), ["/apps"]);
+  assert.deepEqual(
+    calls.map(({ url }) => url),
+    ["/apps"],
+  );
 });

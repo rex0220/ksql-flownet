@@ -104,14 +104,26 @@
       fields: [
         { type: "DROP_DOWN", code: "request_state", size: { width: "180" } },
         { type: "DATETIME", code: "claimed_at", size: { width: "260" } },
-        { type: "SINGLE_LINE_TEXT", code: "claimed_host", size: { width: "260" } },
+        {
+          type: "SINGLE_LINE_TEXT",
+          code: "claimed_host",
+          size: { width: "260" },
+        },
       ],
     },
     {
       type: "ROW",
       fields: [
-        { type: "DATETIME", code: "claim_heartbeat_at", size: { width: "260" } },
-        { type: "SINGLE_LINE_TEXT", code: "result_code", size: { width: "260" } },
+        {
+          type: "DATETIME",
+          code: "claim_heartbeat_at",
+          size: { width: "260" },
+        },
+        {
+          type: "SINGLE_LINE_TEXT",
+          code: "result_code",
+          size: { width: "260" },
+        },
       ],
     },
     {
@@ -168,9 +180,12 @@
     try {
       return await kintone.api(kintone.api.url(endpoint, true), method, body);
     } catch (error) {
-      throw new Error(`${method} /k/v1${endpoint}.json -> ${errorText(error)}`, {
-        cause: error,
-      });
+      throw new Error(
+        `${method} /k/v1${endpoint}.json -> ${errorText(error)}`,
+        {
+          cause: error,
+        },
+      );
     }
   };
   const detectSpaceId = () => {
@@ -187,7 +202,9 @@
     }
     step = "同名アプリの存在確認";
     const existing = await api("/apps", "GET", { name: APP_NAME });
-    const exactMatches = (existing.apps ?? []).filter(({ name }) => name === APP_NAME);
+    const exactMatches = (existing.apps ?? []).filter(
+      ({ name }) => name === APP_NAME,
+    );
     if (exactMatches.length > 0) {
       console.error("同名アプリが既に存在するため、何も作成せず中止します。");
       console.table(exactMatches.map(({ appId, name }) => ({ appId, name })));
@@ -241,12 +258,16 @@
     }
     step = "デプロイ要求";
     await api("/preview/app/deploy", "POST", { apps: [{ app }] });
-    console.log("デプロイを要求しました。ACLとAPIトークン権限を手順書どおり設定してください。");
+    console.log(
+      "デプロイを要求しました。ACLとAPIトークン権限を手順書どおり設定してください。",
+    );
   } catch (error) {
     console.error(`失敗した処理: ${step}`);
     console.error(errorText(error));
     if (app !== null) {
-      console.error(`app ${app} のpreview変更をアプリ管理画面から中止してください。`);
+      console.error(
+        `app ${app} のpreview変更をアプリ管理画面から中止してください。`,
+      );
     }
     throw error;
   }

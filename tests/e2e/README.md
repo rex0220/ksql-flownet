@@ -179,6 +179,50 @@ node tests\e2e\m7-04-windows-sigbreak.mjs
 
 `m7-02`と`m7-04`は30秒leaseの失効を待つ回収工程があるため、完了まで数分かかる場合があります。`m7-04`はWindows専用です。これらのスクリプトをCIや非Windows環境で実行しないでください。
 
+## P2-01 要求アプリE2E
+
+P2-01の実機受入は、本番の操作要求アプリとは別のE2E専用アプリで行います。アプリ名は`kSQL-FlowNet 操作要求 P2-01 E2E`とし、profile `e2e`、FlowNet state/auditのスパイクアプリ、E2E JOBログアプリだけへ接続してください。ハーネスはprofile `prod`、本番アプリID 4261/4262/4249、本番要求アプリと同じID/token、`KSQL_FLOW_TEST_`以外のnetwork/node/job IDをpreflightで拒否します。
+
+作成手順: `templates/create-flownet-request-app.console.js`を一時コピーし、コピーの`APP_NAME`だけを`"kSQL-FlowNet 操作要求 P2-01 E2E"`へ変更してブラウザConsoleで実行します（正本テンプレート自体は変更しません）。
+
+作成後は`templates/README.md`のフィールド、一覧、ACLを照合します。P2-01 E2Eでは次の2 tokenをE2E要求アプリ専用で発行します。本番ポーラーtokenは追加・削除権限を持たせません。
+
+| 変数                         | 権限・用途                                                                       |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `KSQL_E2E_REQUEST_APP_ID`    | E2E専用操作要求アプリID。4261/4262/4249および本番要求アプリIDは禁止              |
+| `KSQL_E2E_TOKEN_REQUESTS`    | E2Eハーネスの要求追加、ポーラーの読取/編集、prefix限定清掃に使用するE2E専用token |
+| `KSQL_E2E_TOKEN_REQUESTS_RO` | ハーネスの結果照合専用token。レコード閲覧のみ                                    |
+
+`KSQL_E2E_TOKEN_REQUESTS`はE2E専用アプリに限ってレコード追加・閲覧・編集・削除を許可します。削除APIを呼ぶのはハーネスのfixture清掃だけで、`reason`が実行scope（`KSQL_FLOW_TEST_...:`）から始まるレコードに限定されます。非終端の要求が1件でも残っている場合は、別ポーラーによる誤処理を避けるため開始前に停止します。token値、実アプリID、reason本文はリポジトリや結果JSONへ保存しません。
+
+PowerShellではUser環境変数へ3変数を設定してからsetup scriptをdot-sourceします。値はこのREADMEや`setup-env.ps1`へ書きません。
+
+```powershell
+. .\tests\e2e\setup-env.ps1
+```
+
+実機E2Eは次の順序で必ず直列に実行します。各スクリプトは要求レコード、Run/Invocation/Node State、監査の相関を結果JSONへ保存した後、自分のscopeの要求レコードとFlowNet fixtureを清掃します。
+
+```powershell
+node tests\e2e\p2-01-01-rerun.mjs
+node tests\e2e\p2-01-02-rerun-from.mjs
+node tests\e2e\p2-01-03-rejections.mjs
+node tests\e2e\p2-01-04-stop-release.mjs
+node tests\e2e\p2-01-05-claim-stale.mjs
+node tests\e2e\p2-01-06-get-failclosed.mjs
+```
+
+| スクリプト                | 実測する受入                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `p2-01-01-rerun`          | 1: FAILED Runの完走、要求DONE、`requested_by=app-request:<record_id>:<creator>`相関    |
+| `p2-01-02-rerun-from`     | 2・9: 冪等Nodeからの再実行、上流preserve、RETRY_BRAKEのDONE記録と`rerun_from_node`解除 |
+| `p2-01-03-rejections`     | 3: 不在/SUCCESS/LIVE/hold拒否とFlowNet状態不変                                         |
+| `p2-01-04-stop-release`   | 4・5: 次Node境界STOP、hold、RELEASE単独非起動、別RERUN要求による完走                   |
+| `p2-01-05-claim-stale`    | 6・7: 同時claim一意性、実行済み/未実行staleの非再実行、実child中heartbeat              |
+| `p2-01-06-get-failclosed` | 8: 無効tokenによる要求GET失敗時の要求/state/audit無書込とchild非起動                   |
+
+`resume_allowed=false`、ARCHIVED、UNKNOWN、不正フィールド、allowlistの曖昧/不一致、結果PUT競合、出力上限、一時reasonファイル削除など、実機固有でない§2.4境界は`tests/unit/poll-requests*.test.mjs`、`request-store.test.mjs`、`flownet-child-client.test.mjs`で判定します。静的・単体合格を上記実機受入の代用にはしません。
+
 ## SQL文法の根拠
 
 - `C:\Users\rex02\Projects\ksql-flow\docs\ksql_flow_spec.md` 3.1〜3.3: dialect 1ヘッダ、`SELECT COUNT(*)`、`ASSERT (<scalar subquery>) <comparison>, 'message'`。

@@ -254,6 +254,7 @@ function decodeInvocation(record) {
     mode: field(record, "mode"),
     status: field(record, "status"),
     resultCode: field(record, "result_code"),
+    requestedBy: field(record, "requested_by"),
     selectedNodeIds: jsonField(record, "selected_node_ids"),
     preservedNodeIds: jsonField(record, "preserved_node_ids"),
     blockedNodeIds: jsonField(record, "blocked_node_ids"),
@@ -1123,34 +1124,34 @@ async function writeResult(path, result) {
 }
 
 export async function runM5(importMetaUrl, name, test, options = {}) {
-  return runGate(importMetaUrl, name, test, {
+  return runE2EGate(importMetaUrl, name, test, {
     ...options,
     prefix: M5_PREFIX,
   });
 }
 
 export async function runM6(importMetaUrl, name, test, options = {}) {
-  return runGate(importMetaUrl, name, test, {
+  return runE2EGate(importMetaUrl, name, test, {
     ...options,
     prefix: M6_PREFIX,
   });
 }
 
 export async function runM7(importMetaUrl, name, test, options = {}) {
-  return runGate(importMetaUrl, name, test, {
+  return runE2EGate(importMetaUrl, name, test, {
     ...options,
     prefix: M7_PREFIX,
   });
 }
 
 export async function runM8(importMetaUrl, name, test, options = {}) {
-  return runGate(importMetaUrl, name, test, {
+  return runE2EGate(importMetaUrl, name, test, {
     ...options,
     prefix: M8_PREFIX,
   });
 }
 
-async function runGate(importMetaUrl, name, test, options) {
+export async function runE2EGate(importMetaUrl, name, test, options) {
   const timing = createM5Timing();
   timing.mark("testStartedAt");
   const scope = makeScope(options.prefix, name);
