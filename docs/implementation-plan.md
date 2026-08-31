@@ -317,6 +317,7 @@ FDRで決定したkintone構成をrepository interfaceの背後へ実装する�
 | P2-03 | 連続失敗ブレーキ | 同一ノードで同一failure_kindの連続失敗N回に達したら、明示フラグなしでは着手しない。cron定期resumeでの決定的失敗ノードの無限attempt蓄積(API・レコード消費)を止める | 2026-08-31外部評価R2-4。当面の運用回避はrunbook記載(resume_allowed=false化等) |
 | P2-04 | FlowNet側ノード上限時間 | ノード単位の実行上限時間をFlowNet側にも持たせる(現状はkSQL-Flowのbatch_timeout_secとrun-subprocessのkill経路に依存)。「子プロセスを信用しない」原則の層を閉じる | 2026-08-31外部評価R2-7 |
 | P2-05 | `idempotent`の操作種別分類 | 冪等性判定の主軸を操作種別(キー指定UPSERT/bare INSERT/DELETE/外部副作用)の分類に置き、非決定要素検査を補助へ。kSQL-Flow側の解析能力が必要 | 2026-08-31外部評価R2-5。Phase 1は宣言+決定性補助検査(§4.2明確化済み) |
+| P2-06 | bundle転送の有界リトライ | bundle upload/verify-downloadの5xx・通信断に有界リトライ(例: 3回/2秒backoff)を追加。fail-closed結果は不変で、偽の失敗だけを減らす | 2026-08-31実測: kintoneファイルAPIが数分間断続的に500/503を返し(records系は正常)、NEWがBUNDLE_UPLOAD_FAILEDで失敗。回復後の`--resume-run`で正常継続できることは確認済み(現行のfail-closed挙動は仕様どおり) |
 
 ## 6. テスト戦略
 
