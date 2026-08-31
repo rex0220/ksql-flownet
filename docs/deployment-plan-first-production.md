@@ -47,8 +47,8 @@
 - [x] `run-network`を**当月(2026-08)**で1回実行し完走確認。**変更記録(2026-08-31)**: 当初計画の「過去月バックフィル試験」は、書込先が`当月案件件数`等の単一スロットのため**過去月の値で現在の業務値を上書きしてしまう**ことが判明し、当月実行へ変更(バックフィル機能自体は正常仕様だが試験用途に不適)。当月なら現行run-allと同値の冪等リフレッシュで、この1回がそのまま初回本番Runを兼ねる(以後のcronは8月にNO-OP Exit 0)。**実施記録(2026-08-31)**: `netrun_9b5e94c6-...` aggregate SUCCESS・NO-OP再実行Exit 0とも確認 — 証跡は[first-production-run-20260831](./test-results/first-production-run-20260831/README.md)。同記録の発見事項: **ksql-flowは0.7.0(M1契約対応)必須** — my-ksql-jobsのnode_modules版0.6.0は`capabilities`未対応でfail-closed停止する。0.7.0は**npm公開済み**(同日実測)のため恒久策は`npm install @rex0220/ksql-flow@0.7.0`(node_modules方式)。切替までの暫定はclone版distの直接指定でも可
 - [ ] 一次対応1ページの連絡先欄を記入
 - [x] **未完了の旧run-allバッチ0件を確認**(4249でRUNNINGなし — 2026-08-31実行直前+直後とも0件)
-- [ ] **ポーラー停止+FlowNet cron行の新設**(run_flownet.sh経由。現VPSにrun_batch日次cronは元々なし — my-ksql-jobs返信§4-1の実態訂正)。旧run_batch.shは削除せず全スケジューラからの参照除去で無効化
-- [ ] 張り付き期間開始(推奨: 月次2サイクル)。撤退条件はvision §5のとおり(二重書込み1件/一次対応が回らない/FlowNet起因の締切逸失 → 切戻し手順)
+- [x] **ポーラー停止+FlowNet cron行の新設**(2026-08-31、ユーザー指示によりSSHで実施)。VPS=vm-69245b5e-30(133.117.75.169、TZ=JST): my-ksql-jobsを48cf8afへ更新しksql-flow 0.7.0導入(`capabilities` Exit 0確認)、ksql-flownet e330b56をclone+build、トークンは`/root/.ksql-flownet.env`(0600)のみに配置。事前確認: `rerun_state=CLAIMED/REQUESTED` 0件・4249 RUNNING 0件・ポーラー実行中プロセスなし。crontab差替え(バックアップ`/root/crontab.bak-20260831`): poll_control行コメントアウト+誤爆防止コメント+`0 7 1 * * . /root/.ksql-flownet.env && run_flownet.sh`(毎月1日07:00 JST、ログ`/var/log/ksql/flownet.log`)。cronコマンド実測: NO-OP Exit 0(8月Run完走済みのため)
+- [x] 張り付き期間開始(2026-08-31開始、推奨: 月次2サイクル)。撤退条件はvision §5のとおり(二重書込み1件/一次対応が回らない/FlowNet起因の締切逸失 → 切戻し手順)
 
 ## 5. 導入後の観測
 
