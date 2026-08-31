@@ -312,13 +312,13 @@ FDRで決定したkintone構成をrepository interfaceの背後へ実装する�
 
 | ID | 作業単位 | 概要・設計条件 | 経緯 |
 | --- | --- | --- | --- |
-| PRE-01 | status activity導出 | `status --json`へ導出フィールド`activity: LIVE / IDLE / INTERRUPTED`を追加(保存データ無変更・read-only拡張・FDR再審議不要)。3値定義と共有test vectorは討論§10.2が暫定正本。案A v1プラグインと同一vectorに合格することを受入条件とする | Dq-3の決着(案i不採用: killケースで書き手不在)。担当者が「実行中」と誤読して待ち続ける事故の防止 |
+| PRE-01 | status activity導出 | `status --json`へ導出フィールド`activity`を追加(保存データ無変更・read-only拡張)。**PRE-06との相互作用により4値目STOPPED(意図停止と異常中断の画面区別)を検討 — 値定義と共有test vectorはPRE-02/06と同一FDRラウンドで一度に確定**(3値暫定定義: 討論§10.2、統合方針: 討論§13)。案A v1プラグインと同一vectorに合格することを受入条件とする | Dq-3の決着(案i不採用: killケースで書き手不在)+討論§13。担当者が「実行中」と誤読して待ち続ける事故の防止 |
 | PRE-02 | 連続失敗ブレーキ(P2-03格上げ) | 同一ノードで同一failure_kindのFAILEDが末尾から連続N回で、明示フラグなしでは着手しない。カウントはAttempt履歴から(resume時の孤児裁定getAttempts結果を流用=API増なし。Node Stateスキーマ変更なし)。`CANCELLED / PREPARE_FAILED`(LOCK_CONFLICT等)は仕様§8.2どおり数えない。軽量FDR再審議を経て実装 | R2-4(無限attempt蓄積)。自動リトライ自体はcron+`--resume`で稼働済みであり、欠けているのはブレーキ側 |
 | PRE-03 | 案A v0(確認ボード最小版) | 実行管理アプリの一覧設定のみ(コード無し): NODE_STATEのFAILED/UNKNOWN/BLOCKED一覧(blocked_by・status_reason表示)。**受入条件**: (a)一次対応1ページに「この一覧に出ない止まり方がある」(NODES_DEFERRED中断は全ノードWAITING/SUCCESSのまま)を明記、(b)PRE-01導入まではRun一覧を`status != SUCCESS`で併読する手順を記載 | P-2(小規模情シス担当への引き渡し条件)。案A v1(導出プラグイン)は初回導入後に判断 |
 | PRE-04 | 一次対応1ページ | 二層構造(一次=情シス担当が画面で確認、二次=ベンダー/開発者)前提の1ページ手順(この状態ならこの操作/この連絡先)。既存runbook 2冊は二次対応者向けとして維持 | Q-Eの回答。全面改稿ではなく粒度の層を追加 |
 
 | PRE-05 | 候補業務の非冪等棚卸し | 候補ネットワークの全ノードSQLを7項目基準(正本: kintone-ops-roadmap-discussion.md §11.2)で目視分類し、既存のidempotent宣言の正しさ自体を検証する(宣言誤りは自動リランの二重書込に直結)。見落とされやすいのは履歴追記のbare INSERTと集計の自己参照。キー指定DELETEは保守側分類とし個別緩和は実施時判断。結果はP2-05(自動分類)の入力仕様を兼ねる。**2段方式(2026-08-31外部評価で更新)**: (a)ユーザーが「定期実行で通知・請求を送らない業務」を2〜3本挙げる→(b)その分だけ7項目判定。全件棚卸しは(a)空振り時の手段 | **Dq-4のクリティカルパス**(討論§11)。全ノード冪等の業務が見つかれば承認者問題が初回導入の前提から外れる。PRE-01〜04と並行可 |
-| PRE-06 | CLI起点の停止要求(cancel-run) | 次ノード境界で停止要求を検査し、実行中subprocessは完走待ち・新ノード不起動でInvocationをCANCELLED系正常終端(新状態値なし)。kill→UNKNOWN→resolve-nodeの最高コスト経路をday-1前に塞ぐ。要求の置き場所(ローカルフラグvs CLIが書くstate appレコード)は軽量FDR再審議で決定(PRE-02と同一ラウンド可)。画面起点はP2-02(案Bと同時)に残す | 2026-08-31外部評価: P2-02はPhase 2着手条件(実行時間/表現力)で発火しない安全項目のため前半を格上げ |
+| PRE-06 | CLI起点の停止要求(cancel-run) | **置き場所はstate appレコードで確定(討論§13)**: 独立record_type CANCEL_REQUEST(orchestrator書込レコードへ相乗りしない)、run_id単位の状態機械REQUESTED→ACCEPTED→DONE/RELEASED(案Bプロトタイプ)。次ノード境界で検査、subprocess完走待ち、CANCELLED系正常終端。既定hold(RUN_ON_HOLDでresume拒否、cancel-run --releaseで解除 — cron自動resumeとの衝突防止)は審議対象。画面起点はP2-02に残す | P2-02前半の格上げ。**PRE-01/02と同一FDRラウンド** |
 
 ### 導入判断待ち事項(Dq-4 — **PRE-05完了待ち**。討論§11で「判断待ち」から「前提タスク待ち」へ更新)
 

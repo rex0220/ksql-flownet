@@ -383,3 +383,28 @@ PRE-05(候補業務の非冪等棚卸し)を`implementation-plan.md`「本番導
 ### 12.3 実施の提案
 
 棚卸しの対象SQLは`my-ksql-jobs`リポジトリに実在するため、**候補業務の指定があり次第、担当CC側で7項目分類を実施できる**(SQL読取のみ。業務の選定自体はユーザー判断)。全ジョブの一括棚卸しから入る進め方も可能。
+
+---
+
+## 13. PRE-06設計決着(停止要求の置き場所)と同一ラウンド化
+
+- 追記日: 2026-08-31
+- 双方合意: **置き場所はstate appレコード(案B)で確定**
+
+### 13.1 決め手の序列(合意)
+
+1. **Cloud Run Jobs移行でローカルフラグは確実に捨てることになる**(実行毎にコンテナが入れ替わる。停止確認adapterに`cloud_run_job_execution`がある以上、移行は構想の射程内)
+2. fail-closed整合: kintoneが読めずcancel要求を確認できない状況では同時にheartbeatも失敗しており、`LEASE_UNCERTAIN`のdrainで次ノードはどのみち起動しない。cancel読取失敗の特別扱いが不要
+3. 監査・別ホスト対応(当初の理由)は副次
+4. ノード境界ごとのGET+1はコスト論点にならない
+
+### 13.2 設計条件(合意3件+担当CC追加1件)
+
+1. **独立record_type(`CANCEL_REQUEST`等)とし、orchestratorが書くレコード(Lock/Run)に相乗りしない** — CLIの書込みが$revisionを進めorchestratorのheartbeat・集約更新をREVISION_CONFLICTさせるため(F-1制約は機械の書き手同士にも当てはまる)
+2. **要求モデルを案Bと揃える**: `run_id`単位の状態機械`REQUESTED → ACCEPTED → DONE/RELEASED`。消費済み要求が次のRunを巻き込まず、PRE-06がそのまま案Bの要求モデルのプロトタイプになる([5]で作り直しが出ない)
+3. **PRE-01との相互作用**: cancel停止後のRunは「未完了・owner不在・開始後」であり、現行3値定義では`INTERRUPTED`と**見分けがつかない**。しかもPRE-06導入後は正常操作の結果として日常的に発生する。→ **activityへ意図停止の区別を導入**(候補: 4値目`STOPPED`。導出材料は最新Invocationの停止系result_codeまたはcancel要求レコード — killと異なりgraceful停止は書き手が生きているため、保存ベースの導出が成立する)。3値定義(§10.2)とtest vectorの確定はPRE-06と不可分のため、**PRE-01をPRE-02/06と同一FDRラウンドへ統合**する
+4. **(担当CC追加)one-shotかholdか**: cancel受理が「当該Invocationの停止」だけ(one-shot)だと、**次のcron `--resume`が最短1時間後に同じRunを再開してしまい、「今日は止めたい」が止まらない**。誤データ流入・締め中断というPRE-06の動機に照らすと、既定は**hold(明示解除まで再開拒否)**が妥当と考える。案: 要求が`ACCEPTED`のままの間、ensure-runはresumeを`RUN_ON_HOLD`(fail-closed、阻害要求IDを表示)で拒否し、`cancel-run --release`で`RELEASED`へ遷移させて再開可能にする。activityの`STOPPED`導出はこのhold状態を第一材料にできる。この点は同一FDRラウンドの審議対象とする
+
+### 13.3 波及(合意)
+
+- PRE-04(一次対応1ページ)へ「**停止要求は次のノード境界まで効かない**(実行中のsubprocessは完走を待つ。長時間ノードの途中では止まらない)」を明記する

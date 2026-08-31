@@ -83,7 +83,7 @@ flowchart LR
 ## 5. 導入ロードマップ(討論合意版)
 
 ```text
-[1] PRE-01 activity導出 + PRE-02 ブレーキ + PRE-06 cancel-run ← 実装(小)。着手可能
+[1] PRE-01 activity導出 + PRE-02 ブレーキ + PRE-06 cancel-run ← 同一FDRラウンドで審議→実装
 [2] PRE-03 案A v0(一覧設定) + PRE-04 一次対応1ページ          ← 引き渡し条件
  ∥  PRE-05 非冪等棚卸し(2段方式)                              ← Dq-4のクリティカルパス(並行)
 [3] 初回本番導入(1業務・1ネットワーク)+ Dq-4確定 + 撤退条件の事前合意
@@ -99,12 +99,12 @@ flowchart LR
 
 | ID | 内容 | 設計条件の正本 |
 | --- | --- | --- |
-| PRE-01 | `status --json`へ`activity: LIVE / IDLE / INTERRUPTED`導出を追加。保存データ無変更・FDR審議不要。「実行中と誤読して待ち続ける」事故の防止 | 3値定義・共有test vector: 討論§10.2 |
+| PRE-01 | `status --json`へ`activity`導出を追加(「実行中と誤読して待ち続ける」事故の防止)。**PRE-06との相互作用により、意図停止(cancel)と異常中断を画面で区別する4値目`STOPPED`を検討** — killと異なりgraceful停止は書き手が生きているため保存ベース導出(最新Invocationの停止系result_codeまたはhold中のCANCEL_REQUEST)が成立する。**PRE-02/06と同一FDRラウンドで値定義とtest vectorを一度に確定**(3値で先に固めるとvectorを書き直すことになる) | 3値の暫定定義: 討論§10.2、統合方針: 討論§13 |
 | PRE-02 | 同一ノード・同一failure_kindの連続FAILED N回で明示フラグなしでは着手しない。Attempt履歴からカウント(API増なし)。LOCK_CONFLICT系は数えない(仕様§8.2)。軽量FDR再審議 | 討論§10.2 |
 | PRE-03 | 案A v0: 実行管理アプリの一覧設定のみで異常Node State一覧。受入条件に「この一覧に出ない止まり方(NODES_DEFERRED中断)」の明記を含む | 討論§9.7 |
-| PRE-04 | 一次対応1ページ(この状態ならこの操作/この連絡先)。既存runbook 2冊は二次対応者向けとして維持 | 討論Q-E |
+| PRE-04 | 一次対応1ページ(この状態ならこの操作/この連絡先)。**「停止要求は次のノード境界まで効かない(実行中subprocessは完走を待つ)」を明記** — 長時間ノードの途中では止まらず、運用者の期待とズレるため。既存runbook 2冊は二次対応者向けとして維持 | 討論Q-E・§13.3 |
 | PRE-05 | 候補業務SQLの非冪等棚卸し(7項目基準)+既存`idempotent`宣言の妥当性検証。**2段方式**: (a)人が「定期実行で通知・請求を送らない業務」を2〜3本挙げる→(b)その分だけ7項目判定。全件棚卸しは(a)が空振りした場合の手段(P2-05入力仕様という副産物はDq-4決着後でも価値が減らない) | 判定基準: 討論§11.2 |
-| PRE-06 | **CLI起点の停止要求**(`cancel-run`)。次ノード境界で検査し、実行中subprocessは完走を待って新ノードを起動せず、Invocationを`CANCELLED`系で正常終端する(新しい状態値なし)。「今日は止めたい」がkill→UNKNOWN→resolve-nodeの最高コスト経路に落ちる穴をday-1前に塞ぐ。**画面起点(要求アプリ)は案Bと同時([5])に分離**。軽量FDR再審議(PRE-02と同一ラウンド)。停止要求の置き場所(実行ホストのローカルフラグ vs CLIが書くstate appレコード=別ホスト可・監査可)は審議で決定 | P2-02から前半を格上げ(2026-08-31外部評価) |
+| PRE-06 | **CLI起点の停止要求**(`cancel-run`)。次ノード境界で検査し、実行中subprocessは完走を待って新ノードを起動せず、Invocationを`CANCELLED`系で正常終端する(新しいNode State値なし)。**置き場所はstate appレコードで確定**(Cloud Run Jobs移行でローカルフラグは捨てることになる+drainとのfail-closed整合。討論§13)。設計条件: 独立record_type(`CANCEL_REQUEST`)でorchestrator書込レコードに相乗りしない/要求は`run_id`単位の状態機械(REQUESTED→ACCEPTED→DONE/RELEASED、案Bプロトタイプ)/**既定はhold(明示解除まで`RUN_ON_HOLD`でresume拒否 — cron自動resumeが止めたRunを再開してしまう衝突の防止)**は審議対象。画面起点はP2-02(案Bと同時) | P2-02前半の格上げ+討論§13 |
 
 ### 初回導入の選定基準と撤退条件(Dq-4の判断材料)
 
