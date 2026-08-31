@@ -153,7 +153,8 @@
         "作成日時",
       ],
       filterCond: 'request_state in ("REQUESTED", "ACCEPTED")',
-      sort: "作成日時 asc, $id asc",
+      // 一覧のsortはクエリAPIと異なり$idや複数キーを受け付けない(2026-09-01実機)
+      sort: "作成日時 asc",
       index: "0",
     },
     "02_拒否された要求": {
@@ -169,7 +170,7 @@
         "作成日時",
       ],
       filterCond: 'request_state in ("REJECTED")',
-      sort: "作成日時 desc, $id desc",
+      sort: "作成日時 desc",
       index: "1",
     },
   };

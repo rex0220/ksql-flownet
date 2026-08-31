@@ -108,7 +108,16 @@ test("一覧2件は重複しないindexと正しいfilter・安定sortを持つ"
     views["01_未処理要求"].filterCond,
     'request_state in ("REQUESTED", "ACCEPTED")',
   );
-  assert.equal(views["01_未処理要求"].sort, "作成日時 asc, $id asc");
+  // 一覧sortは$id・複数キー不可(2026-09-01実機で一覧設定PUTが失敗した回帰固定)
+  for (const view of Object.values(views)) {
+    assert.match(
+      view.sort,
+      /^[^,$]+ (asc|desc)$/u,
+      `一覧sortは単一キーかつ$id以外: ${view.sort}`,
+    );
+  }
+  assert.equal(views["01_未処理要求"].sort, "作成日時 asc");
+  assert.equal(views["02_拒否された要求"].sort, "作成日時 desc");
   assert.equal(
     views["02_拒否された要求"].filterCond,
     'request_state in ("REJECTED")',
