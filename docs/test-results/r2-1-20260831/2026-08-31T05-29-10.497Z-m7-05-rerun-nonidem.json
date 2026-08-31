@@ -1,0 +1,523 @@
+{
+  "test": "05-rerun-nonidem",
+  "passed": true,
+  "scope": "M7260831052910_02be_05-rerun-nonidem",
+  "observedAt": "2026-08-31T05:30:05.835Z",
+  "nodeVersion": "v24.14.0",
+  "timing": {
+    "events": {
+      "testStartedAt": "2026-08-31T05:29:10.487Z",
+      "scenarioStartedAt": "2026-08-31T05:29:10.498Z",
+      "scenarioFinishedAt": "2026-08-31T05:30:05.566Z",
+      "cleanupStartedAt": "2026-08-31T05:30:05.566Z",
+      "cleanupFinishedAt": "2026-08-31T05:30:05.835Z",
+      "resultAssembledAt": "2026-08-31T05:30:05.835Z"
+    },
+    "intervalsMs": {
+      "scenarioMs": 55068,
+      "cleanupMs": 269,
+      "totalMs": 55348
+    }
+  },
+  "detail": {
+    "unexecutedNonIdempotentAccepted": {
+      "initialProcess": {
+        "exitCode": 1,
+        "signal": null,
+        "stdout": "NEW: Run netrun_3cfc7012-9c6f-46d2-a1f6-7d623436cb13 finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+        "stderr": ""
+      },
+      "rerunProcess": {
+        "exitCode": 1,
+        "signal": null,
+        "stdout": "RESUME: Run netrun_3cfc7012-9c6f-46d2-a1f6-7d623436cb13 finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+        "stderr": ""
+      },
+      "networkId": "M7260831052910_02be_05-rerun-nonidem_a_rerun-nonidem",
+      "before": {
+        "run": {
+          "recordKey": "R1:tOb1c9DwdaM-1T6MYbS8-pSBbvau5KESHkNW1VZEoK4",
+          "runId": "netrun_3cfc7012-9c6f-46d2-a1f6-7d623436cb13",
+          "networkId": "M7260831052910_02be_05-rerun-nonidem_a_rerun-nonidem",
+          "businessKey": "M7260831052910_02be_05-rerun-nonidem_unexecuted",
+          "status": "FAILED",
+          "asOf": "",
+          "startedAt": "2026-08-31T05:29:00Z",
+          "finishedAt": "2026-08-31T05:29:00Z",
+          "resolvedProfile": "prod"
+        },
+        "states": [
+          {
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "status": "SUCCESS",
+            "latestAttemptNo": 1,
+            "statusReason": "OK",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n2_aggregate",
+            "jobId": "m7_rerun_fail",
+            "status": "FAILED",
+            "latestAttemptNo": 1,
+            "statusReason": "ASSERT_FAILED",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n3_notify",
+            "jobId": "m6_read_deals",
+            "status": "BLOCKED",
+            "latestAttemptNo": 0,
+            "statusReason": "ALL_SUCCESS_NOT_SATISFIED",
+            "blockedBy": [
+              "n2_aggregate"
+            ],
+            "startedAt": "",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          }
+        ],
+        "attempts": [
+          {
+            "recordId": 450,
+            "attemptId": "attempt_92990be7-c5b0-484c-b106-128b2a14842c",
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "invocationId": "invoke_a3341818-acc2-4f36-8ad5-b7e1da006160",
+            "attemptNo": 1,
+            "status": "SUCCESS",
+            "resultCode": "OK",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "ee6780a8-ad2d-4110-a6fc-654358b18a2d",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 11,
+            "writtenCount": 0
+          },
+          {
+            "recordId": 451,
+            "attemptId": "attempt_38f16a78-1ff9-40fb-9a10-b1be34891479",
+            "nodeId": "n2_aggregate",
+            "jobId": "m7_rerun_fail",
+            "invocationId": "invoke_a3341818-acc2-4f36-8ad5-b7e1da006160",
+            "attemptNo": 1,
+            "status": "FAILED",
+            "resultCode": "ASSERT_FAILED",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "ac8f98e9-63b6-4f95-a66f-dbd85ce756c3",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 0,
+            "writtenCount": 0
+          }
+        ],
+        "invocations": [
+          {
+            "recordId": 449,
+            "invocationId": "invoke_a3341818-acc2-4f36-8ad5-b7e1da006160",
+            "mode": "NEW",
+            "status": "FAILED",
+            "resultCode": "NODE_FAILED_OR_BLOCKED",
+            "selectedNodeIds": [
+              "n1_extract",
+              "n2_aggregate"
+            ],
+            "preservedNodeIds": [],
+            "blockedNodeIds": [
+              "n3_notify"
+            ],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          }
+        ]
+      },
+      "after": {
+        "run": {
+          "recordKey": "R1:tOb1c9DwdaM-1T6MYbS8-pSBbvau5KESHkNW1VZEoK4",
+          "runId": "netrun_3cfc7012-9c6f-46d2-a1f6-7d623436cb13",
+          "networkId": "M7260831052910_02be_05-rerun-nonidem_a_rerun-nonidem",
+          "businessKey": "M7260831052910_02be_05-rerun-nonidem_unexecuted",
+          "status": "FAILED",
+          "asOf": "",
+          "startedAt": "2026-08-31T05:29:00Z",
+          "finishedAt": "2026-08-31T05:29:00Z",
+          "resolvedProfile": "prod"
+        },
+        "states": [
+          {
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "status": "SUCCESS",
+            "latestAttemptNo": 1,
+            "statusReason": "OK",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n2_aggregate",
+            "jobId": "m7_rerun_fail",
+            "status": "FAILED",
+            "latestAttemptNo": 2,
+            "statusReason": "ASSERT_FAILED",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n3_notify",
+            "jobId": "m6_read_deals",
+            "status": "BLOCKED",
+            "latestAttemptNo": 0,
+            "statusReason": "ALL_SUCCESS_NOT_SATISFIED",
+            "blockedBy": [
+              "n2_aggregate"
+            ],
+            "startedAt": "",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          }
+        ],
+        "attempts": [
+          {
+            "recordId": 450,
+            "attemptId": "attempt_92990be7-c5b0-484c-b106-128b2a14842c",
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "invocationId": "invoke_a3341818-acc2-4f36-8ad5-b7e1da006160",
+            "attemptNo": 1,
+            "status": "SUCCESS",
+            "resultCode": "OK",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "ee6780a8-ad2d-4110-a6fc-654358b18a2d",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 11,
+            "writtenCount": 0
+          },
+          {
+            "recordId": 451,
+            "attemptId": "attempt_38f16a78-1ff9-40fb-9a10-b1be34891479",
+            "nodeId": "n2_aggregate",
+            "jobId": "m7_rerun_fail",
+            "invocationId": "invoke_a3341818-acc2-4f36-8ad5-b7e1da006160",
+            "attemptNo": 1,
+            "status": "FAILED",
+            "resultCode": "ASSERT_FAILED",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "ac8f98e9-63b6-4f95-a66f-dbd85ce756c3",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 0,
+            "writtenCount": 0
+          },
+          {
+            "recordId": 453,
+            "attemptId": "attempt_99ad27f8-4494-4117-b4db-a489f575fbb7",
+            "nodeId": "n2_aggregate",
+            "jobId": "m7_rerun_fail",
+            "invocationId": "invoke_0ad93700-0b43-46fd-968a-97d286919ef1",
+            "attemptNo": 2,
+            "status": "FAILED",
+            "resultCode": "ASSERT_FAILED",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "6390598b-4717-4252-97d2-4d0337764941",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 0,
+            "writtenCount": 0
+          }
+        ],
+        "invocations": [
+          {
+            "recordId": 449,
+            "invocationId": "invoke_a3341818-acc2-4f36-8ad5-b7e1da006160",
+            "mode": "NEW",
+            "status": "FAILED",
+            "resultCode": "NODE_FAILED_OR_BLOCKED",
+            "selectedNodeIds": [
+              "n1_extract",
+              "n2_aggregate"
+            ],
+            "preservedNodeIds": [],
+            "blockedNodeIds": [
+              "n3_notify"
+            ],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "recordId": 452,
+            "invocationId": "invoke_0ad93700-0b43-46fd-968a-97d286919ef1",
+            "mode": "RERUN_FROM",
+            "status": "FAILED",
+            "resultCode": "NODE_FAILED_OR_BLOCKED",
+            "selectedNodeIds": [
+              "n2_aggregate",
+              "n3_notify"
+            ],
+            "preservedNodeIds": [
+              "n1_extract"
+            ],
+            "blockedNodeIds": [
+              "n3_notify"
+            ],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          }
+        ]
+      }
+    },
+    "executedNonIdempotentRejected": {
+      "initialProcess": {
+        "exitCode": 1,
+        "signal": null,
+        "stdout": "NEW: Run netrun_32bd2a27-555d-408f-a4a9-ba2e586eaf89 finished with aggregate FAILED (NODE_FAILED_OR_BLOCKED).\n",
+        "stderr": ""
+      },
+      "rerunProcess": {
+        "exitCode": 1,
+        "signal": null,
+        "stdout": "",
+        "stderr": "Error [RERUN_FROM_NON_IDEMPOTENT]: rerun target contains executed idempotent=false node(s): n3_notify\n"
+      },
+      "networkId": "M7260831052910_02be_05-rerun-nonidem_b_rerun-nonidem2",
+      "before": {
+        "run": {
+          "recordKey": "R1:QHx5ICAqDRYMdk6n6ukyOz2vao8Nr-Oh_xN5cfEpIKM",
+          "runId": "netrun_32bd2a27-555d-408f-a4a9-ba2e586eaf89",
+          "networkId": "M7260831052910_02be_05-rerun-nonidem_b_rerun-nonidem2",
+          "businessKey": "M7260831052910_02be_05-rerun-nonidem_executed",
+          "status": "FAILED",
+          "asOf": "",
+          "startedAt": "2026-08-31T05:29:00Z",
+          "finishedAt": "2026-08-31T05:30:00Z",
+          "resolvedProfile": "prod"
+        },
+        "states": [
+          {
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "status": "SUCCESS",
+            "latestAttemptNo": 1,
+            "statusReason": "OK",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n3_notify",
+            "jobId": "m6_read_deals",
+            "status": "SUCCESS",
+            "latestAttemptNo": 1,
+            "statusReason": "OK",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n4_fail",
+            "jobId": "m7_rerun_fail",
+            "status": "FAILED",
+            "latestAttemptNo": 1,
+            "statusReason": "ASSERT_FAILED",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          }
+        ],
+        "attempts": [
+          {
+            "recordId": 455,
+            "attemptId": "attempt_a08c4c0d-b158-442d-b388-04da422d3886",
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "attemptNo": 1,
+            "status": "SUCCESS",
+            "resultCode": "OK",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "73973918-be24-4fed-bb00-d0f3dc0556af",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 11,
+            "writtenCount": 0
+          },
+          {
+            "recordId": 456,
+            "attemptId": "attempt_510b4c8e-cb46-4306-a079-827dd4a6d44d",
+            "nodeId": "n3_notify",
+            "jobId": "m6_read_deals",
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "attemptNo": 1,
+            "status": "SUCCESS",
+            "resultCode": "OK",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "d429a3e8-b937-4361-a7ed-fd6df1a24708",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 18,
+            "writtenCount": 0
+          },
+          {
+            "recordId": 457,
+            "attemptId": "attempt_cf527e09-adef-4de8-a8c7-154a4e3e240e",
+            "nodeId": "n4_fail",
+            "jobId": "m7_rerun_fail",
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "attemptNo": 1,
+            "status": "FAILED",
+            "resultCode": "ASSERT_FAILED",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "4d3c0b83-b86f-4458-9257-dbf7301ca33f",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 0,
+            "writtenCount": 0
+          }
+        ],
+        "invocations": [
+          {
+            "recordId": 454,
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "mode": "NEW",
+            "status": "FAILED",
+            "resultCode": "NODE_FAILED_OR_BLOCKED",
+            "selectedNodeIds": [
+              "n1_extract",
+              "n3_notify",
+              "n4_fail"
+            ],
+            "preservedNodeIds": [],
+            "blockedNodeIds": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:30:00Z"
+          }
+        ]
+      },
+      "after": {
+        "run": {
+          "recordKey": "R1:QHx5ICAqDRYMdk6n6ukyOz2vao8Nr-Oh_xN5cfEpIKM",
+          "runId": "netrun_32bd2a27-555d-408f-a4a9-ba2e586eaf89",
+          "networkId": "M7260831052910_02be_05-rerun-nonidem_b_rerun-nonidem2",
+          "businessKey": "M7260831052910_02be_05-rerun-nonidem_executed",
+          "status": "FAILED",
+          "asOf": "",
+          "startedAt": "2026-08-31T05:29:00Z",
+          "finishedAt": "2026-08-31T05:30:00Z",
+          "resolvedProfile": "prod"
+        },
+        "states": [
+          {
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "status": "SUCCESS",
+            "latestAttemptNo": 1,
+            "statusReason": "OK",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n3_notify",
+            "jobId": "m6_read_deals",
+            "status": "SUCCESS",
+            "latestAttemptNo": 1,
+            "statusReason": "OK",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          },
+          {
+            "nodeId": "n4_fail",
+            "jobId": "m7_rerun_fail",
+            "status": "FAILED",
+            "latestAttemptNo": 1,
+            "statusReason": "ASSERT_FAILED",
+            "blockedBy": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:29:00Z"
+          }
+        ],
+        "attempts": [
+          {
+            "recordId": 455,
+            "attemptId": "attempt_a08c4c0d-b158-442d-b388-04da422d3886",
+            "nodeId": "n1_extract",
+            "jobId": "m6_read_customers",
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "attemptNo": 1,
+            "status": "SUCCESS",
+            "resultCode": "OK",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "73973918-be24-4fed-bb00-d0f3dc0556af",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 11,
+            "writtenCount": 0
+          },
+          {
+            "recordId": 456,
+            "attemptId": "attempt_510b4c8e-cb46-4306-a079-827dd4a6d44d",
+            "nodeId": "n3_notify",
+            "jobId": "m6_read_deals",
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "attemptNo": 1,
+            "status": "SUCCESS",
+            "resultCode": "OK",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "d429a3e8-b937-4361-a7ed-fd6df1a24708",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 18,
+            "writtenCount": 0
+          },
+          {
+            "recordId": 457,
+            "attemptId": "attempt_cf527e09-adef-4de8-a8c7-154a4e3e240e",
+            "nodeId": "n4_fail",
+            "jobId": "m7_rerun_fail",
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "attemptNo": 1,
+            "status": "FAILED",
+            "resultCode": "ASSERT_FAILED",
+            "executionStartedAt": "2026-08-31T05:29:00Z",
+            "runnerExecutionStartedAt": "2026-08-31T05:29:00Z",
+            "executionId": "4d3c0b83-b86f-4458-9257-dbf7301ca33f",
+            "finishedAt": "2026-08-31T05:29:00Z",
+            "readCount": 0,
+            "writtenCount": 0
+          }
+        ],
+        "invocations": [
+          {
+            "recordId": 454,
+            "invocationId": "invoke_2b679016-7e1a-4063-95b1-a6fcafc94e81",
+            "mode": "NEW",
+            "status": "FAILED",
+            "resultCode": "NODE_FAILED_OR_BLOCKED",
+            "selectedNodeIds": [
+              "n1_extract",
+              "n3_notify",
+              "n4_fail"
+            ],
+            "preservedNodeIds": [],
+            "blockedNodeIds": [],
+            "startedAt": "2026-08-31T05:29:00Z",
+            "finishedAt": "2026-08-31T05:30:00Z"
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": {
+    "prefix": "M7260831052910_02be_05-rerun-nonidem",
+    "runIds": [],
+    "networkIds": [],
+    "state": 0,
+    "audit": 0,
+    "total": 0
+  }
+}

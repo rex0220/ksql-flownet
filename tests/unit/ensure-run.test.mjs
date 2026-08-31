@@ -244,6 +244,67 @@ async function setNodeStatus(repository, runId, nodeId, status) {
   });
 }
 
+async function setLatestAttemptNo(repository, runId, nodeId, attemptNo) {
+  const state = (await repository.getNodeStates(runId)).find(
+    ({ value }) => value.node_id === nodeId,
+  );
+  await repository.upsertNodeState({
+    expected_revision: state.revision,
+    value: { ...state.value, latest_attempt_no: attemptNo },
+  });
+}
+
+async function seedPrepareFailedAttempt(
+  repository,
+  runId,
+  nodeId,
+  invocationId,
+) {
+  let state = (await repository.getNodeStates(runId)).find(
+    ({ value }) => value.node_id === nodeId,
+  );
+  const attempt = await repository.createAttempt({
+    node_state: state,
+    node_attempt_id: `attempt_${nodeId}_prepare_failed`,
+    invocation_id: invocationId,
+  });
+  state = await repository.upsertNodeState({
+    expected_revision: state.revision,
+    value: {
+      ...state.value,
+      status: "RUNNING",
+      latest_attempt_no: attempt.value.attempt_no,
+      active_attempt_id: attempt.value.node_attempt_id,
+    },
+  });
+  await repository.finalizeAttempt(
+    attempt.value.node_attempt_id,
+    attempt.revision,
+    {
+      status: "CANCELLED",
+      result_code: "PREPARE_FAILED",
+      runner_execution_started_at: null,
+      execution_id: null,
+      finished_at: T0,
+      duration_sec: 0,
+      error_message: "prepare failed",
+      read_count: 0,
+      written_count: 0,
+      last_successful_chunk_no: null,
+      last_written_key: null,
+    },
+  );
+  await repository.upsertNodeState({
+    expected_revision: state.revision,
+    value: {
+      ...state.value,
+      status: "WAITING",
+      active_attempt_id: null,
+      status_reason: "PREPARE_FAILED",
+    },
+  });
+}
+
 test("D-02 0件NEW: capability後にlockを取り、その後だけ検索・作成する", async (context) => {
   const { networkPath } = fixture(context);
   const events = [];
@@ -497,17 +558,17 @@ test("capability不一致ではNetwork lockを取得しない", async (context) 
   assert.ok(!h.events.includes("lock"));
 });
 
-test("--rerun-fromは指定ノードと子孫だけをWAITINGへ戻しmodeと対象集合を記録する", async (context) => {
-  const { networkPath } = rerunFixture(context);
+test("--rerun-fromは未実行の非冪等子孫を含めてWAITINGへ戻しmodeと対象集合を記録する", async (context) => {
+  const { networkPath } = rerunFixture(context, false);
   const h = harness();
   const created = await ensureRun(input(networkPath, h));
   await created.close({ status: "CANCELLED", resultCode: "SEED" });
-  for (const id of ["upstream", "selected", "sibling"])
+  for (const id of ["upstream", "sibling"])
     await setNodeStatus(h.repository, created.run.value.run_id, id, "SUCCESS");
   await setNodeStatus(
     h.repository,
     created.run.value.run_id,
-    "child",
+    "selected",
     "FAILED",
   );
   const current = await h.repository.getRun(created.run.value.run_id);
@@ -545,6 +606,11 @@ test("--rerun-fromは指定ノードと子孫だけをWAITINGへ戻しmodeと対
     child: "WAITING",
     sibling: "SUCCESS",
   });
+  const child = (await h.repository.getNodeStates(current.value.run_id)).find(
+    ({ value }) => value.node_id === "child",
+  ).value;
+  assert.equal(child.idempotent, false);
+  assert.equal(child.latest_attempt_no, 0);
   await result.close({ status: "CANCELLED", resultCode: "TEST_DONE" });
 });
 
@@ -627,12 +693,55 @@ test("--rerun-fromは対象内UNKNOWNを状態変更せず安定codeで拒否す
   );
 });
 
-test("--rerun-fromは対象内idempotent=falseを状態変更せず安定codeで拒否する", async (context) => {
+test("--rerun-fromは実行済みidempotent=falseを状態変更せず安定codeで拒否する", async (context) => {
   const { networkPath } = rerunFixture(context, false);
   const h = harness();
   const created = await ensureRun(input(networkPath, h));
   await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  await setLatestAttemptNo(h.repository, created.run.value.run_id, "child", 1);
   const before = await h.repository.getNodeStates(created.run.value.run_id);
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, {
+        businessKey: undefined,
+        resumeRunId: created.run.value.run_id,
+        rerunFrom: "selected",
+      }),
+    ),
+    (error) => {
+      assert.equal(error.code, "RERUN_FROM_NON_IDEMPOTENT");
+      assert.match(error.message, /executed idempotent=false/);
+      return true;
+    },
+  );
+  assert.deepEqual(
+    await h.repository.getNodeStates(created.run.value.run_id),
+    before,
+  );
+});
+
+test("--rerun-fromはPREPARE_FAILEDだけでもattempt済み非冪等ノードを拒否する", async (context) => {
+  const { networkPath } = rerunFixture(context, false);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  await seedPrepareFailedAttempt(
+    h.repository,
+    created.run.value.run_id,
+    "child",
+    created.invocation.value.invocation_id,
+  );
+  const before = await h.repository.getNodeStates(created.run.value.run_id);
+  const attempts = await h.repository.getAttempts(created.run.value.run_id);
+  assert.deepEqual(
+    attempts.map(({ value }) => [
+      value.node_id,
+      value.attempt_no,
+      value.status,
+      value.result_code,
+    ]),
+    [["child", 1, "CANCELLED", "PREPARE_FAILED"]],
+  );
   await assert.rejects(
     ensureRun(
       input(networkPath, h, {

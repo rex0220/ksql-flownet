@@ -731,12 +731,12 @@ async function prepareRerunFrom(
     );
   }
   const nonIdempotent = selectedStates
-    .filter(({ value }) => !value.idempotent)
+    .filter(({ value }) => !value.idempotent && value.latest_attempt_no > 0)
     .map(({ value }) => value.node_id);
   if (nonIdempotent.length > 0) {
     throw new EnsureRunError(
       "RERUN_FROM_NON_IDEMPOTENT",
-      `rerun target contains idempotent=false node(s): ${nonIdempotent.join(", ")}`,
+      `rerun target contains executed idempotent=false node(s): ${nonIdempotent.join(", ")}`,
     );
   }
 

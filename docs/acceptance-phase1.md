@@ -17,7 +17,7 @@
 | 9 | 非冪等UNKNOWN/FAILEDの自動リランなし | E2E | m6-03 | 済 |
 | 10 | node_id≠job_idでも同job_id単体ジョブとNodeロック排他 | E2E | m5-lock-conflict | 済 |
 | 11 | --scheduled-forのbusiness key決定性(月跨ぎ/年跨ぎ/TZ境界)とresume分岐 | unit+E2E | business-key unit(境界値)、ensure-run unit(0/1/完了/複数)、m6-01 | 済 |
-| 12 | --rerun-fromの子孫限定・非冪等/終端SUCCESS拒否 | unit | FN-11 unit(descendants、拒否5種) | 済 |
+| 12 | --rerun-fromの子孫限定・実行済み非冪等/終端SUCCESS拒否(未実行非冪等は初回実行可) | unit+E2E | FN-11 unit+R2-1回帰、m7-05実機(docs/test-results/r2-1-20260831/)。規則はR2-1再審議で精緻化(FDR §13) | 済 |
 | 13 | R1重複Run作成不能 | 実機 | M3ゲート(createRun裁定、record_key=R1) | 済 |
 | 14 | 開始時エラー(lock/snapshot/ログ)のfail-closed | unit+実機 | preflight/ensure-run unit、M4ゲート | 済 |
 | 15 | max_active_runs超過で新規作成せず阻害run_id返却 | unit | ensure-run unit | 済 |
