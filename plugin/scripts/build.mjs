@@ -128,6 +128,18 @@ async function inspectBrowserBundle(label, output, metadata) {
 await inspectBrowserBundle("activity", activityOutput, metafileText);
 await inspectBrowserBundle("desktop", desktopOutput, desktopMetafileText);
 
+const desktopText = await readFile(desktopOutput, "utf8");
+for (const [label, pattern] of [
+  ["cursor endpoint", /\/k\/v1\/records\/cursor\.json/u],
+  ["bulk endpoint", /\/k\/v1\/bulkRequest\.json/u],
+  ["PUT method", /["']PUT["']/u],
+  ["DELETE method", /["']DELETE["']/u],
+]) {
+  if (pattern.test(desktopText)) {
+    throw new Error(`forbidden runtime API found in desktop bundle: ${label}`);
+  }
+}
+
 await Promise.all([
   buildWorkspaceEntry(resolve(pluginDirectory, "src", "activity-input.ts"), {
     outfile: resolve(testOutputDirectory, "activity-input.js"),
@@ -146,11 +158,14 @@ await Promise.all([
     legalComments: "none",
   }),
   ...[
+    "board-action",
     "board-controller",
     "config",
     "desktop",
     "detail-controller",
     "render",
+    "request-client",
+    "terminal-run-loader",
   ].map((name) =>
     buildWorkspaceEntry(resolve(pluginDirectory, "src", `${name}.ts`), {
       outfile: resolve(testOutputDirectory, `${name}.js`),

@@ -33,6 +33,12 @@ export interface ActivityRun {
   readonly startedAt: string | null;
 }
 
+export interface RunActionAttributes {
+  readonly lifecycleStatus: "ACTIVE" | "ARCHIVED";
+  readonly resumeAllowed: boolean;
+  readonly updatedAt: string;
+}
+
 export interface ActivityInvocation {
   readonly invocationId: string;
   readonly runId: string;
@@ -69,6 +75,23 @@ export function parseRunRecord(record: KintoneRecord): ActivityRun {
     runId: requiredText(record, "run_id"),
     status: requireLiteral(record, "status", RUN_STATUSES),
     startedAt: startedAt === null ? null : requireDate(startedAt, "started_at"),
+  };
+}
+
+export function parseRunActionAttributes(
+  record: KintoneRecord,
+): RunActionAttributes {
+  const resumeAllowed = requireLiteral(record, "resume_allowed", [
+    "true",
+    "false",
+  ] as const);
+  return {
+    lifecycleStatus: requireLiteral(record, "lifecycle_status", [
+      "ACTIVE",
+      "ARCHIVED",
+    ] as const),
+    resumeAllowed: resumeAllowed === "true",
+    updatedAt: requireDate(requiredText(record, "updated_at"), "updated_at"),
   };
 }
 

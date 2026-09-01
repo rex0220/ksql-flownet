@@ -11,6 +11,11 @@ import type {
   RecordsResponse,
 } from "./kintone-reader.js";
 import type { KintoneRecord } from "./kintone-record.js";
+import type {
+  CreateRecordResponse,
+  CreateRequestBody,
+  PostRecord,
+} from "./request-client.js";
 import {
   renderBoard,
   renderBoardLoading,
@@ -60,6 +65,11 @@ interface RuntimeKintone {
       method: "GET",
       body: RecordsRequest,
     ): Promise<RecordsResponse>;
+    (
+      url: string,
+      method: "POST",
+      body: CreateRequestBody,
+    ): Promise<CreateRecordResponse>;
     url(path: string, guestSpace: boolean): string;
   };
 }
@@ -75,11 +85,27 @@ export interface KintoneRecordsGetApi {
   };
 }
 
+export interface KintoneRecordPostApi {
+  readonly api: {
+    (
+      url: string,
+      method: "POST",
+      body: CreateRequestBody,
+    ): Promise<CreateRecordResponse>;
+    url(path: string, guestSpace: boolean): string;
+  };
+}
+
 export function createKintoneFetchRecords(
   api: KintoneRecordsGetApi,
 ): FetchRecords {
   return (request) =>
     api.api(api.api.url("/k/v1/records.json", true), "GET", request);
+}
+
+export function createKintonePostRecord(api: KintoneRecordPostApi): PostRecord {
+  return (request) =>
+    api.api(api.api.url("/k/v1/record.json", true), "POST", request);
 }
 
 function runtimeDependencies(

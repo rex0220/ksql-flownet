@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 
+import { buildCreateRequestBody } from "../../dist/plugin/request-client.js";
+import { parseRequestRecord } from "../../dist/requests/request-model.js";
+
 const templatePath = resolve("templates/create-flownet-request-app.console.js");
 
 async function evaluateTemplate({ existing = [] } = {}) {
@@ -135,5 +138,41 @@ test("同名アプリがあればpreview作成前に中止する", async () => {
   assert.deepEqual(
     calls.map(({ url }) => url),
     ["/apps"],
+  );
+});
+
+test("plugin POST body plus template/system defaults passes parseRequestRecord", () => {
+  for (const requestType of ["RERUN", "STOP", "RELEASE"]) {
+    const body = buildCreateRequestBody(999, {
+      requestType,
+      runId: "run_contract",
+      reason: "operator reason",
+      ...(requestType === "RERUN" ? { rerunFromNode: "node_2" } : {}),
+    });
+    const record = {
+      ...body.record,
+      $id: { value: "1" },
+      $revision: { value: "1" },
+      作成者: { value: { code: "operator@example.test" } },
+      作成日時: { value: "2026-09-01T01:00:00Z" },
+      rerun_from_node: body.record.rerun_from_node ?? { value: "" },
+      request_state: { value: "REQUESTED" },
+      claimed_at: { value: "" },
+      claimed_host: { value: "" },
+      claim_heartbeat_at: { value: "" },
+      result_code: { value: "" },
+      result_message: { value: "" },
+    };
+    assert.equal(parseRequestRecord(record).requestType, requestType);
+  }
+  assert.throws(
+    () =>
+      buildCreateRequestBody(999, {
+        requestType: "RELEASE",
+        runId: "run_contract",
+        reason: "operator reason",
+        rerunFromNode: "node_2",
+      }),
+    /only allowed for RERUN/u,
   );
 });

@@ -25,6 +25,7 @@ export async function loadDetail(
     const loadedRun: LoadedRun = {
       ...run,
       businessKey: requiredText(record, "business_key"),
+      recordId: requiredText(record, "$id"),
     };
     const rows = await loadRowsForRuns(dependencies, [loadedRun], nowMs);
     const row = rows[0];

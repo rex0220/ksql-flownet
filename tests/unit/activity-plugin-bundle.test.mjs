@@ -3,6 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 
+import {
+  createKintoneFetchRecords,
+  createKintonePostRecord,
+} from "../../dist/plugin/desktop.js";
+
 const bundlePath = new globalThis.URL(
   "../../plugin/dist/activity.js",
   import.meta.url,
@@ -102,5 +107,52 @@ test("desktopバンドルへ設定画面コードを混入させない(2026-09-0
       !desktop.includes(forbidden),
       `desktop.jsに設定画面コードを含めない: ${forbidden}`,
     );
+  }
+});
+
+test("runtime adapters allow only records GET and single-record POST", async () => {
+  const calls = [];
+  const api = async (url, method, body) => {
+    calls.push({ url, method, body });
+    return method === "GET" ? { records: [] } : { id: "1", revision: "1" };
+  };
+  api.url = (path, guest) => {
+    assert.equal(guest, true);
+    return path;
+  };
+  await createKintoneFetchRecords({ api })({
+    app: 100,
+    query: "limit 1",
+    fields: ["$id"],
+  });
+  await createKintonePostRecord({ api })({
+    app: 300,
+    record: {
+      request_type: { value: "STOP" },
+      run_id: { value: "run_1" },
+      reason: { value: "reason" },
+    },
+  });
+  assert.deepEqual(
+    calls.map(({ url, method, body }) => [url, method, body.app]),
+    [
+      ["/k/v1/records.json", "GET", 100],
+      ["/k/v1/record.json", "POST", 300],
+    ],
+  );
+});
+
+test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
+  const desktop = readFileSync(
+    new globalThis.URL("../../plugin/dist/desktop.js", import.meta.url),
+    "utf8",
+  );
+  for (const [label, pattern] of [
+    ["cursor", /\/k\/v1\/records\/cursor\.json/u],
+    ["bulk", /\/k\/v1\/bulkRequest\.json/u],
+    ["PUT", /["']PUT["']/u],
+    ["DELETE", /["']DELETE["']/u],
+  ]) {
+    assert.doesNotMatch(desktop, pattern, label);
   }
 });

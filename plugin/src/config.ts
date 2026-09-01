@@ -1,7 +1,12 @@
-import { validateAuditAppId, type PluginConfig } from "./config-validation.js";
+import {
+  validateAuditAppId,
+  validateRequestAppId,
+  type PluginConfig,
+} from "./config-validation.js";
 
 export {
   validateAuditAppId,
+  validateRequestAppId,
   type ConfigValidationResult,
   type PluginConfig,
 } from "./config-validation.js";
@@ -24,6 +29,9 @@ export function installConfigPage(
   const input = pageDocument.querySelector<HTMLInputElement>(
     "#ksql-flownet-audit-app-id",
   );
+  const requestInput = pageDocument.querySelector<HTMLInputElement>(
+    "#ksql-flownet-request-app-id",
+  );
   const form = pageDocument.querySelector<HTMLFormElement>(
     "#ksql-flownet-config-form",
   );
@@ -33,13 +41,21 @@ export function installConfigPage(
   const cancel = pageDocument.querySelector<HTMLButtonElement>(
     "#ksql-flownet-config-cancel",
   );
-  if (input === null || form === null || error === null || cancel === null) {
+  if (
+    input === null ||
+    requestInput === null ||
+    form === null ||
+    error === null ||
+    cancel === null
+  ) {
     throw new Error(
       "プラグイン設定画面の要素が不足しています。引数を確認してください。",
     );
   }
 
-  input.value = kintoneApi.plugin.app.getConfig(pluginId).auditAppId ?? "";
+  const savedConfig = kintoneApi.plugin.app.getConfig(pluginId);
+  input.value = savedConfig.auditAppId ?? "";
+  requestInput.value = savedConfig.requestAppId ?? "";
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const result = validateAuditAppId(input.value);
@@ -47,9 +63,15 @@ export function installConfigPage(
       error.textContent = result.message;
       return;
     }
+    const requestResult = validateRequestAppId(requestInput.value);
+    if (!requestResult.valid || requestResult.value === null) {
+      error.textContent = requestResult.message;
+      return;
+    }
     error.textContent = "";
-    kintoneApi.plugin.app.setConfig({ auditAppId: result.value }, () =>
-      globalThis.history.back(),
+    kintoneApi.plugin.app.setConfig(
+      { auditAppId: result.value, requestAppId: requestResult.value },
+      () => globalThis.history.back(),
     );
   });
   cancel.addEventListener("click", () => globalThis.history.back());
