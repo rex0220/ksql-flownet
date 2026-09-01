@@ -1,7 +1,7 @@
 # P2-08: 案A v1 導出プラグイン 仕様書
 
-- 文書状態: **DRAFT**(Phase 2作業単位。読み取り専用の画面拡張であり凍結仕様の変更なし — FDR再審議不要。本仕様の受入合格が**npm公開のゲート**)
-- 起案日: 2026-09-01
+- 文書状態: **REVIEWED**(Phase 2作業単位。読み取り専用の画面拡張であり凍結仕様の変更なし — FDR再審議不要。本仕様の受入合格が**npm公開のゲート**)
+- 起案日: 2026-09-01 / 改訂: 同日Codexレビュー([実装計画](./p2-08-implementation-plan.md)§2)の補正G-01〜G-10を反映。**実装計画§3〜§4を実装時の補足契約とする**(bundle entry・view挿入点・lock照合縮約・Cancel JSONパースparse・keyset paging・fail-closed粒度の採用値は同計画が正)
 - 正本参照: [job-network-phase1-spec.md](./job-network-phase1-spec.md) §7.4(activity導出の正本定義)、共有test vector `tests/fixtures/status-activity/vectors.json`(15ケース)、[討論記録](./kintone-ops-roadmap-discussion.md) §9.3(1)(導出式の単一正本・vector共有)・§10.3、[implementation-plan.md](./implementation-plan.md) P2-08行、[提案書](./kintone-ops-roadmap-proposal.md) §6.2(案A)
 
 ## 1. 目的と非目的
@@ -34,7 +34,7 @@ NETWORK_RUNレコードの詳細画面(`app.record.detail.show`)ヘッダスペ�
 
 ## 3. 導出の単一実装(ドリフト排除)
 
-- 導出関数は**製品と同一ソース**(`src/orchestration/status.ts`の`deriveRunActivity` — 依存なしの純関数、`KINTONE_DATETIME_TRUNCATION_MS`=60秒の保守判定込み)を、esbuildでプラグインへバンドルする。**実装を2つ作らない**。
+- 導出関数は**製品と同一ソース**(`src/orchestration/status.ts`の`deriveRunActivity` — 関数自体はI/O・時刻取得・Node組込みなしの純関数、`KINTONE_DATETIME_TRUNCATION_MS`=60秒の保守判定込み)を、esbuildでプラグインへバンドルする。**実装を2つ作らない**。ただし`status.ts`モジュール全体は`node:crypto`へ到達する依存を持つため(G-01)、bundle entryは`deriveRunActivity`のみをnamed importし、**tree shaking後の成果物にブラウザ非互換依存が残らないことを検査で受入**する(metafile+文字列検査+Node vm実行)。
 - 討論§9.3(1)は「プラグインはCLI出力を使えず実装が2つになる」前提でvector共有を課したが、本方式は同一ソース化で条件をさらに強化する。**共有vector(15ケース)は引き続き受入の正本**であり、プラグインのバンドル済み導出モジュールをNodeテストで同vectorに通すことを受入条件とする(バンドル工程の破損検知)。
 - 導出入力の組み立て(kintoneレコード→ActivityInput)はプラグイン側の実装となるため、入力組み立て自体の単体テスト(レコードfixture→入力)を別途持つ。
 
@@ -45,12 +45,15 @@ NETWORK_RUNレコードの詳細画面(`app.record.detail.show`)ヘッダスペ�
 | 入力 | 取得元 | 備考 |
 | --- | --- | --- |
 | NETWORK_RUN(未終端) | 実行管理アプリ(自アプリ — `kintone.app.getId()`) | `record_type in ("NETWORK_RUN") and status not in (終端4値)` |
-| NETWORK_LOCK | 実行管理アプリ | network_id単位 |
-| CANCEL_REQUEST | 実行管理アプリ | `CANCEL:<run_id>`、REQUESTED/ACCEPTED判定 |
-| RUN_INVOCATION(invocation ids) | **監査履歴アプリ**(プラグイン設定で指定) | lock ownerの当該Run帰属判定に必要 |
+| NETWORK_LOCK(active) | 実行管理アプリ | 一括取得(**G-09補正: lockレコードはnetwork_idを持たない** — lock_keyはハッシュのため照合には使わない) |
+| CANCEL_REQUEST | 実行管理アプリ | `CANCEL:<run_id>`。**stateは独立フィールドではなく`status_reason`のJSONパック**(G-07) — 構造検証付きでparseし、parse失敗・未知state・重複・run不一致は「判定不能」表示(LIVEやINTERRUPTEDへ倒さない) |
+| RUN_INVOCATION | **監査履歴アプリ**(プラグイン設定で指定) | **Run単位の全件取得はしない(N+1回避、G-05)**: active lockの`owner_invocation_id`集合だけを`invocation_id in (...)`で一括照合し、返った`run_id`で当該Runへ紐付け。導出の`includes()`判定は保存される |
 
 - 実行者の権限で読む(APIトークン不使用)。一次対応者に必要な権限: 実行管理・監査履歴の**閲覧**(ops-first-response.mdの「閲覧は自由」と整合)
-- API呼数の目安: ボード1回の描画で未終端Run数に応じ3〜5 GET(500件上限のページング付き)。自動リロードはしない(手動再読込のみ — ポーリングで負荷を作らない)
+- ページングは`$id` keyset(limit 500、offset 1万件上限を回避 — G-06)。ID集合の`in (...)`は件数とクエリ長でchunk化。典型4 GET、件数依存で増加
+- 自動リロードはしない(手動再読込のみ)。多重クリック・画面遷移は世代番号で古い応答の上書きを防止
+- **fail-closed粒度(G-10)**: Run/Lock/監査の取得失敗はボード全体を判定不能、Cancel構造異常は当該Run行のみ判定不能(他行は表示可)。page/chunkの通信失敗は部分結果を破棄。判定不能行に4色バッジを使わない
+- **書込みゼロの範囲(G-09)**: `desktop.js`実行時は`GET /k/v1/records.json`のみ(cursor作成もPOSTのため不使用)。設定画面の`setConfig`とConsoleでの一覧追加/deployは導入時操作として別区分で証跡化
 
 ## 5. プラグイン構成・配布
 
