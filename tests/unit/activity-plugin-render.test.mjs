@@ -113,6 +113,30 @@ test("board view model renders four badges, fixed actions, evidence, and judged 
     allNodes(root).filter((node) => node.textContent === "再読込").length,
     1,
   );
+  const board = root.children[0];
+  const toolbar = board.children[0];
+  assert.equal(toolbar.className, "ksql-flownet-toolbar");
+  assert.equal(toolbar.children[0].tagName, "h2");
+  assert.equal(toolbar.children[0].textContent, "Run状況");
+  assert.equal(findText(toolbar, "再読込").className, "ksql-flownet-reload");
+  assert.equal(
+    board.children.at(-1).className,
+    "ksql-flownet-section",
+    "reload must not be rendered in a board footer",
+  );
+  const sectionHeaders = allNodes(root).filter(
+    (node) => node.className === "ksql-flownet-section-header",
+  );
+  assert.equal(sectionHeaders.length, 2);
+  assert.deepEqual(
+    sectionHeaders.map((header) => header.children[1].textContent),
+    ["4件", "0件"],
+  );
+  assert.ok(
+    sectionHeaders.every(
+      (header) => header.children[1].className === "ksql-flownet-count-badge",
+    ),
+  );
   // レコード番号列は詳細画面への相対リンク(2026-09-01ユーザー要望)
   const links = allNodes(root).filter((node) => node.tagName === "a");
   assert.equal(links.length, 4);
@@ -294,6 +318,18 @@ test("two sections render every action kind, remaining count, copy callback, and
   assert.equal(
     allNodes(root).filter((item) => item.tagName === "table").length,
     2,
+  );
+  assert.deepEqual(
+    allNodes(root)
+      .filter((item) => item.className === "ksql-flownet-count-badge")
+      .map((item) => item.textContent),
+    ["4件", "4件"],
+  );
+  assert.equal(
+    allNodes(root).filter(
+      (item) => item.className === "ksql-flownet-operation-cell",
+    ).length,
+    10,
   );
   assert.equal(root.children.length, 1, "replaceChildren keeps one board root");
   findText(root, "停止要求").listeners.get("click")();

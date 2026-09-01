@@ -295,9 +295,28 @@ function recordCell(
   const link = pageDocument.createElement("a");
   link.textContent = row.recordId;
   link.setAttribute("href", row.recordUrl);
-  const cell = element(pageDocument, "td");
+  const cell = element(pageDocument, "td", "ksql-flownet-record-cell");
   cell.append(link);
   return cell;
+}
+
+function tableHeader(
+  pageDocument: Document,
+  labels: readonly string[],
+): HTMLElement {
+  const thead = element(pageDocument, "thead");
+  const header = element(pageDocument, "tr");
+  labels.forEach((label, index) => {
+    const className =
+      index === 0
+        ? "ksql-flownet-record-cell"
+        : index === labels.length - 1
+          ? "ksql-flownet-operation-cell"
+          : undefined;
+    header.append(element(pageDocument, "th", className, label));
+  });
+  thead.append(header);
+  return thead;
 }
 
 function renderActiveTable(
@@ -307,9 +326,7 @@ function renderActiveTable(
   callbacks: RenderCallbacks,
 ): HTMLElement {
   const table = element(pageDocument, "table", "ksql-flownet-table");
-  const thead = element(pageDocument, "thead");
-  const header = element(pageDocument, "tr");
-  for (const label of [
+  const thead = tableHeader(pageDocument, [
     "レコード",
     "Business Key",
     "Run ID",
@@ -318,13 +335,15 @@ function renderActiveTable(
     "Started At",
     "根拠・一次対応",
     "操作",
-  ])
-    header.append(element(pageDocument, "th", undefined, label));
-  thead.append(header);
+  ]);
   const tbody = element(pageDocument, "tbody");
   for (const row of rows) {
     const tr = element(pageDocument, "tr");
-    const actionCell = element(pageDocument, "td");
+    const actionCell = element(
+      pageDocument,
+      "td",
+      "ksql-flownet-operation-cell",
+    );
     actionCell.append(
       actionContent(
         pageDocument,
@@ -363,22 +382,22 @@ function renderTerminalTable(
   callbacks: RenderCallbacks,
 ): HTMLElement {
   const table = element(pageDocument, "table", "ksql-flownet-table");
-  const thead = element(pageDocument, "thead");
-  const header = element(pageDocument, "tr");
-  for (const label of [
+  const thead = tableHeader(pageDocument, [
     "レコード",
     "Business Key",
     "Run ID",
     "Status",
     "更新時刻",
     "操作",
-  ])
-    header.append(element(pageDocument, "th", undefined, label));
-  thead.append(header);
+  ]);
   const tbody = element(pageDocument, "tbody");
   for (const row of rows) {
     const tr = element(pageDocument, "tr");
-    const actionCell = element(pageDocument, "td");
+    const actionCell = element(
+      pageDocument,
+      "td",
+      "ksql-flownet-operation-cell",
+    );
     actionCell.append(
       actionContent(
         pageDocument,
@@ -472,6 +491,19 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
   } as BoardViewModel;
 }
 
+function sectionHeader(
+  pageDocument: Document,
+  title: string,
+  count: number,
+): HTMLElement {
+  const header = element(pageDocument, "header", "ksql-flownet-section-header");
+  header.append(
+    element(pageDocument, "h3", undefined, title),
+    element(pageDocument, "span", "ksql-flownet-count-badge", `${count}件`),
+  );
+  return header;
+}
+
 export function renderBoard(
   root: HTMLElement,
   rawModel: BoardViewModel,
@@ -481,10 +513,39 @@ export function renderBoard(
   const callbacks = normalizeCallbacks(callbacksOrReload);
   const pageDocument = root.ownerDocument;
   const board = element(pageDocument, "section", "ksql-flownet-board");
-  board.append(element(pageDocument, "h2", undefined, "Run状況"));
+  const toolbar = element(pageDocument, "header", "ksql-flownet-toolbar");
+  toolbar.append(element(pageDocument, "h2", undefined, "Run状況"));
+  const toolbarActions = element(
+    pageDocument,
+    "div",
+    "ksql-flownet-toolbar-actions",
+  );
+  toolbarActions.append(
+    element(
+      pageDocument,
+      "span",
+      "ksql-flownet-judged-at",
+      !model.judgedAt
+        ? "判定時刻: 未判定"
+        : `判定時刻: ${new Date(model.judgedAt).toLocaleString("ja-JP")}`,
+    ),
+  );
+  const reload = element(
+    pageDocument,
+    "button",
+    "ksql-flownet-reload",
+    "再読込",
+  ) as HTMLButtonElement;
+  reload.type = "button";
+  reload.addEventListener("click", callbacks.onReload);
+  toolbarActions.append(reload);
+  toolbar.append(toolbarActions);
+  board.append(toolbar);
 
   const active = element(pageDocument, "section", "ksql-flownet-section");
-  active.append(element(pageDocument, "h3", undefined, "未終端Run"));
+  active.append(
+    sectionHeader(pageDocument, "未終端Run", model.activeSection.rows.length),
+  );
   if (model.activeSection.state === "error") {
     active.append(sectionError(pageDocument, model.activeSection.error));
   } else if (model.activeSection.rows.length === 0) {
@@ -509,7 +570,13 @@ export function renderBoard(
   board.append(active);
 
   const attention = element(pageDocument, "section", "ksql-flownet-section");
-  attention.append(element(pageDocument, "h3", undefined, "要対応(終端)"));
+  attention.append(
+    sectionHeader(
+      pageDocument,
+      "要対応(終端)",
+      model.attentionSection.rows.length,
+    ),
+  );
   if (model.attentionSection.state === "error") {
     attention.append(sectionError(pageDocument, model.attentionSection.error));
   } else if (model.attentionSection.rows.length === 0) {
@@ -548,27 +615,6 @@ export function renderBoard(
       element(pageDocument, "p", "ksql-flownet-warning", model.pendingWarning),
     );
   }
-  const footer = element(pageDocument, "footer", "ksql-flownet-footer");
-  footer.append(
-    element(
-      pageDocument,
-      "span",
-      "ksql-flownet-judged-at",
-      !model.judgedAt
-        ? "判定時刻: 未判定"
-        : `判定時刻: ${new Date(model.judgedAt).toLocaleString("ja-JP")}`,
-    ),
-  );
-  const reload = element(
-    pageDocument,
-    "button",
-    "ksql-flownet-reload",
-    "再読込",
-  ) as HTMLButtonElement;
-  reload.type = "button";
-  reload.addEventListener("click", callbacks.onReload);
-  footer.append(reload);
-  board.append(footer);
   replaceChildren(root, board);
 }
 
