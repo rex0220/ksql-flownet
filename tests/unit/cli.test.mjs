@@ -19,6 +19,7 @@ import {
   resolveOwnerInstanceId,
   runRunNetworkCommand,
 } from "../../dist/cli/run-network-command.js";
+import { runPollRequestsCommand } from "../../dist/cli/poll-requests-command.js";
 import { EnsureRunError } from "../../dist/orchestration/ensure-run.js";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -133,9 +134,13 @@ Commands:
                       display the business key and stable execution plan (read-only)
   run-network <network> [--business-key <key>] [--scheduled-for <timestamp>]
                         [--resume] [--resume-run <run_id>] [--rerun-from <node_id>]
+                        [--json]
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
+  poll-requests [--check]
+                      claim and process app operation requests (one-shot),
+                      or validate configuration and read access without writes
   resolve-node --run-id <run_id> --node-id <node_id> --to <status>
                --reason-file <path> --evidence-ref <ref>
                --stop-confirmed-by <subject> --stop-evidence-ref <ref>
@@ -296,6 +301,208 @@ test("run-networkは--rerun-fromをresume経路だけで受理してensure-run�
   );
   assert.equal(received.resumeRunId, "run-1");
   assert.equal(received.rerunFrom, "child");
+});
+
+test("poll-requests is dispatched as a known one-shot command", () => {
+  const result = runCli("poll-requests", "unexpected");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Invalid poll-requests arguments/u);
+  assert.doesNotMatch(result.stderr, /unknown command/u);
+});
+
+function pollCheckDependencies(listRequested, childStarted) {
+  const mustNotWrite = async () => {
+    throw new Error("preflight must not write");
+  };
+  const mustNotStartChild = async () => {
+    childStarted.value = true;
+    throw new Error("preflight must not start a child");
+  };
+  return {
+    store: {
+      listRequested,
+      listAccepted: mustNotWrite,
+      rejectInvalid: mustNotWrite,
+      claim: mustNotWrite,
+      heartbeat: mustNotWrite,
+      writeResult: mustNotWrite,
+    },
+    child: {
+      status: mustNotStartChild,
+      runNetwork: mustNotStartChild,
+      cancelRun: mustNotStartChild,
+    },
+    config: {
+      networks: [
+        { networkId: "allowed", definitionPath: "C:\\networks\\allowed.yaml" },
+      ],
+      heartbeatIntervalMs: 60_000,
+      staleAfterMs: 900_000,
+      stalePrecisionAllowanceMs: 60_000,
+    },
+    host: "test-host",
+  };
+}
+
+test("poll-requests --checkは設定済み要求アプリをread-onlyで確認しchildを起動しない", async (context) => {
+  const stdout = [];
+  const childStarted = { value: false };
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  const exitCode = await runPollRequestsCommand(
+    ["--check"],
+    pollCheckDependencies(
+      async () => ({ valid: [], invalid: [], skipped: 0 }),
+      childStarted,
+    ),
+  );
+  assert.equal(exitCode, 0);
+  assert.equal(childStarted.value, false);
+  assert.equal(
+    stdout.join(""),
+    "poll-requests check: ok networks=1 request_app=readable\n",
+  );
+});
+
+test("poll-requests --checkは無効token相当のGET失敗でfail-closedかつchild非起動", async (context) => {
+  const stderr = [];
+  const childStarted = { value: false };
+  context.mock.method(process.stderr, "write", (value) => {
+    stderr.push(String(value));
+    return true;
+  });
+  const exitCode = await runPollRequestsCommand(
+    ["--check"],
+    pollCheckDependencies(async () => {
+      const error = new Error("request failed");
+      error.code = "KINTONE_HTTP_ERROR";
+      throw error;
+    }, childStarted),
+  );
+  assert.equal(exitCode, 1);
+  assert.equal(childStarted.value, false);
+  assert.match(stderr.join(""), /KINTONE_HTTP_ERROR/u);
+});
+
+test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", async (context) => {
+  const stdout = [];
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  const failed = await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-1", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        return {
+          outcome: "RESUME",
+          run: { value: { run_id: "run-1" } },
+          invocation: { value: { invocation_id: "invoke-1" } },
+          blockedBy: [],
+          businessKey: "net@one",
+          bundleBytes: Buffer.from("bundle"),
+          async close() {},
+        };
+      },
+      async schedule() {
+        return {
+          aggregateStatus: "FAILED",
+          invocationResultCode: "NODE_FAILED_OR_BLOCKED",
+          retryBrakeNodeIds: ["failed"],
+        };
+      },
+    },
+  );
+  assert.equal(failed, 1);
+  assert.deepEqual(JSON.parse(stdout.pop()), {
+    outcome: "RESUME",
+    run_id: "run-1",
+    invocation_id: "invoke-1",
+    aggregate_status: "FAILED",
+    invocation_result_code: "NODE_FAILED_OR_BLOCKED",
+    retry_brake_node_ids: ["failed"],
+  });
+
+  await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-2", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        return {
+          outcome: "NOOP",
+          run: { value: { run_id: "run-2" } },
+          invocation: null,
+          blockedBy: [],
+          businessKey: "net@two",
+        };
+      },
+    },
+  );
+  assert.deepEqual(JSON.parse(stdout.pop()).retry_brake_node_ids, []);
+
+  const rejected = await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-3", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        const error = new Error("blocked");
+        error.code = "LOCK_CONFLICT";
+        throw error;
+      },
+    },
+  );
+  assert.equal(rejected, 1);
+  assert.deepEqual(JSON.parse(stdout.pop()), {
+    outcome: "REJECTED",
+    run_id: "run-3",
+    invocation_id: null,
+    aggregate_status: null,
+    invocation_result_code: "LOCK_CONFLICT",
+    retry_brake_node_ids: [],
+  });
+
+  const postInvocationFailure = await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-4", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        return {
+          outcome: "RESUME",
+          run: { value: { run_id: "run-4" } },
+          invocation: { value: { invocation_id: "invoke-4" } },
+          blockedBy: [],
+          businessKey: "net@four",
+          bundleBytes: Buffer.from("bundle"),
+          async close() {},
+        };
+      },
+      async schedule() {
+        const error = new Error("scheduler failed");
+        error.code = "NETWORK_LEASE_INTERRUPTED";
+        throw error;
+      },
+    },
+  );
+  assert.equal(postInvocationFailure, 1);
+  assert.deepEqual(JSON.parse(stdout.pop()), {
+    outcome: "RESUME",
+    run_id: "run-4",
+    invocation_id: "invoke-4",
+    aggregate_status: null,
+    invocation_result_code: "NETWORK_LEASE_INTERRUPTED",
+    retry_brake_node_ids: [],
+  });
 });
 
 test("run-network reports max_active_runs blockers and exits 1", async (context) => {

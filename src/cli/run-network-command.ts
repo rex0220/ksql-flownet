@@ -37,6 +37,7 @@ interface RunNetworkArguments {
   readonly ksqlFlowBin?: string;
   readonly ksqlFlowConfig?: string;
   readonly ksqlFlowWorkdir?: string;
+  readonly json: boolean;
   readonly errors: readonly string[];
 }
 
@@ -62,10 +63,28 @@ export async function runRunNetworkCommand(
   dependencies?: RunNetworkCommandDependencies,
 ): Promise<number> {
   const parsed = parseRunNetworkArguments(args);
+  let created:
+    | {
+        readonly outcome: "NEW" | "RESUME";
+        readonly runId: string;
+        readonly invocationId: string;
+      }
+    | undefined;
   if (parsed.errors.length > 0 || parsed.networkPath === undefined) {
-    process.stderr.write(
-      `Invalid run-network arguments:\n${parsed.errors.map((error) => `- ${error}`).join("\n")}\n`,
-    );
+    if (parsed.json) {
+      writeJsonResult({
+        outcome: "REJECTED",
+        run_id: parsed.resumeRunId ?? null,
+        invocation_id: null,
+        aggregate_status: null,
+        invocation_result_code: "INVALID_ARGUMENTS",
+        retry_brake_node_ids: [],
+      });
+    } else {
+      process.stderr.write(
+        `Invalid run-network arguments:\n${parsed.errors.map((error) => `- ${error}`).join("\n")}\n`,
+      );
+    }
     return 1;
   }
   try {
@@ -90,21 +109,63 @@ export async function runRunNetworkCommand(
         : { rerunFrom: parsed.rerunFrom }),
     });
     if (result.outcome === "NOOP") {
-      process.stdout.write(
-        `NO-OP: Run ${result.run.value.run_id} is already SUCCESS; nothing was executed.\n`,
-      );
+      if (parsed.json) {
+        writeJsonResult({
+          outcome: "NOOP",
+          run_id: result.run.value.run_id,
+          invocation_id: null,
+          aggregate_status: "SUCCESS",
+          invocation_result_code: "NOOP_ALREADY_SUCCESS",
+          retry_brake_node_ids: [],
+        });
+      } else {
+        process.stdout.write(
+          `NO-OP: Run ${result.run.value.run_id} is already SUCCESS; nothing was executed.\n`,
+        );
+      }
       return 0;
     }
+    created = {
+      outcome: result.outcome,
+      runId: result.run.value.run_id,
+      invocationId: result.invocation.value.invocation_id,
+    };
     const summary = await runtime.schedule(result);
-    process.stdout.write(
-      `${result.outcome}: Run ${result.run.value.run_id} finished with aggregate ${summary.aggregateStatus} (${summary.invocationResultCode}).\n`,
-    );
+    if (parsed.json) {
+      writeJsonResult({
+        outcome: result.outcome,
+        run_id: result.run.value.run_id,
+        invocation_id: result.invocation.value.invocation_id,
+        aggregate_status: summary.aggregateStatus,
+        invocation_result_code: summary.invocationResultCode,
+        retry_brake_node_ids: summary.retryBrakeNodeIds,
+      });
+    } else {
+      process.stdout.write(
+        `${result.outcome}: Run ${result.run.value.run_id} finished with aggregate ${summary.aggregateStatus} (${summary.invocationResultCode}).\n`,
+      );
+    }
     return summary.aggregateStatus === "SUCCESS" ? 0 : 1;
   } catch (error) {
     const code = errorCode(error);
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`Error [${code}]: ${message}\n`);
-    if (error instanceof EnsureRunError && error.blockedBy.length > 0) {
+    if (parsed.json) {
+      writeJsonResult({
+        outcome: created?.outcome ?? "REJECTED",
+        run_id: created?.runId ?? parsed.resumeRunId ?? null,
+        invocation_id: created?.invocationId ?? null,
+        aggregate_status: null,
+        invocation_result_code: code,
+        retry_brake_node_ids: [],
+      });
+    } else {
+      process.stderr.write(`Error [${code}]: ${message}\n`);
+    }
+    if (
+      !parsed.json &&
+      error instanceof EnsureRunError &&
+      error.blockedBy.length > 0
+    ) {
       process.stderr.write(
         `Blocking run_id(s): ${error.blockedBy.join(", ")}\n`,
       );
@@ -125,9 +186,15 @@ function parseRunNetworkArguments(
   let ksqlFlowConfig: string | undefined;
   let ksqlFlowWorkdir: string | undefined;
   let resume = false;
+  let json = false;
   const errors: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!;
+    if (argument === "--json") {
+      if (json) errors.push("--json was specified more than once");
+      json = true;
+      continue;
+    }
     if (argument === "--resume") {
       if (resume) errors.push("--resume was specified more than once");
       resume = true;
@@ -198,6 +265,7 @@ function parseRunNetworkArguments(
   }
   return {
     resume,
+    json,
     errors,
     ...(networkPath === undefined ? {} : { networkPath }),
     ...(scheduledFor === undefined ? {} : { scheduledFor }),
@@ -208,6 +276,19 @@ function parseRunNetworkArguments(
     ...(ksqlFlowConfig === undefined ? {} : { ksqlFlowConfig }),
     ...(ksqlFlowWorkdir === undefined ? {} : { ksqlFlowWorkdir }),
   };
+}
+
+interface RunNetworkJsonResult {
+  readonly outcome: "NEW" | "RESUME" | "NOOP" | "REJECTED";
+  readonly run_id: string | null;
+  readonly invocation_id: string | null;
+  readonly aggregate_status: string | null;
+  readonly invocation_result_code: string;
+  readonly retry_brake_node_ids: readonly string[];
+}
+
+function writeJsonResult(result: RunNetworkJsonResult): void {
+  process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 function productionDependencies(

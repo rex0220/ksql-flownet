@@ -109,7 +109,8 @@ P2-01は、次の3点をDRAFT仕様へ反映してから実装に進めば、Flo
 
 15. **FlowNet orchestration本体の変更が必要な点: なし。**
     - 1はポーラーのallowlist設定、3は要求アプリ側heartbeatで解決する。
-    - 2は`src/cli/run-network-command.ts`の出力境界へ`--json`を加える必要があるが、`src/orchestration/ensure-run.ts`、scheduler、永続化model/schemaの変更は不要である。本計画ではこれを「既存CLI境界の後方互換拡張」として本体改修から分離する。
+    - 2は`src/cli/run-network-command.ts`の出力境界へ`--json`を加える必要があるが、`src/orchestration/ensure-run.ts`、schedulerの状態遷移・書込・判定ロジック、永続化model/schemaの変更は不要である。本計画ではこれを「既存CLI境界の後方互換拡張」として本体改修から分離する。
+    - 実機E2E 02で検出したRETRY_BRAKE報告漏れへの対応として、scheduler summaryへ`retryBrakeNodeIds`を追加する。これは既存判定材料を外部へ返す読み取り専用の報告拡張であり、状態遷移・書込・判定ロジックには触れないため、本体無改修原則から`run-network --json`と同じ扱いで明示的に分離する。
     - CLI境界も「本体無改修」に含める判断の場合は、Invocation ID記録要件を削る必要がある。status前後差分による推定は採用しない。
 
 ## 3. 実装前に確定する仕様差分

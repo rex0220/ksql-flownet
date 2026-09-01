@@ -97,6 +97,39 @@ ksql-flownet run-network <network_id> --resume-run <run_id> ...
 - run_idは変わらず、invocation_idだけが増える。SUCCESS済みNodeは再実行されない。
 - 非冪等のFAILED Nodeは自動再実行されない(手順5で解決してから進める)。
 
+## 操作要求アプリからの再開・停止・解除(P2-01)
+
+通常の一次操作は「kSQL-FlowNet 操作要求」アプリに新規レコードを追加して行う。`run_id`と理由を入力し、操作種別を選ぶ。既存要求の状態・claim・結果フィールドは編集しない。
+
+| 操作 | 入力 | 完了の確認 | 注意 |
+| --- | --- | --- | --- |
+| `RERUN` | `run_id`、理由。必要時だけ`rerun_from_node` | 要求が`DONE`。`result_code`と実行管理・監査履歴も確認 | hold中、LIVE、SUCCESS、照合不能なRunは拒否される |
+| `STOP` | `run_id`、理由 | 要求が`DONE`になり、Runが次ノード境界で停止 | 実行中のSQLは途中停止しない |
+| `RELEASE` | `run_id`、理由 | 要求が`DONE`になりholdが解除 | RELEASE自身はRunを再開しない。ただし定期`--resume`が次回起動時に再開し得る |
+
+同一failure kindが3回連続した`RETRY_BRAKE`は、通常のRERUNだけでは対象ノードを再実行しない。原因(SQL、入力データ、認証・接続設定等)を修正してから、新しいRERUN要求の`rerun_from_node`へブレーキ対象の冪等Node IDを指定する。要求結果が`DONE / RETRY_BRAKE`のままなら、対象Node、冪等性、修正内容を二次対応者が再確認する。非冪等NodeやUNKNOWNはアプリ操作で強行しない。
+
+### STALE要求の照合
+
+`REJECTED / STALE`は、要求の実行有無または結果をポーラーが確定できなかった状態であり、未実行の意味ではない。**同じRunへRERUN・STOP・RELEASEを再要求してはならない。** 次の順で照合する。
+
+1. 要求レコードの`run_id`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`を控える。
+2. `ksql-flownet status <network_id> --profile <profile> --run-id <run_id> --json`でInvocation、Node State、activity、lock ownerを取得する。
+3. 監査履歴の`requested_by=app-request:<record_id>:...`、要求claim時刻以後のInvocation、kSQL-Flow JOBログの`attempt_id`を突合する。
+4. 実行済みならそのInvocationの結果を正として業務データまで確認する。未実行を証明できた場合だけ、新規要求の可否を二次対応者が判断する。矛盾・UNKNOWN・生存ownerがあれば本runbookの手順1〜5へ上げる。
+
+要求アプリのGET失敗時は、ポーラーはclaimもSTALE更新もchild起動もしない。claim後の到達不能ではchildを即killせず、heartbeat停止後もFlowNet側LIVE中はSTALE化しない。回復後または非LIVE確認後に上記規則へ収束するため、画面だけを根拠に再要求しない。
+
+### SSH/CLIへ上げる条件
+
+次のいずれかではアプリ操作を止め、二次対応者がSSH/CLIで調査する。
+
+- `STALE`、`UNKNOWN`、`RUN_LIVE`、`STATUS_UNAVAILABLE`、`RUN_ID_AMBIGUOUS`、または同じ要求の結果が照合できない
+- RETRY_BRAKEの原因修正・対象Node・冪等性を確定できない、または`rerun_from_node`でも解除できない
+- stale Network lock、孤児RUNNING Attempt、Job lock残留、非冪等FAILED、手動解決・補償が必要
+- `poll-requests --check`が失敗する、要求アプリの権限やallowlist/定義が本番構成と一致しない
+- kSQL-Flow実行時に`VALIDATION_ERROR`となり、`profile名 + ":" + job_id`が64 UTF-16単位を超える疑いがある。これはジョブロックキーの実測上限で、現行`validate`では検出されない
+
 ## 運用上の注意(2026-08-31追記)
 
 - **ノード実行時間の上限**は現状kSQL-Flow側の`batch_timeout_sec`と、FlowNetのrun-subprocessのgraceful→forced kill経路に依存する。FlowNet側のノード単位上限時間はPhase 2(P2-04)。ハング疑い時は`status --json`のlock heartbeatとジョブログで生存を判別する。
