@@ -8,6 +8,7 @@ export interface PluginConfig {
   readonly auditAppId: string;
   readonly requestAppId: string;
   readonly logAppId: string;
+  readonly deployOnSave?: "false";
 }
 
 export interface ConfigValidationResult {

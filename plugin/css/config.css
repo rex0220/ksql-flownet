@@ -5,14 +5,14 @@
   font-family: sans-serif;
 }
 
-.ksql-flownet-config label,
-.ksql-flownet-config input {
+.ksql-flownet-config > form > label:not(.ksql-flownet-config-deploy),
+.ksql-flownet-config > form > input:not([type="checkbox"]) {
   display: block;
   width: 100%;
   box-sizing: border-box;
 }
 
-.ksql-flownet-config input {
+.ksql-flownet-config > form > input:not([type="checkbox"]) {
   margin-top: 8px;
   margin-bottom: 4px;
   padding: 8px;
@@ -34,9 +34,46 @@
   color: #b91c1c;
 }
 
-.ksql-flownet-config-error {
+.ksql-flownet-config-deploy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  cursor: pointer;
+}
+
+.ksql-flownet-config-deploy input {
+  width: auto;
+  margin: 0;
+}
+
+.ksql-flownet-config-callout {
   min-height: 1.5em;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 4px solid transparent;
+}
+
+.ksql-flownet-config-callout:empty {
+  padding: 0;
+}
+
+.ksql-flownet-config-callout-progress {
+  border-color: #2563eb;
+  color: #1e40af;
+  background: #eff6ff;
+}
+
+.ksql-flownet-config-callout-success {
+  border-color: #16a34a;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.ksql-flownet-config-callout-error {
+  border-color: #dc2626;
   color: #b91c1c;
+  background: #fef2f2;
 }
 
 .ksql-flownet-config-actions {

@@ -55,7 +55,21 @@
       id="ksql-flownet-log-app-preview"
       class="ksql-flownet-config-preview"
     ></p>
-    <p id="ksql-flownet-config-error" class="ksql-flownet-config-error"></p>
+    <label class="ksql-flownet-config-deploy" for="ksql-flownet-deploy-on-save">
+      <input
+        id="ksql-flownet-deploy-on-save"
+        name="deployOnSave"
+        type="checkbox"
+        checked
+      />
+      <span>保存時に運用環境へ反映(アプリ更新)</span>
+    </label>
+    <p
+      id="ksql-flownet-config-error"
+      class="ksql-flownet-config-callout"
+      role="status"
+      aria-live="polite"
+    ></p>
     <div class="ksql-flownet-config-actions">
       <button type="submit">保存</button>
       <button id="ksql-flownet-config-cancel" type="button">キャンセル</button>
