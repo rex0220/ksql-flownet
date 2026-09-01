@@ -366,7 +366,7 @@ async function loadAttentionSection(
   } catch {
     return {
       section: failedSection(
-        "要対応(終端)を読み込めません。閲覧権限を確認してください。",
+        "終了済み・対応が必要なRunを読み込めません。閲覧権限を確認してください。",
       ),
       remaining: 0,
     };

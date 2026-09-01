@@ -569,7 +569,7 @@ export function renderBoard(
 
   const active = element(pageDocument, "section", "ksql-flownet-section");
   active.append(
-    sectionHeader(pageDocument, "未終端Run", model.activeSection.rows.length),
+    sectionHeader(pageDocument, "進行中のRun", model.activeSection.rows.length),
   );
   if (model.activeSection.state === "error") {
     active.append(sectionError(pageDocument, model.activeSection.error));
@@ -579,7 +579,7 @@ export function renderBoard(
         pageDocument,
         "p",
         "ksql-flownet-empty",
-        "未終端Runはありません。",
+        "進行中のRunはありません。",
       ),
     );
   } else {
@@ -598,7 +598,7 @@ export function renderBoard(
   attention.append(
     sectionHeader(
       pageDocument,
-      "要対応(終端)",
+      "終了済み・対応が必要なRun",
       model.attentionSection.rows.length,
     ),
   );
@@ -610,7 +610,7 @@ export function renderBoard(
         pageDocument,
         "p",
         "ksql-flownet-empty",
-        "要対応(終端)Runはありません。",
+        "終了済みで対応が必要なRunはありません。",
       ),
     );
   } else {

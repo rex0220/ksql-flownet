@@ -154,7 +154,7 @@ test("empty and fail-closed models render without an activity badge", () => {
     { state: "ready", rows: [], judgedAt: 1, error: null },
     () => {},
   );
-  assert.match(allText(root), /未終端Runはありません/u);
+  assert.match(allText(root), /進行中のRunはありません/u);
   renderBoard(
     root,
     { state: "error", rows: [], judgedAt: null, error: "権限エラー" },
@@ -304,8 +304,8 @@ test("two sections render every action kind, remaining count, copy callback, and
   renderBoard(root, model, callbacks);
   const text = allText(root);
   for (const expected of [
-    "未終端Run",
-    "要対応(終端)",
+    "進行中のRun",
+    "終了済み・対応が必要なRun",
     "停止要求",
     "解除要求",
     "リラン要求",
@@ -359,7 +359,7 @@ test("section failures are isolated in the DOM", () => {
     },
     () => {},
   );
-  assert.match(allText(root), /未終端Runはありません/u);
+  assert.match(allText(root), /進行中のRunはありません/u);
   assert.match(allText(root), /terminal failure/u);
 });
 
