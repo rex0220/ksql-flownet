@@ -32,7 +32,7 @@ async function writeAllowlist(fixture) {
     `networks:\n  - network_id: ${fixture.networkId}\n    definition_path: ${fixture.networkPath.replaceAll("\\", "/")}\n`,
     "utf8",
   );
-  console.log(`ALLOWLIST ${path}`);
+  globalThis.console.log(`ALLOWLIST ${path}`);
 }
 
 if (mode === "kill" || mode === "failed") {
@@ -42,7 +42,7 @@ if (mode === "kill" || mode === "failed") {
   const fixtureName =
     mode === "kill" ? "network-p209-live.yaml" : "network-success.yaml";
   const fixture = await prepareNetwork(scope, fixtureName);
-  console.log(`FIXTURE network_id=${fixture.networkId}`);
+  globalThis.console.log(`FIXTURE network_id=${fixture.networkId}`);
   await writeAllowlist(fixture);
   if (mode === "failed") {
     const result = await runFlowNetNetwork(
@@ -54,7 +54,7 @@ if (mode === "kill" || mode === "failed") {
       },
     );
     const graph = await loadRunGraph(settings, scope);
-    console.log(
+    globalThis.console.log(
       `FAILED-READY run=${graph.run.runId} status=${graph.run.status} exit=${result.exitCode}`,
     );
     process.exit(0);
@@ -72,7 +72,7 @@ if (mode === "kill" || mode === "failed") {
   const tree = await enumerateProcessTree(network.child.pid);
   killProcessList(tree);
   await network.completion;
-  console.log(
+  globalThis.console.log(
     `KILLED run=${running.run.runId} — 今からlease約30秒+60秒はLIVE、その後INTERRUPTED`,
   );
   process.exit(0);
@@ -84,8 +84,8 @@ if (mode === "poll") {
     workdir: join(base.workdirBase, "p2-09-poll"),
   });
   const result = await runPollRequests(settings, argument);
-  console.log(result.stdout.trim() || result.stderr.trim());
-  console.log(`EXIT=${result.exitCode}`);
+  globalThis.console.log(result.stdout.trim() || result.stderr.trim());
+  globalThis.console.log(`EXIT=${result.exitCode}`);
   process.exit(result.exitCode);
 }
 
@@ -97,7 +97,7 @@ if (mode === "status") {
     runIdArg ? { runId: runIdArg } : {},
   );
   for (const run of status.output.runs) {
-    console.log(
+    globalThis.console.log(
       `run=${run.run_id} status=${run.status} activity=${run.activity ?? "(終端)"} resume_allowed=${run.resume_allowed}`,
     );
   }
@@ -136,8 +136,8 @@ if (mode === "unlock") {
     "--stop-method",
     "local_pid",
   ]);
-  console.log(`unlock exit=${released.exitCode}`);
-  console.log(released.stdout.trim() || released.stderr.trim());
+  globalThis.console.log(`unlock exit=${released.exitCode}`);
+  globalThis.console.log(released.stdout.trim() || released.stderr.trim());
   process.exit(released.exitCode);
 }
 

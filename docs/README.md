@@ -62,6 +62,18 @@
 
     CLIと画面の照合、GET限定、実機で確定した制約、E2E cleanupの付随発見を記録する。
 
+15. [P2-09 ボード操作要求仕様](./p2-09-board-request-spec.md)
+
+    ボードからのRERUN・STOP・RELEASE起票、2セクション表示、状態別の操作導線を定義する。
+
+16. [P2-09 実装計画](./p2-09-implementation-plan.md)
+
+    M0〜M4の実装・検証範囲と、本番適用準備のgateを管理する。
+
+17. [P2-09 M3実機受入記録](./test-results/p2-09-20260901/README.md)
+
+    起票の一気通貫、LOCK_CONFLICT後の回収・再要求、UNKNOWN裁定、2セクション/pending表示の実機結果を記録する。
+
 ## 責務境界
 
 | コンポーネント | 主な責務 |

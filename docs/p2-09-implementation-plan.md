@@ -1,9 +1,9 @@
 # P2-09: ボードからの操作要求起票 実装計画
 
 - 作成日: 2026-09-01
-- 対象仕様: [p2-09-board-request-spec.md](./p2-09-board-request-spec.md) DRAFT v4
+- 対象仕様: [p2-09-board-request-spec.md](./p2-09-board-request-spec.md) REVIEWED
 - 正本参照: [p2-08-activity-plugin-spec.md](./p2-08-activity-plugin-spec.md)、[p2-01-app-rerun-spec.md](./p2-01-app-rerun-spec.md) §3〜§5、`src/requests/request-model.ts`
-- 本文書の範囲: 仕様レビューと実装・検証計画。**コード、P2-08仕様、一次対応文書、本番設定はまだ変更しない**
+- 本文書の範囲: 仕様レビューと実装・検証計画。M0〜M4は完了し、**本番設定・本番smokeは適用待ち**
 
 ## 1. 結論
 
@@ -272,12 +272,14 @@
 
 ### M4: 文書・pack・本番適用準備 — M
 
-変更予定(この段階で初めて実施):
+**完了状況(2026-09-01)**: 文書改訂と本番適用手順の整備を完了。M3実機受入は[証跡](./test-results/p2-09-20260901/README.md)の全シナリオが合格し、B-1の`REJECTED / LOCK_CONFLICT`、B-2のforce-unlock後の完走、C-3のUNKNOWN連絡分岐を運用文言へ反映した。プラグインコードの挙動変更はなく、単体390件を維持。本番zip更新、設定への本番操作要求アプリ指定、一次対応者への表示変更周知と本番smokeは未実施であり、**本番適用待ち**。
+
+完了した変更:
 
 - `docs/p2-08-activity-plugin-spec.md`: INTERRUPTED一次対応、§4 runtime API境界、受入4、作業分割を改訂。
 - `docs/ops-first-response.md`: ボード起票推奨/直接起票従来、STOP後のセクション移動、エスカレーション条件を改訂。
 - `plugin/README.md`: 設定2項目、必要権限、API境界、未設定時挙動、更新手順を改訂。着手時点でファイルが存在しない場合は、既存削除の意図を確認してから復元/代替先を決める。
-- `plugin/manifest.json`、pack成果物、配布手順: versionと説明、checksum、インストール/rollback手順を整合。
+- `plugin/manifest.json`、pack成果物: M3受入済みのv5を維持し、`plugin/README.md`へインストール/rollbackと本番設定手順を整備。
 - 一次対応者向け周知: プラグイン更新だけで要対応セクションが追加されることを本番設定前に通知。
 
 検証:
@@ -285,7 +287,7 @@
 - P2-08受入4の文言、unit allowlist、bundle scan、M3 network記録が同じ境界を示す。
 - §5の3文書改訂がP2-09の固定文言と一致する(受入12)。
 - zip展開物、manifest version、desktop/config bundle、不要な秘密値・実app ID不在を検査する。
-- 本番は設定保存→ボードsmoke→要求1件の作成/ポーラー結果確認後に完了とする。実行管理・監査へのwriteは行わない。
+- 本番適用は設定保存→ボードsmoke→要求1件の作成/ポーラー結果確認後に完了とする。実行管理・監査へのwriteは行わない。このgateは本番適用時に実施し、M4の準備完了とは分けて管理する。
 
 リスク: P2-08文書をM0とM4の両方で編集すると実表示前に文言が確定したように見える。M0はP2-09側の差分確定、M4は既存文書への反映とし、責務を分離する。
 

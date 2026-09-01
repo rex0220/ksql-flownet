@@ -109,6 +109,8 @@ ksql-flownet run-network <network_id> --resume-run <run_id> ...
 | `STOP` | `run_id`、理由 | 要求が`DONE`になり、Runが次ノード境界で停止 | 実行中のSQLは途中停止しない |
 | `RELEASE` | `run_id`、理由 | 要求が`DONE`になりholdが解除 | RELEASE自身はRunを再開しない。ただし定期`--resume`が次回起動時に再開し得る |
 
+ボード起票のRERUNが`REJECTED / LOCK_CONFLICT`になった場合は、一次対応者に同じ要求を繰り返させない。二次対応者が本runbookの手順1〜3に従って旧ownerの停止を確認し、`force-unlock-network`でstale Network lockを回収した後、一次対応者へ**ボードのリラン要求ボタンをもう一度押す**よう依頼する。M3 B-1/B-2では、1回目がkill後のlock競合で拒否され、回収後の2回目はジョブログ証拠による孤児裁定を経てSUCCESSまで完走した。同じ経路でも証拠が見つからなければUNKNOWNへ移るため、その場合は再要求せず手順5の解決へ進む。
+
 同一failure kindが3回連続した`RETRY_BRAKE`は、通常のRERUNだけでは対象ノードを再実行しない。原因(SQL、入力データ、認証・接続設定等)を修正してから、新しいRERUN要求の`rerun_from_node`へブレーキ対象の冪等Node IDを指定する。要求結果が`DONE / RETRY_BRAKE`のままなら、対象Node、冪等性、修正内容を二次対応者が再確認する。非冪等NodeやUNKNOWNはアプリ操作で強行しない。
 
 ### STALE要求の照合
