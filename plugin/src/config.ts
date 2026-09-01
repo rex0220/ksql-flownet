@@ -1,23 +1,10 @@
-export interface PluginConfig {
-  readonly auditAppId: string;
-}
+import { validateAuditAppId, type PluginConfig } from "./config-validation.js";
 
-export interface ConfigValidationResult {
-  readonly valid: boolean;
-  readonly value: string | null;
-  readonly message: string | null;
-}
-
-export function validateAuditAppId(value: unknown): ConfigValidationResult {
-  if (typeof value === "string" && /^[1-9][0-9]*$/.test(value)) {
-    return { valid: true, value, message: null };
-  }
-  return {
-    valid: false,
-    value: null,
-    message: "監査履歴アプリIDを正の10進整数で設定してください。",
-  };
-}
+export {
+  validateAuditAppId,
+  type ConfigValidationResult,
+  type PluginConfig,
+} from "./config-validation.js";
 
 interface ConfigKintone {
   readonly $PLUGIN_ID: string;

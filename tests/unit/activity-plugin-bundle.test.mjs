@@ -86,3 +86,21 @@ test("browser-equivalent vm evaluates all 15 shared activity vectors", () => {
     );
   }
 });
+
+test("desktopバンドルへ設定画面コードを混入させない(2026-09-01実機回帰: 一覧で設定設置が走り要素不足エラー)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const desktop = readFileSync(
+    new URL("../../plugin/dist/desktop.js", import.meta.url),
+    "utf8",
+  );
+  for (const forbidden of [
+    "installConfigPage",
+    "bootstrapConfigPage",
+    "設定画面の要素が不足",
+  ]) {
+    assert.ok(
+      !desktop.includes(forbidden),
+      `desktop.jsに設定画面コードを含めない: ${forbidden}`,
+    );
+  }
+});

@@ -7,7 +7,7 @@ import {
   type ActivityRun,
 } from "./activity-input.js";
 import { deriveRunActivity } from "./activity-entry.js";
-import { validateAuditAppId } from "./config.js";
+import { validateAuditAppId } from "./config-validation.js";
 import {
   readAllByChunks,
   readAllByKeyset,
