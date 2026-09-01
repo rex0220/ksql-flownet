@@ -166,5 +166,9 @@ declare const kintone: RuntimeKintone | undefined;
 declare const document: Document | undefined;
 
 if (typeof kintone !== "undefined" && typeof document !== "undefined") {
+  // 版と$PLUGIN_ID捕捉可否の診断ログ(値そのものは出さない)
+  console.info(
+    `kSQL-FlowNet Run状況 plugin v2 loaded (plugin_id captured: ${typeof kintone.$PLUGIN_ID === "string" && kintone.$PLUGIN_ID !== ""})`,
+  );
   installDesktop(kintone, document);
 }
