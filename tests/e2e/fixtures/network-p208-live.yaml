@@ -1,0 +1,16 @@
+schema_version: 1
+network_id: p208_live
+description: P2-08 plugin real-device observation fixture (long-running single node)
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 30
+  heartbeat_interval_sec: 10
+nodes:
+  - id: n1_longread
+    job_id: p208_longread
+    sql: jobs/p208-longread.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
