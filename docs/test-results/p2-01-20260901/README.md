@@ -27,6 +27,7 @@
 - `poll-requests --check` 合格(networks=1, request_app=readable)。**発見**: PowerShell経由のenv追記でCRLFが混入しALLOWLIST_UNREADABLEになった(sed -i 's/\r$//'で解消 — VPSのenvファイルを編集する際の注意点)
 - cron追加: `*/5 * * * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && node /opt/ksql/ksql-flownet/dist/cli/index.js poll-requests >> /var/log/ksql/flownet-requests.log 2>&1`(crontabバックアップ: /root/crontab.bak-20260901)
 - 手動1回実行: `requested=0 claimed=0 ... Exit 0`
+- **本番スモーク(同日、ユーザー実施)**: 完走済み8月Run(`netrun_9b5e94c6`)へのRERUN要求を画面から作成 → 次のcronサイクルでポーラーが処理(`requested=1 claimed=1 completed=1`)し、`REJECTED / RUN_STATUS_NOT_RERUNNABLE`(Run status SUCCESS is not rerunnable)で終端。FlowNet状態は無変更(一次審査での拒否のため子プロセス未起動)。要求→claim→審査→拒否記録の本番経路全体を実弾確認
 
 ## テンプレート実機適用で検出した不具合3件(アプリ作成時、修正・回帰固定済み)
 
