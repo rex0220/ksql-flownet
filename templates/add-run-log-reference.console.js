@@ -32,62 +32,73 @@
         "run_idフィールドがありません(実行管理アプリのIDを確認)。",
       );
     }
-    if (Object.hasOwn(fields.properties, FIELD_CODE)) {
-      console.log(`${FIELD_CODE} は追加済みです。変更はありません。`);
-      return;
-    }
-    const logFields = await api("/preview/app/form/fields", "GET", {
-      app: logApp,
-    });
-    for (const code of [
-      "correlation_id",
-      "job_id",
-      "status",
-      "error_message",
-    ]) {
-      if (!Object.hasOwn(logFields.properties, code)) {
-        throw new Error(`JOBログアプリに ${code} がありません(IDを確認)。`);
+    // 既にフィールドがある場合(前回デプロイ前中断を含む)は追加をスキップしデプロイへ進む
+    const alreadyAdded = Object.hasOwn(fields.properties, FIELD_CODE);
+    if (!alreadyAdded) {
+      const logFields = await api("/preview/app/form/fields", "GET", {
+        app: logApp,
+      });
+      for (const code of [
+        "correlation_id",
+        "job_id",
+        "status",
+        "error_message",
+      ]) {
+        if (!Object.hasOwn(logFields.properties, code)) {
+          throw new Error(`JOBログアプリに ${code} がありません(IDを確認)。`);
+        }
       }
-    }
 
-    step = "フィールド追加";
-    await api("/preview/app/form/fields", "POST", {
-      app,
-      properties: {
-        [FIELD_CODE]: {
-          type: "REFERENCE_TABLE",
-          code: FIELD_CODE,
-          label: "関連JOBログ(このRunの実行ログ — エラー全文はここ)",
-          referenceTable: {
-            relatedApp: { app: logApp },
-            condition: { field: "run_id", relatedField: "correlation_id" },
-            displayFields: [
-              "job_id",
-              "status",
-              "error_message",
-              "started_at",
-              "finished_at",
-              "execution_id",
-            ],
-            sort: "$id desc",
-            size: "10",
+      step = "フィールド追加";
+      await api("/preview/app/form/fields", "POST", {
+        app,
+        properties: {
+          [FIELD_CODE]: {
+            type: "REFERENCE_TABLE",
+            code: FIELD_CODE,
+            label: "関連JOBログ(このRunの実行ログ — エラー全文はここ)",
+            referenceTable: {
+              relatedApp: { app: logApp },
+              condition: { field: "run_id", relatedField: "correlation_id" },
+              displayFields: [
+                "job_id",
+                "status",
+                "error_message",
+                "started_at",
+                "finished_at",
+                "execution_id",
+              ],
+              sort: "$id desc",
+              size: "10",
+            },
           },
         },
-      },
-    });
+      });
+    } else {
+      console.log(`${FIELD_CODE} はpreviewに追加済み — デプロイへ進みます。`);
+    }
 
+    // REFERENCE_TABLEは追加時にkintoneが自動でレイアウトへ配置する(2026-09-01実機:
+    // 明示追記すると重複エラー)。レイアウトに無い場合だけ末尾へ追記する。
     step = "レイアウト設定";
     const current = await api("/preview/app/form/layout", "GET", { app });
-    await api("/preview/app/form/layout", "PUT", {
-      app,
-      layout: [
-        ...current.layout,
-        {
-          type: "ROW",
-          fields: [{ type: "REFERENCE_TABLE", code: FIELD_CODE }],
-        },
-      ],
-    });
+    const inLayout = current.layout.some(
+      (row) =>
+        Array.isArray(row.fields) &&
+        row.fields.some((field) => field.code === FIELD_CODE),
+    );
+    if (!inLayout) {
+      await api("/preview/app/form/layout", "PUT", {
+        app,
+        layout: [
+          ...current.layout,
+          {
+            type: "ROW",
+            fields: [{ type: "REFERENCE_TABLE", code: FIELD_CODE }],
+          },
+        ],
+      });
+    }
 
     step = "デプロイ確認";
     if (!confirm("関連JOBログの一覧をデプロイしますか？")) {
