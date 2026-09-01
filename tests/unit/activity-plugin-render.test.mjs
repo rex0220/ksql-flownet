@@ -451,3 +451,49 @@ test("列名は日本語統一・日時はローカル表示・状態/時刻セ�
   }
   assert.ok(source.includes("ksql-flownet-cell-nowrap"));
 });
+
+test("レコード/要求リンクは別タブで開き、エラー概要の同値重複を省く(2026-09-01要望)", async () => {
+  const source = (await import("node:fs")).readFileSync(
+    new globalThis.URL("../../plugin/src/render.ts", import.meta.url),
+    "utf8",
+  );
+  const targetCount = (
+    source.match(/setAttribute\("target", "_blank"\)/gu) ?? []
+  ).length;
+  assert.equal(targetCount, 2, "レコード番号と要求処理待ちの両リンクに_blank");
+  assert.equal(
+    (source.match(/noopener noreferrer/gu) ?? []).length,
+    2,
+    "rel=noopener noreferrer必須",
+  );
+  const { formatErrorSummaryLine } =
+    await import("../../dist/plugin/render.js");
+  assert.equal(
+    formatErrorSummaryLine({
+      state: "ready",
+      items: [
+        {
+          nodeId: "n1",
+          resultCode: "API_ERROR",
+          statusReason: "API_ERROR",
+          attemptRecordId: "1",
+        },
+      ],
+    }),
+    "n1: API_ERROR",
+  );
+  assert.match(
+    formatErrorSummaryLine({
+      state: "ready",
+      items: [
+        {
+          nodeId: "n1",
+          resultCode: "API_ERROR",
+          statusReason: "詳細理由",
+          attemptRecordId: "1",
+        },
+      ],
+    }),
+    /n1: API_ERROR \/ 詳細理由/u,
+  );
+});

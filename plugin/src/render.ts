@@ -158,6 +158,8 @@ function requestLink(
   link.className = "ksql-flownet-pending";
   link.textContent = limitDisplayValue(label);
   link.setAttribute("href", `/k/${requestAppId}/show#record=${requestId}`);
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
   return link;
 }
 
@@ -310,6 +312,9 @@ function recordCell(
   const link = pageDocument.createElement("a");
   link.textContent = row.recordId;
   link.setAttribute("href", row.recordUrl);
+  // レコード番号は別タブで詳細を開く(2026-09-01ユーザー要望)
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
   const cell = element(pageDocument, "td", "ksql-flownet-record-cell");
   cell.append(link);
   return cell;
@@ -461,9 +466,12 @@ function renderTerminalTable(
 }
 
 function errorSummaryItemText(item: ErrorSummaryItem): string {
-  return `${item.nodeId}: ${item.resultCode}${
-    item.statusReason === null ? "" : ` / ${item.statusReason}`
-  }`;
+  // status_reasonがresult_codeと同値なら重複表示しない(2026-09-01実機フィードバック)
+  const reason =
+    item.statusReason === null || item.statusReason === item.resultCode
+      ? ""
+      : ` / ${item.statusReason}`;
+  return `${item.nodeId}: ${item.resultCode}${reason}`;
 }
 
 export function formatErrorSummaryLine(summary: ErrorSummary): string {
