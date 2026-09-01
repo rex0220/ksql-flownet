@@ -9,6 +9,21 @@ import {
   validateRequestAppId,
 } from "../../dist/plugin/config.js";
 
+const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
+
+function inputElement(value = "") {
+  const listeners = new Map();
+  return {
+    value,
+    addEventListener: (name, listener) => listeners.set(name, listener),
+    dispatch: (name) => listeners.get(name)?.(),
+  };
+}
+
+function statusElement() {
+  return { textContent: "", className: "" };
+}
+
 test("auditAppId accepts only a positive decimal string without normalization", () => {
   for (const invalid of [undefined, "", "0", "-1", "1.5", " 12", "12 ", "abc"])
     assert.equal(validateAuditAppId(invalid).valid, false, String(invalid));
@@ -48,9 +63,15 @@ test("logAppId accepts empty or a positive decimal string", () => {
 
 test("config page rejects invalid saves and preserves the valid decimal string", () => {
   const listeners = new Map();
-  const input = { value: "" };
-  const requestInput = { value: "" };
-  const logInput = { value: "" };
+  const input = inputElement();
+  const requestInput = inputElement();
+  const logInput = inputElement();
+  const auditDetection = statusElement();
+  const auditPreview = statusElement();
+  const requestDetection = statusElement();
+  const requestPreview = statusElement();
+  const logDetection = statusElement();
+  const logPreview = statusElement();
   const error = { textContent: "" };
   const form = {
     addEventListener: (name, listener) =>
@@ -64,6 +85,12 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     ["#ksql-flownet-audit-app-id", input],
     ["#ksql-flownet-request-app-id", requestInput],
     ["#ksql-flownet-log-app-id", logInput],
+    ["#ksql-flownet-audit-app-detection", auditDetection],
+    ["#ksql-flownet-audit-app-preview", auditPreview],
+    ["#ksql-flownet-request-app-detection", requestDetection],
+    ["#ksql-flownet-request-app-preview", requestPreview],
+    ["#ksql-flownet-log-app-detection", logDetection],
+    ["#ksql-flownet-log-app-preview", logPreview],
     ["#ksql-flownet-config-form", form],
     ["#ksql-flownet-config-error", error],
     ["#ksql-flownet-config-cancel", cancel],
@@ -71,10 +98,13 @@ test("config page rejects invalid saves and preserves the valid decimal string",
   const saved = [];
   const originalHistory = globalThis.history;
   globalThis.history = { back: () => {} };
+  const api = async () => ({ properties: {} });
+  api.url = (path) => path;
   try {
     installConfigPage(
       {
         $PLUGIN_ID: "plugin-id",
+        app: { getId: () => 101 },
         plugin: {
           app: {
             getConfig: () => ({
@@ -88,6 +118,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
             },
           },
         },
+        api,
       },
       "plugin-id",
       { querySelector: (selector) => elements.get(selector) ?? null },
@@ -124,6 +155,138 @@ test("config page rejects invalid saves and preserves the valid decimal string",
   }
 });
 
+test("config GETは自アプリの関連先検出とアプリ名確認だけに使い、表示値を入力へ補完しない", async () => {
+  const auditInput = inputElement();
+  const requestInput = inputElement();
+  const logInput = inputElement();
+  const auditDetection = statusElement();
+  const auditPreview = statusElement();
+  const requestDetection = statusElement();
+  const requestPreview = statusElement();
+  const logDetection = statusElement();
+  const logPreview = statusElement();
+  const elements = new Map([
+    ["#ksql-flownet-audit-app-id", auditInput],
+    ["#ksql-flownet-request-app-id", requestInput],
+    ["#ksql-flownet-log-app-id", logInput],
+    ["#ksql-flownet-audit-app-detection", auditDetection],
+    ["#ksql-flownet-audit-app-preview", auditPreview],
+    ["#ksql-flownet-request-app-detection", requestDetection],
+    ["#ksql-flownet-request-app-preview", requestPreview],
+    ["#ksql-flownet-log-app-detection", logDetection],
+    ["#ksql-flownet-log-app-preview", logPreview],
+    ["#ksql-flownet-config-form", { addEventListener: () => {} }],
+    ["#ksql-flownet-config-error", statusElement()],
+    ["#ksql-flownet-config-cancel", { addEventListener: () => {} }],
+  ]);
+  const calls = [];
+  const api = async (url, method, body) => {
+    calls.push({ url, method, body });
+    if (url === "/k/v1/app/form/fields.json") {
+      return {
+        properties: {
+          related_audit_events: {
+            type: "REFERENCE_TABLE",
+            referenceTable: { relatedApp: { app: "201" } },
+          },
+          related_job_logs: {
+            type: "REFERENCE_TABLE",
+            referenceTable: { relatedApp: { app: "401" } },
+          },
+        },
+      };
+    }
+    if (body.id === "201") return { name: "監査 <img src=x>" };
+    throw new Error("Forbidden");
+  };
+  api.url = (path, guestSpace) => {
+    assert.equal(guestSpace, true);
+    return path;
+  };
+
+  installConfigPage(
+    {
+      $PLUGIN_ID: "plugin-id",
+      app: { getId: () => 101 },
+      plugin: {
+        app: { getConfig: () => ({}), setConfig: () => {} },
+      },
+      api,
+    },
+    "plugin-id",
+    { querySelector: (selector) => elements.get(selector) ?? null },
+  );
+  await flushAsync();
+
+  assert.equal(auditInput.value, "", "自動検出しても入力欄は空のまま");
+  assert.equal(requestInput.value, "");
+  assert.equal(logInput.value, "");
+  assert.equal(
+    auditDetection.textContent,
+    "自動検出: 201 (監査 <img src=x>)",
+    "外部アプリ名はtextContentへ設定する",
+  );
+  assert.equal(
+    requestDetection.textContent,
+    "自動検出できません(関連レコード一覧が未設定)",
+  );
+  assert.equal(logDetection.textContent, "自動検出: 401");
+  assert.deepEqual(calls, [
+    {
+      url: "/k/v1/app/form/fields.json",
+      method: "GET",
+      body: { app: 101 },
+    },
+    { url: "/k/v1/app.json", method: "GET", body: { id: "201" } },
+    { url: "/k/v1/app.json", method: "GET", body: { id: "401" } },
+  ]);
+  assert.ok(
+    calls.every(
+      ({ url, method }) =>
+        method === "GET" &&
+        ["/k/v1/app/form/fields.json", "/k/v1/app.json"].includes(url),
+    ),
+    "config用GET先を許可された2 endpointへ限定する",
+  );
+
+  auditInput.value = "201";
+  auditInput.dispatch("blur");
+  await flushAsync();
+  assert.equal(auditPreview.textContent, "→ 監査 <img src=x>");
+  assert.equal(
+    calls.filter(
+      ({ url, body }) => url === "/k/v1/app.json" && body.id === "201",
+    ).length,
+    1,
+    "自動検出とpreviewで同じappIdを二重fetchしない",
+  );
+
+  requestInput.value = " 301 ";
+  requestInput.dispatch("blur");
+  assert.equal(
+    requestPreview.textContent,
+    "アプリを確認できません(IDまたは権限を確認)",
+  );
+  assert.match(requestPreview.className, /preview-error/u);
+
+  logInput.value = "999";
+  logInput.dispatch("blur");
+  await flushAsync();
+  assert.equal(
+    logPreview.textContent,
+    "アプリを確認できません(IDまたは権限を確認)",
+  );
+  assert.match(logPreview.className, /preview-error/u);
+
+  requestInput.value = "";
+  requestInput.dispatch("blur");
+  assert.equal(
+    requestPreview.textContent,
+    "",
+    "空欄は自動検出指定なので警告しない",
+  );
+});
+
 test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — kintone埋め込み実機回帰)", async () => {
   const { readFileSync } = await import("node:fs");
   const html = readFileSync(
@@ -141,9 +304,15 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-audit-app-id",
     "ksql-flownet-request-app-id",
     "ksql-flownet-log-app-id",
+    "ksql-flownet-audit-app-detection",
+    "ksql-flownet-audit-app-preview",
+    "ksql-flownet-request-app-detection",
+    "ksql-flownet-request-app-preview",
+    "ksql-flownet-log-app-detection",
+    "ksql-flownet-log-app-preview",
     "ksql-flownet-config-error",
     "ksql-flownet-config-cancel",
-    "通常は空欄で関連レコード一覧から自動検出",
+    "入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用",
   ]) {
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
   }

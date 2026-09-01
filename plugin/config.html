@@ -4,7 +4,7 @@
 <main class="ksql-flownet-config">
   <h1>kSQL-FlowNet Run状況 設定</h1>
   <p>
-    通常は空欄で関連レコード一覧から自動検出します。上書きしたい場合のみ入力してください。
+    入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用します。自動検出先を上書きしたい場合のみアプリIDを入力してください。
   </p>
   <form id="ksql-flownet-config-form">
     <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
@@ -15,6 +15,14 @@
       inputmode="numeric"
       autocomplete="off"
     />
+    <p
+      id="ksql-flownet-audit-app-detection"
+      class="ksql-flownet-config-status"
+    ></p>
+    <p
+      id="ksql-flownet-audit-app-preview"
+      class="ksql-flownet-config-preview"
+    ></p>
     <label for="ksql-flownet-request-app-id">操作要求アプリID(任意)</label>
     <input
       id="ksql-flownet-request-app-id"
@@ -23,6 +31,14 @@
       inputmode="numeric"
       autocomplete="off"
     />
+    <p
+      id="ksql-flownet-request-app-detection"
+      class="ksql-flownet-config-status"
+    ></p>
+    <p
+      id="ksql-flownet-request-app-preview"
+      class="ksql-flownet-config-preview"
+    ></p>
     <label for="ksql-flownet-log-app-id">JOBログアプリID(任意)</label>
     <input
       id="ksql-flownet-log-app-id"
@@ -31,6 +47,14 @@
       inputmode="numeric"
       autocomplete="off"
     />
+    <p
+      id="ksql-flownet-log-app-detection"
+      class="ksql-flownet-config-status"
+    ></p>
+    <p
+      id="ksql-flownet-log-app-preview"
+      class="ksql-flownet-config-preview"
+    ></p>
     <p id="ksql-flownet-config-error" class="ksql-flownet-config-error"></p>
     <div class="ksql-flownet-config-actions">
       <button type="submit">保存</button>

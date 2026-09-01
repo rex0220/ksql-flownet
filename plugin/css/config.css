@@ -14,8 +14,24 @@
 
 .ksql-flownet-config input {
   margin-top: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
   padding: 8px;
+}
+
+.ksql-flownet-config-status,
+.ksql-flownet-config-preview {
+  min-height: 1.25em;
+  margin: 2px 0;
+  font-size: 0.875rem;
+}
+
+.ksql-flownet-config-preview {
+  margin-bottom: 16px;
+  color: #166534;
+}
+
+.ksql-flownet-config-preview-error {
+  color: #b91c1c;
 }
 
 .ksql-flownet-config-error {
