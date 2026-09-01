@@ -514,7 +514,9 @@ export function renderBoard(
   const pageDocument = root.ownerDocument;
   const board = element(pageDocument, "section", "ksql-flownet-board");
   const toolbar = element(pageDocument, "header", "ksql-flownet-toolbar");
-  toolbar.append(element(pageDocument, "h2", undefined, "Run状況"));
+  toolbar.append(
+    element(pageDocument, "h2", "ksql-flownet-toolbar-title", "Run状況"),
+  );
   const toolbarActions = element(
     pageDocument,
     "div",

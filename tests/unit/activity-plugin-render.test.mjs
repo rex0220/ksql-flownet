@@ -117,6 +117,7 @@ test("board view model renders four badges, fixed actions, evidence, and judged 
   const toolbar = board.children[0];
   assert.equal(toolbar.className, "ksql-flownet-toolbar");
   assert.equal(toolbar.children[0].tagName, "h2");
+  assert.equal(toolbar.children[0].className, "ksql-flownet-toolbar-title");
   assert.equal(toolbar.children[0].textContent, "Run状況");
   assert.equal(findText(toolbar, "再読込").className, "ksql-flownet-reload");
   assert.equal(

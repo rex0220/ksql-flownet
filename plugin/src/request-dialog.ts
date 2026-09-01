@@ -68,6 +68,40 @@ function addRequestLink(
   parent.append(link);
 }
 
+function definitionList(
+  pageDocument: Document,
+  items: readonly (readonly [string, string, boolean?])[],
+  className = "ksql-flownet-dialog-details",
+): HTMLElement {
+  const list = node(pageDocument, "dl", className);
+  for (const [label, value, codeValue] of items) {
+    list.append(
+      node(pageDocument, "dt", undefined, label),
+      node(
+        pageDocument,
+        "dd",
+        codeValue ? "ksql-flownet-dialog-code" : undefined,
+        value,
+      ),
+    );
+  }
+  return list;
+}
+
+function releaseContext(
+  pageDocument: Document,
+  details: CancelActionDetails,
+): HTMLElement {
+  const box = node(pageDocument, "div", "ksql-flownet-dialog-info");
+  box.append(
+    definitionList(pageDocument, [
+      ["停止要求者:", details.requestedBy],
+      ["停止理由:", details.reason],
+    ]),
+  );
+  return box;
+}
+
 function cautionText(target: RequestDialogTarget): readonly string[] {
   if (target.action === "STOP") {
     return ["停止は次のノード境界まで効きません(実行中SQLは完走します)。"];
@@ -94,6 +128,12 @@ export function openRequestDialog(
   dialog.setAttribute("role", "dialog");
   dialog.setAttribute("aria-modal", "true");
   dialog.setAttribute("aria-labelledby", "ksql-flownet-dialog-title");
+  const header = node(pageDocument, "header", "ksql-flownet-dialog-header");
+  const brand = node(pageDocument, "div", "ksql-flownet-dialog-brand");
+  const heading = node(pageDocument, "div", "ksql-flownet-dialog-heading");
+  heading.append(
+    node(pageDocument, "span", "ksql-flownet-dialog-product", "kSQL-FlowNet"),
+  );
   const title = node(
     pageDocument,
     "h2",
@@ -101,7 +141,10 @@ export function openRequestDialog(
     ACTION_NAME[target.action],
   );
   title.id = "ksql-flownet-dialog-title";
+  heading.append(title);
+  header.append(brand, heading);
   const content = node(pageDocument, "div", "ksql-flownet-dialog-content");
+  const footer = node(pageDocument, "footer", "ksql-flownet-dialog-footer");
   const close = node(
     pageDocument,
     "button",
@@ -110,20 +153,24 @@ export function openRequestDialog(
   ) as HTMLButtonElement;
   close.type = "button";
   close.addEventListener("click", () => overlay.remove());
-  dialog.append(title, content, close);
+  const renderFooter = (primary?: HTMLButtonElement): void => {
+    footer.replaceChildren(close, ...(primary === undefined ? [] : [primary]));
+  };
+  dialog.append(header, content, footer);
   overlay.append(dialog);
   options.host.append(overlay);
 
   const renderInput = (): void => {
+    title.textContent = ACTION_NAME[target.action];
     content.replaceChildren();
     const form = node(
       pageDocument,
       "form",
       "ksql-flownet-dialog-form",
     ) as HTMLFormElement;
+    form.id = "ksql-flownet-dialog-form";
     form.append(
-      node(pageDocument, "p", undefined, `操作: ${ACTION_NAME[target.action]}`),
-      node(pageDocument, "p", undefined, `Run ID: ${target.runId}`),
+      definitionList(pageDocument, [["Run ID:", target.runId, true]]),
     );
     if (target.action === "RELEASE") {
       if (target.cancelDetails === null) {
@@ -136,22 +183,10 @@ export function openRequestDialog(
           ),
         );
         content.append(form);
+        renderFooter();
         return;
       }
-      form.append(
-        node(
-          pageDocument,
-          "p",
-          undefined,
-          `停止要求者: ${target.cancelDetails.requestedBy}`,
-        ),
-        node(
-          pageDocument,
-          "p",
-          undefined,
-          `停止理由: ${target.cancelDetails.reason}`,
-        ),
-      );
+      form.append(releaseContext(pageDocument, target.cancelDetails));
     }
     const reasonLabel = node(pageDocument, "label", undefined, "理由(必須)");
     const reason = pageDocument.createElement("textarea");
@@ -191,7 +226,8 @@ export function openRequestDialog(
       "操作内容を確認",
     ) as HTMLButtonElement;
     proceed.type = "submit";
-    form.append(error, proceed);
+    proceed.setAttribute("form", form.id);
+    form.append(error);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const trimmedReason = reason.value.trim();
@@ -224,6 +260,7 @@ export function openRequestDialog(
               existing.oldestId,
               existing.label,
             );
+            renderFooter();
             return;
           }
         }
@@ -235,6 +272,7 @@ export function openRequestDialog(
       });
     });
     content.append(form);
+    renderFooter(proceed);
     reason.focus();
   };
 
@@ -243,38 +281,24 @@ export function openRequestDialog(
     rerunFromNode: string | null,
     warning: string | null,
   ): void => {
+    title.textContent = "操作内容の確認";
     content.replaceChildren();
     content.append(
-      node(pageDocument, "h3", undefined, "操作内容の確認"),
-      node(pageDocument, "p", undefined, `操作: ${ACTION_NAME[target.action]}`),
-      node(pageDocument, "p", undefined, `Run ID: ${target.runId}`),
-      node(pageDocument, "p", undefined, `理由: ${reason}`),
+      definitionList(pageDocument, [
+        ["操作:", ACTION_NAME[target.action]],
+        ["Run ID:", target.runId, true],
+        ["理由:", reason],
+      ]),
     );
     if (rerunFromNode !== null) {
       content.append(
-        node(
-          pageDocument,
-          "p",
-          undefined,
-          `rerun_from_node = ${rerunFromNode}`,
-        ),
+        definitionList(pageDocument, [
+          ["rerun_from_node =", rerunFromNode, true],
+        ]),
       );
     }
     if (target.action === "RELEASE" && target.cancelDetails !== null) {
-      content.append(
-        node(
-          pageDocument,
-          "p",
-          undefined,
-          `停止要求者: ${target.cancelDetails.requestedBy}`,
-        ),
-        node(
-          pageDocument,
-          "p",
-          undefined,
-          `停止理由: ${target.cancelDetails.reason}`,
-        ),
-      );
+      content.append(releaseContext(pageDocument, target.cancelDetails));
     }
     for (const caution of cautionText(target)) {
       content.append(node(pageDocument, "p", "ksql-flownet-warning", caution));
@@ -326,6 +350,7 @@ export function openRequestDialog(
             `要求 #${record.id} を開く`,
           );
           options.onCreated(record);
+          renderFooter();
         })
         .catch((caught: unknown) => {
           sending = false;
@@ -336,7 +361,8 @@ export function openRequestDialog(
               : "操作要求の作成に失敗しました。自動再試行は行いません。";
         });
     });
-    content.append(error, send);
+    content.append(error);
+    renderFooter(send);
     send.focus();
   };
 
