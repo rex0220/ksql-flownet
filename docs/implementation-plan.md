@@ -340,6 +340,8 @@ FDRで決定したkintone構成をrepository interfaceの背後へ実装する�
 | P2-05 | `idempotent`の操作種別分類 | 冪等性判定の主軸を操作種別(キー指定UPSERT/bare INSERT/DELETE/外部副作用)の分類に置き、非決定要素検査を補助へ。kSQL-Flow側の解析能力が必要 | 2026-08-31外部評価R2-5。Phase 1は宣言+決定性補助検査(§4.2明確化済み) |
 | P2-06 | bundle転送の有界リトライ | bundle upload/verify-downloadの5xx・通信断に有界リトライ(例: 3回/2秒backoff)を追加。fail-closed結果は不変で、偽の失敗だけを減らす | 2026-08-31実測: kintoneファイルAPIが数分間断続的に500/503を返し(records系は正常)、NEWがBUNDLE_UPLOAD_FAILEDで失敗。回復後の`--resume-run`で正常継続できることは確認済み(現行のfail-closed挙動は仕様どおり) |
 | P2-08 | 案A v1: 導出プラグイン — **完了(2026-09-01)** | kintoneプラグインとして実行管理アプリへactivity 4値をread-only表示。導出規則は凍結仕様§7.4と共有test vector(`tests/fixtures/status-activity/`)を単一正本とし、M3実機受入とM4の配布・導入・一次対応文書、**本番アプリ適用(同日・ビュー配置API検証済み)**まで完了([証跡](./test-results/p2-08-20260901/README.md))。**npm公開ゲートは解除済み** — 公開の実施はユーザー判断 | [仕様](./p2-08-activity-plugin-spec.md)・[実装計画](./p2-08-implementation-plan.md)。PRE-03(案A v0)の後継 |
+| P2-09 | ボードからの操作要求起票 | [仕様DRAFT v3](./p2-09-board-request-spec.md)。ボードから RERUN/STOP/RELEASE の要求レコードを起票(書込先は操作要求アプリのみ・受理はポーラーが正)+要対応(終端)セクションで「やることリスト」を1画面化。INTERRUPTED一次対応方針の明示変更を含む | 2026-09-01ユーザー要望→外部レビュー2巡(7+5点)反映済み。着手待ち |
+| P2-10 | 終端Runのクローズ手段 | 操作要求アプリへ`CLOSE`種別を追加し、ポーラー経由の新CLI`archive-run`が`lifecycle_status = ARCHIVED`を書く(意味論は定義済み — ensure-runがresume拒否)。人が書くのは要求アプリのみ・実行管理を書くのは機械、の規律を維持。**状態を書く新CLI経路のため個別レビュー必須** | 2026-09-01 P2-09外部レビュー第2巡指摘1(リランせず決着した終端Runが要対応リストに永久滞留 — ARCHIVED書込経路が実装に不存在)。P2-09の`lifecycle_status = ACTIVE`フィルタは本タスク完了で実効化 |
 | P2-07 | 検査例外承認の供給配線 | validateJobInspectionsは承認済み例外(ApprovedInspectionException)を受け取れるが、ensure-runは常に空配列で呼び出しており、network.yaml/CLIから例外を供給する経路が存在しない。KSQL1306が実際に検出されるジョブは現状承認不能で拒否される(fail-closedで危険ではないが機構が到達不能) | 2026-08-31初回導入計画の検証で発見。初回対象(月次案件集計)は例外不要のため導入は阻害しない |
 
 ## 6. テスト戦略
