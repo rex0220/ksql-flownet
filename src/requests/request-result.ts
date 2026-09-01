@@ -10,6 +10,14 @@ export function classifyRunNetworkResult(input: {
 }): RequestResult {
   const output = validRunNetworkOutput(input.output) ? input.output : null;
   if (output !== null && output.invocation_id !== null) {
+    const retryBrakeNodeIds = output.retry_brake_node_ids ?? [];
+    if (retryBrakeNodeIds.length > 0) {
+      return {
+        state: "DONE",
+        code: "RETRY_BRAKE",
+        message: `aggregate=${output.aggregate_status ?? "UNKNOWN"}; invocation_id=${output.invocation_id}; retry_brake_node_ids=${retryBrakeNodeIds.join(",")}`,
+      };
+    }
     return {
       state: "DONE",
       code: output.invocation_result_code,
@@ -81,6 +89,11 @@ function validRunNetworkOutput(
     (typeof value.aggregate_status === "string" ||
       value.aggregate_status === null) &&
     typeof value.invocation_result_code === "string" &&
-    value.invocation_result_code !== ""
+    value.invocation_result_code !== "" &&
+    (value.retry_brake_node_ids === undefined ||
+      (Array.isArray(value.retry_brake_node_ids) &&
+        value.retry_brake_node_ids.every(
+          (nodeId) => typeof nodeId === "string",
+        )))
   );
 }

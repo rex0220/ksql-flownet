@@ -56,7 +56,7 @@
 
 - **対象解決(G-03)**: 要求には`run_id`しかなく、`status`/`run-network`は`network_id`・network定義パスを必須とする。ポーラーは**非秘密のallowlist設定(`network_id → network定義パス`の対応表)**を持ち、allowlist内の各networkへ`status --json`検索して一意解決する。0件は`RUN_NOT_FOUND`、複数件は`RUN_ID_AMBIGUOUS`で拒否(fail-closed)。要求者にnetwork_idを手入力させない。
 - ポーラーの事前チェックは**一次審査**(親切な拒否理由のため)であり、正の検証・排他はCLI側の既存規則(終端SUCCESS拒否、R2-1の非冪等×既存attempt拒否、RETRY_BRAKE解除は--rerun-fromのみ、lock競合等)。
-- **結果の意味論(G-04/G-07)**: `run-network`へ後方互換の`--json`出力を追加し(`outcome / run_id / invocation_id / aggregate_status / invocation_result_code`。NO-OPは`invocation_id = null`。orchestration本体は無改修 — CLI表示境界のみの拡張として本体無改修原則から明示的に分離)、ポーラーはこれで結果分類する: **`REJECTED`は事前審査拒否・spawn不能・Invocation作成前のCLI検証拒否に限定**。Invocation作成後はaggregateが非SUCCESSでも要求自体は`DONE`とし、`result_code`へInvocation result code(RETRY_BRAKE作動時は`DONE / RETRY_BRAKE`)、`result_message`へaggregateと`invocation_id`を記録する。
+- **結果の意味論(G-04/G-07)**: `run-network`へ後方互換の`--json`出力を追加し(`outcome / run_id / invocation_id / aggregate_status / invocation_result_code / retry_brake_node_ids`。NO-OPは`invocation_id = null`、`retry_brake_node_ids = []`。orchestration本体は無改修 — CLI表示境界のみの拡張として本体無改修原則から明示的に分離)、ポーラーはこれで結果分類する: **`REJECTED`は事前審査拒否・spawn不能・Invocation作成前のCLI検証拒否に限定**。Invocation作成後はaggregateが非SUCCESSでも要求自体は`DONE`とし、`result_code`へInvocation result code(RETRY_BRAKE作動時は`DONE / RETRY_BRAKE`)、`result_message`へaggregateと`invocation_id`を記録する。
 
 ## 5. ポーラー `poll-requests`
 

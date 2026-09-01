@@ -150,21 +150,23 @@ test("stdout/stderrはbyte上限で切り詰め、shellを使わない", async (
   assert.equal(result.stderrTruncated, true);
 });
 
-test("Invocation作成後はaggregate非SUCCESS/RETRY_BRAKEでもDONE、作成前はREJECTED", () => {
+test("Invocation作成後のretry brakeノードはDONE/RETRY_BRAKE、作成前はREJECTED", () => {
   const done = classifyRunNetworkResult({
     output: {
       outcome: "RESUME",
       run_id: "run-42",
       invocation_id: "invoke-42",
       aggregate_status: "FAILED",
-      invocation_result_code: "RETRY_BRAKE",
+      invocation_result_code: "NODE_FAILED_OR_BLOCKED",
+      retry_brake_node_ids: ["node-a", "node-b"],
     },
     process: processResult({ exitCode: 1 }),
   });
   assert.deepEqual(done, {
     state: "DONE",
     code: "RETRY_BRAKE",
-    message: "aggregate=FAILED; invocation_id=invoke-42",
+    message:
+      "aggregate=FAILED; invocation_id=invoke-42; retry_brake_node_ids=node-a,node-b",
   });
   const rejected = classifyRunNetworkResult({
     output: {
@@ -186,6 +188,38 @@ test("Invocation作成後はaggregate非SUCCESS/RETRY_BRAKEでもDONE、作成�
     ).message.includes("SECRET_VALUE"),
     false,
   );
+});
+
+test("retry brakeノードが空またはフィールド欠落ならInvocation result codeを維持する", () => {
+  for (const output of [
+    {
+      outcome: "RESUME",
+      run_id: "run-42",
+      invocation_id: "invoke-42",
+      aggregate_status: "FAILED",
+      invocation_result_code: "NODE_FAILED_OR_BLOCKED",
+      retry_brake_node_ids: [],
+    },
+    {
+      outcome: "RESUME",
+      run_id: "run-42",
+      invocation_id: "invoke-42",
+      aggregate_status: "FAILED",
+      invocation_result_code: "NODE_FAILED_OR_BLOCKED",
+    },
+  ]) {
+    assert.deepEqual(
+      classifyRunNetworkResult({
+        output,
+        process: processResult({ exitCode: 1 }),
+      }),
+      {
+        state: "DONE",
+        code: "NODE_FAILED_OR_BLOCKED",
+        message: "aggregate=FAILED; invocation_id=invoke-42",
+      },
+    );
+  }
 });
 
 test("NOOPはInvocationなしでもDONEに分類する", () => {

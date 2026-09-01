@@ -333,7 +333,8 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
       async schedule() {
         return {
           aggregateStatus: "FAILED",
-          invocationResultCode: "RETRY_BRAKE",
+          invocationResultCode: "NODE_FAILED_OR_BLOCKED",
+          retryBrakeNodeIds: ["failed"],
         };
       },
     },
@@ -344,7 +345,8 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
     run_id: "run-1",
     invocation_id: "invoke-1",
     aggregate_status: "FAILED",
-    invocation_result_code: "RETRY_BRAKE",
+    invocation_result_code: "NODE_FAILED_OR_BLOCKED",
+    retry_brake_node_ids: ["failed"],
   });
 
   await runRunNetworkCommand(
@@ -364,7 +366,7 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
       },
     },
   );
-  assert.equal(JSON.parse(stdout.pop()).invocation_id, null);
+  assert.deepEqual(JSON.parse(stdout.pop()).retry_brake_node_ids, []);
 
   const rejected = await runRunNetworkCommand(
     ["network.yaml", "--resume-run", "run-3", "--json"],
@@ -386,6 +388,7 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
     invocation_id: null,
     aggregate_status: null,
     invocation_result_code: "LOCK_CONFLICT",
+    retry_brake_node_ids: [],
   });
 
   const postInvocationFailure = await runRunNetworkCommand(
@@ -419,6 +422,7 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
     invocation_id: "invoke-4",
     aggregate_status: null,
     invocation_result_code: "NETWORK_LEASE_INTERRUPTED",
+    retry_brake_node_ids: [],
   });
 });
 

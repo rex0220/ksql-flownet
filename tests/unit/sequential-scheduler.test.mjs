@@ -547,6 +547,7 @@ test("RESUME retry brake excludes the failed branch after three equal failures",
   );
   assert.equal(states.get("failed").status, "FAILED");
   assert.equal(states.get("failed").status_reason, "RETRY_BRAKE:SQL_ERRORx3");
+  assert.deepEqual(result.summary.retryBrakeNodeIds, ["failed"]);
   assert.equal(states.get("child").status, "BLOCKED");
   assert.equal(states.get("independent").status, "SUCCESS");
   assert.equal(

@@ -102,6 +102,7 @@ export interface SequentialSchedulerSummary {
   readonly selectedNodeIds: readonly string[];
   readonly preservedNodeIds: readonly string[];
   readonly blockedNodeIds: readonly string[];
+  readonly retryBrakeNodeIds: readonly string[];
   readonly reconciliationRequired: boolean;
 }
 
@@ -204,7 +205,10 @@ export async function runSequentialScheduler(
       now,
       attempts,
     );
-    const brakeReasons = [...blocked]
+    const retryBrakeNodeIds = [...blocked].filter((nodeId) =>
+      states.get(nodeId)?.value.status_reason?.startsWith("RETRY_BRAKE:"),
+    );
+    const brakeReasons = retryBrakeNodeIds
       .map((nodeId) => states.get(nodeId)?.value.status_reason)
       .filter((reason) => reason?.startsWith("RETRY_BRAKE:"));
     if (brakeReasons.length > 0)
@@ -446,6 +450,7 @@ export async function runSequentialScheduler(
       selectedNodeIds: [...selected],
       preservedNodeIds: [...preserved],
       blockedNodeIds: [...blocked],
+      retryBrakeNodeIds,
       reconciliationRequired,
     };
   } catch (error) {

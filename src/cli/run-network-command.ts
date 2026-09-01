@@ -78,6 +78,7 @@ export async function runRunNetworkCommand(
         invocation_id: null,
         aggregate_status: null,
         invocation_result_code: "INVALID_ARGUMENTS",
+        retry_brake_node_ids: [],
       });
     } else {
       process.stderr.write(
@@ -115,6 +116,7 @@ export async function runRunNetworkCommand(
           invocation_id: null,
           aggregate_status: "SUCCESS",
           invocation_result_code: "NOOP_ALREADY_SUCCESS",
+          retry_brake_node_ids: [],
         });
       } else {
         process.stdout.write(
@@ -136,6 +138,7 @@ export async function runRunNetworkCommand(
         invocation_id: result.invocation.value.invocation_id,
         aggregate_status: summary.aggregateStatus,
         invocation_result_code: summary.invocationResultCode,
+        retry_brake_node_ids: summary.retryBrakeNodeIds,
       });
     } else {
       process.stdout.write(
@@ -153,6 +156,7 @@ export async function runRunNetworkCommand(
         invocation_id: created?.invocationId ?? null,
         aggregate_status: null,
         invocation_result_code: code,
+        retry_brake_node_ids: [],
       });
     } else {
       process.stderr.write(`Error [${code}]: ${message}\n`);
@@ -280,6 +284,7 @@ interface RunNetworkJsonResult {
   readonly invocation_id: string | null;
   readonly aggregate_status: string | null;
   readonly invocation_result_code: string;
+  readonly retry_brake_node_ids: readonly string[];
 }
 
 function writeJsonResult(result: RunNetworkJsonResult): void {

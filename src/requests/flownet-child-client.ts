@@ -26,6 +26,7 @@ export interface RunNetworkJsonOutput {
   readonly invocation_id: string | null;
   readonly aggregate_status: string | null;
   readonly invocation_result_code: string;
+  readonly retry_brake_node_ids?: readonly string[];
 }
 
 export interface FlownetChildClientOptions {

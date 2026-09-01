@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -277,13 +278,23 @@ export async function prepareP201Network(scope, fixtureName) {
   const network = parse(source);
   const nodeIds = new Map();
   const jobIds = new Map();
+  // ksql-flowのジョブロックキー {profile}:{job_id} は64 UTF-16単位が上限
+  // (ksql-flow src/jobkey.ts、kintone一意フィールド実測)。scope全体を前置すると
+  // 超過してVALIDATION_ERRORになるため(2026-09-01実機)、job_idだけは
+  // KSQL_FLOW_TEST_プレフィックス+scopeの短縮ハッシュで前置する。
+  const jobScope = `${P2_01_PREFIX}${createHash("sha256").update(scope).digest("hex").slice(0, 8)}`;
   for (const node of network.nodes) {
     assert.ok(
       !PRODUCTION_JOB_IDS.has(node.job_id),
       `P2-01 E2Eは本番job_idを使用できません: ${node.job_id}`,
     );
     nodeIds.set(node.id, `${scope}_${node.id}`);
-    jobIds.set(node.job_id, `${scope}_${node.job_id}`);
+    const jobId = `${jobScope}_${node.job_id}`;
+    assert.ok(
+      jobId.length <= 60,
+      `job_idが長すぎます(profile "e2e:"+job_idで64超過): ${jobId}`,
+    );
+    jobIds.set(node.job_id, jobId);
   }
   network.network_id = fixture.networkId;
   network.description = `${scope} ${network.description}`;
