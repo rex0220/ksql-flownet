@@ -453,3 +453,8 @@
     flex-wrap: wrap;
   }
 }
+
+/* 状態・時刻セルは改行しない(RUNNINGの縦割れ防止 — 2026-09-01実機フィードバック) */
+.ksql-flownet-table td.ksql-flownet-cell-nowrap {
+  white-space: nowrap;
+}

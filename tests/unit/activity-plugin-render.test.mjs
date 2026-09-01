@@ -378,3 +378,33 @@ test("Run ID copy reports clipboard success and failure", async () => {
   };
   assert.equal(await copyRunId(document, "run_2"), false);
 });
+
+test("列名は日本語統一・日時はローカル表示・状態/時刻セルは改行禁止class(2026-09-01実機フィードバック)", async () => {
+  const { formatLocalDateTime } = await import("../../dist/plugin/render.js");
+  const formatted = formatLocalDateTime("2026-09-01T10:49:00Z");
+  assert.match(formatted, /2026\/09\/01/u);
+  assert.doesNotMatch(formatted, /Z|T10:49/u);
+  assert.equal(formatLocalDateTime("not-a-date"), "not-a-date");
+  const source = (await import("node:fs")).readFileSync(
+    new globalThis.URL("../../plugin/src/render.ts", import.meta.url),
+    "utf8",
+  );
+  for (const label of [
+    '"業務キー"',
+    '"状態"',
+    '"アクティビティ"',
+    '"開始時刻"',
+    '"更新時刻"',
+  ]) {
+    assert.ok(source.includes(label), `列名 ${label} が必要`);
+  }
+  for (const forbidden of [
+    '"Business Key"',
+    '"Status"',
+    '"Activity"',
+    '"Started At"',
+  ]) {
+    assert.ok(!source.includes(forbidden), `英語列名 ${forbidden} を残さない`);
+  }
+  assert.ok(source.includes("ksql-flownet-cell-nowrap"));
+});

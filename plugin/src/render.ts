@@ -97,6 +97,19 @@ export function limitDisplayValue(value: string): string {
   return `${characters.slice(0, MAX_DISPLAY_LENGTH).join("")}…`;
 }
 
+/** ISO日時をブラウザローカル時刻(ja-JP、分まで)で表示する。不正値は原文のまま。 */
+export function formatLocalDateTime(value: string): string {
+  const milliseconds = Date.parse(value);
+  if (Number.isNaN(milliseconds)) return value;
+  return new Date(milliseconds).toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function element(
   pageDocument: Document,
   tag: string,
@@ -328,11 +341,11 @@ function renderActiveTable(
   const table = element(pageDocument, "table", "ksql-flownet-table");
   const thead = tableHeader(pageDocument, [
     "レコード",
-    "Business Key",
+    "業務キー",
     "Run ID",
-    "Status",
-    "Activity",
-    "Started At",
+    "状態",
+    "アクティビティ",
+    "開始時刻",
     "根拠・一次対応",
     "操作",
   ]);
@@ -358,9 +371,14 @@ function renderActiveTable(
       recordCell(pageDocument, row),
       element(pageDocument, "td", undefined, row.businessKey),
       element(pageDocument, "td", undefined, row.runId),
-      element(pageDocument, "td", undefined, row.status),
+      element(pageDocument, "td", "ksql-flownet-cell-nowrap", row.status),
       activityCell(pageDocument, row),
-      element(pageDocument, "td", undefined, row.startedAt ?? "未開始"),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-cell-nowrap",
+        row.startedAt === null ? "未開始" : formatLocalDateTime(row.startedAt),
+      ),
       element(
         pageDocument,
         "td",
@@ -384,9 +402,9 @@ function renderTerminalTable(
   const table = element(pageDocument, "table", "ksql-flownet-table");
   const thead = tableHeader(pageDocument, [
     "レコード",
-    "Business Key",
+    "業務キー",
     "Run ID",
-    "Status",
+    "状態",
     "更新時刻",
     "操作",
   ]);
@@ -412,8 +430,13 @@ function renderTerminalTable(
       recordCell(pageDocument, row),
       element(pageDocument, "td", undefined, row.businessKey),
       element(pageDocument, "td", undefined, row.runId),
-      element(pageDocument, "td", undefined, row.status),
-      element(pageDocument, "td", undefined, row.updatedAt),
+      element(pageDocument, "td", "ksql-flownet-cell-nowrap", row.status),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-cell-nowrap",
+        formatLocalDateTime(row.updatedAt),
+      ),
       actionCell,
     );
     tbody.append(tr);
