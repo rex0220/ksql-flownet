@@ -4,14 +4,17 @@
 
 ## 設定と権限
 
-プラグイン設定は次の2項目です。いずれも対象環境の役割名に対応するアプリIDを指定し、文書やコードへ実値を固定しません。
+プラグイン設定は次の3項目です。通常は空欄にし、実行管理アプリの`related_audit_events`、`related_requests`、`related_job_logs`から参照先アプリIDを自動検出します。自動検出を上書きする場合だけ、対象環境のアプリIDを指定します。
 
 1. **監査履歴アプリID**: activityのlock owner照合に使います。
 2. **操作要求アプリID**: RERUN/STOP/RELEASEの起票、重複ガード、pendingバッジに使います。
+3. **JOBログアプリID**: 任意。終了済み・対応が必要なRunのエラー本文表示に使います。
 
-一次対応者には、実行管理・監査履歴アプリの閲覧権限と、操作要求アプリの閲覧・追加権限が必要です。runtimeでは実行管理・監査履歴アプリはGET限定、操作要求アプリはGETと単票POSTだけを使用します。APIトークン、cursor、Bulk、PUT、DELETEは使用しません。
+一次対応者には、実行管理・監査履歴・検出または設定したJOBログアプリの閲覧権限と、操作要求アプリの閲覧・追加権限が必要です。runtimeでは自動検出用のフォームフィールドGET、実行管理・監査履歴・JOBログ・操作要求アプリのレコードGET、操作要求アプリの単票POSTだけを使用します。APIトークン、cursor、Bulk、PUT、DELETEは使用しません。フォームフィールドGETが権限またはAPIエラーで失敗した場合は、保存済み設定だけで動作します。
 
 操作要求アプリIDが未設定の場合、起票ボタン・要求GET・pendingバッジは無効です。ただし要対応(終端)セクションは設定に関係なく追加されるため、zip更新だけでもボードの表示は変わります。
+
+JOBログアプリIDが未設定、GET失敗、または該当ログなしの場合、エラー概要は従来のnode/result_code/status_reason表示へfail-openします。JOBログへの書込みは行いません。
 
 ## 開発
 
@@ -39,7 +42,7 @@ npm exec -- kintone-plugin-packer --ppk "C:\Users\rex02\.ksql-flownet\flownet-ac
 
 1. kintoneシステム管理の「プラグイン」で、生成したzipを読み込みます。
 2. 対象の実行管理アプリの設定で、このプラグインを追加します。
-3. プラグイン設定を開き、対象環境の監査履歴アプリIDと操作要求アプリIDを入力して保存し、アプリ設定を反映します。APIトークンは使用しません。
+3. プラグイン設定は通常3項目とも空欄で保存します。関連レコードと異なるアプリを使う項目だけアプリIDを入力し、アプリ設定を反映します。APIトークンは使用しません。
 4. [`templates/add-run-board-view.console.js`](../templates/add-run-board-view.console.js)を[`templates/README.md`](../templates/README.md)の手順で実行し、「00_Run状況」を追加します。
 5. ボードとNETWORK_RUN詳細を表示し、CLI `status --json`とのread-only smoke比較を行います。
 

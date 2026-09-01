@@ -5,6 +5,7 @@ import type {
   BoardRequestAction,
 } from "./board-action.js";
 import type { RunActivity } from "./activity-entry.js";
+import type { ErrorSummary, ErrorSummaryItem } from "./error-summary.js";
 
 export interface ActionRowViewModel {
   readonly runId: string;
@@ -19,6 +20,7 @@ export interface ActionRowViewModel {
   readonly action: BoardActionViewModel;
   readonly actionError: string | null;
   readonly cancelDetails: CancelActionDetails | null;
+  readonly errorSummary: ErrorSummary;
 }
 
 export interface ActivityRowViewModel extends ActionRowViewModel {
@@ -97,6 +99,19 @@ export function limitDisplayValue(value: string): string {
   return `${characters.slice(0, MAX_DISPLAY_LENGTH).join("")}…`;
 }
 
+/** ISO日時をブラウザローカル時刻(ja-JP、分まで)で表示する。不正値は原文のまま。 */
+export function formatLocalDateTime(value: string): string {
+  const milliseconds = Date.parse(value);
+  if (Number.isNaN(milliseconds)) return value;
+  return new Date(milliseconds).toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function element(
   pageDocument: Document,
   tag: string,
@@ -143,6 +158,8 @@ function requestLink(
   link.className = "ksql-flownet-pending";
   link.textContent = limitDisplayValue(label);
   link.setAttribute("href", `/k/${requestAppId}/show#record=${requestId}`);
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
   return link;
 }
 
@@ -295,9 +312,31 @@ function recordCell(
   const link = pageDocument.createElement("a");
   link.textContent = row.recordId;
   link.setAttribute("href", row.recordUrl);
-  const cell = element(pageDocument, "td");
+  // レコード番号は別タブで詳細を開く(2026-09-01ユーザー要望)
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
+  const cell = element(pageDocument, "td", "ksql-flownet-record-cell");
   cell.append(link);
   return cell;
+}
+
+function tableHeader(
+  pageDocument: Document,
+  labels: readonly string[],
+): HTMLElement {
+  const thead = element(pageDocument, "thead");
+  const header = element(pageDocument, "tr");
+  labels.forEach((label, index) => {
+    const className =
+      index === 0
+        ? "ksql-flownet-record-cell"
+        : index === labels.length - 1
+          ? "ksql-flownet-operation-cell"
+          : undefined;
+    header.append(element(pageDocument, "th", className, label));
+  });
+  thead.append(header);
+  return thead;
 }
 
 function renderActiveTable(
@@ -307,24 +346,24 @@ function renderActiveTable(
   callbacks: RenderCallbacks,
 ): HTMLElement {
   const table = element(pageDocument, "table", "ksql-flownet-table");
-  const thead = element(pageDocument, "thead");
-  const header = element(pageDocument, "tr");
-  for (const label of [
+  const thead = tableHeader(pageDocument, [
     "レコード",
-    "Business Key",
+    "業務キー",
     "Run ID",
-    "Status",
-    "Activity",
-    "Started At",
+    "状態",
+    "アクティビティ",
+    "開始時刻",
     "根拠・一次対応",
     "操作",
-  ])
-    header.append(element(pageDocument, "th", undefined, label));
-  thead.append(header);
+  ]);
   const tbody = element(pageDocument, "tbody");
   for (const row of rows) {
     const tr = element(pageDocument, "tr");
-    const actionCell = element(pageDocument, "td");
+    const actionCell = element(
+      pageDocument,
+      "td",
+      "ksql-flownet-operation-cell",
+    );
     actionCell.append(
       actionContent(
         pageDocument,
@@ -339,9 +378,14 @@ function renderActiveTable(
       recordCell(pageDocument, row),
       element(pageDocument, "td", undefined, row.businessKey),
       element(pageDocument, "td", undefined, row.runId),
-      element(pageDocument, "td", undefined, row.status),
+      element(pageDocument, "td", "ksql-flownet-cell-nowrap", row.status),
       activityCell(pageDocument, row),
-      element(pageDocument, "td", undefined, row.startedAt ?? "未開始"),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-cell-nowrap",
+        row.startedAt === null ? "未開始" : formatLocalDateTime(row.startedAt),
+      ),
       element(
         pageDocument,
         "td",
@@ -363,22 +407,27 @@ function renderTerminalTable(
   callbacks: RenderCallbacks,
 ): HTMLElement {
   const table = element(pageDocument, "table", "ksql-flownet-table");
-  const thead = element(pageDocument, "thead");
-  const header = element(pageDocument, "tr");
-  for (const label of [
+  const thead = tableHeader(pageDocument, [
     "レコード",
-    "Business Key",
+    "業務キー",
     "Run ID",
-    "Status",
+    "状態",
+    "エラー概要",
     "更新時刻",
     "操作",
-  ])
-    header.append(element(pageDocument, "th", undefined, label));
-  thead.append(header);
+  ]);
   const tbody = element(pageDocument, "tbody");
   for (const row of rows) {
+    const errorSummary = row.errorSummary ?? {
+      state: "ready" as const,
+      items: [],
+    };
     const tr = element(pageDocument, "tr");
-    const actionCell = element(pageDocument, "td");
+    const actionCell = element(
+      pageDocument,
+      "td",
+      "ksql-flownet-operation-cell",
+    );
     actionCell.append(
       actionContent(
         pageDocument,
@@ -393,14 +442,127 @@ function renderTerminalTable(
       recordCell(pageDocument, row),
       element(pageDocument, "td", undefined, row.businessKey),
       element(pageDocument, "td", undefined, row.runId),
-      element(pageDocument, "td", undefined, row.status),
-      element(pageDocument, "td", undefined, row.updatedAt),
+      element(pageDocument, "td", "ksql-flownet-cell-nowrap", row.status),
+      element(
+        pageDocument,
+        "td",
+        errorSummary.state === "unavailable"
+          ? "ksql-flownet-error-detail ksql-flownet-cell-nowrap"
+          : "ksql-flownet-cell-nowrap",
+        formatErrorSummaryLine(errorSummary),
+      ),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-cell-nowrap",
+        formatLocalDateTime(row.updatedAt),
+      ),
       actionCell,
     );
     tbody.append(tr);
+    // エラー本文はメイン行に入れず全幅のサブ行で折り返し表示する
+    // (1セルに長文を入れると表全体が崩れる — 2026-09-01実機フィードバック)
+    const message = errorSummaryMessage(errorSummary);
+    if (message !== null) {
+      const messageRow = element(
+        pageDocument,
+        "tr",
+        "ksql-flownet-error-message-row",
+      );
+      const messageCell = element(
+        pageDocument,
+        "td",
+        "ksql-flownet-error-message-cell",
+        message,
+      );
+      messageCell.setAttribute("colspan", "7");
+      messageRow.append(messageCell);
+      tbody.append(messageRow);
+    }
   }
   table.append(thead, tbody);
   return table;
+}
+
+function classificationText(item: ErrorSummaryItem): string {
+  // status_reasonがresult_codeと同値なら重複表示しない(2026-09-01実機フィードバック)
+  const reason =
+    item.statusReason === null || item.statusReason === item.resultCode
+      ? ""
+      : ` / ${item.statusReason}`;
+  return `${item.nodeId}: ${item.resultCode}${reason}`;
+}
+
+function errorSummaryItemText(item: ErrorSummaryItem): string {
+  if (typeof item.errorMessage === "string") {
+    return `${item.nodeId}: ${item.resultCode} — ${item.errorMessage}`;
+  }
+  return classificationText(item);
+}
+
+/** ボードのエラー概要セル用: 分類のみ(本文はサブ行で表示)。 */
+export function formatErrorSummaryLine(summary: ErrorSummary): string {
+  if (summary.state === "unavailable") {
+    return "(エラー概要を取得できません)";
+  }
+  const first = summary.items[0];
+  if (first === undefined) return "—";
+  const remaining = summary.items.length - 1;
+  return limitDisplayValue(
+    `${classificationText(first)}${remaining === 0 ? "" : ` / 他${remaining} node`}`,
+  );
+}
+
+/** サブ行に出すエラー本文(先頭ノード分)。無ければnull。 */
+export function errorSummaryMessage(summary: ErrorSummary): string | null {
+  if (summary.state === "unavailable") return null;
+  const first = summary.items[0];
+  if (first === undefined || typeof first.errorMessage !== "string")
+    return null;
+  return limitDisplayValue(`${first.nodeId}: ${first.errorMessage}`);
+}
+
+function renderDetailErrorSummary(
+  pageDocument: Document,
+  summary: ErrorSummary,
+): HTMLElement {
+  const box = element(pageDocument, "div", "ksql-flownet-error-summary");
+  box.append(element(pageDocument, "strong", undefined, "エラー概要"));
+  if (summary.state === "unavailable") {
+    box.append(
+      element(
+        pageDocument,
+        "span",
+        "ksql-flownet-error-detail",
+        "(エラー概要を取得できません)",
+      ),
+    );
+    return box;
+  }
+  if (summary.items.length === 0) {
+    box.append(element(pageDocument, "span", undefined, "該当情報なし"));
+    return box;
+  }
+  const list = element(pageDocument, "ul");
+  for (const item of summary.items.slice(0, 3)) {
+    const row = element(pageDocument, "li");
+    if (typeof item.errorMessage === "string") {
+      row.append(
+        element(
+          pageDocument,
+          "span",
+          undefined,
+          `${item.nodeId}: ${item.resultCode} — `,
+        ),
+        element(pageDocument, "span", undefined, item.errorMessage),
+      );
+    } else {
+      row.textContent = limitDisplayValue(errorSummaryItemText(item));
+    }
+    list.append(row);
+  }
+  box.append(list);
+  return box;
 }
 
 function sectionError(
@@ -456,6 +618,7 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
       action: optional.action ?? ({ kind: "none" } as const),
       actionError: optional.actionError ?? null,
       cancelDetails: optional.cancelDetails ?? null,
+      errorSummary: optional.errorSummary ?? { state: "ready", items: [] },
     });
   });
   return {
@@ -472,6 +635,19 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
   } as BoardViewModel;
 }
 
+function sectionHeader(
+  pageDocument: Document,
+  title: string,
+  count: number,
+): HTMLElement {
+  const header = element(pageDocument, "header", "ksql-flownet-section-header");
+  header.append(
+    element(pageDocument, "h3", undefined, title),
+    element(pageDocument, "span", "ksql-flownet-count-badge", `${count}件`),
+  );
+  return header;
+}
+
 export function renderBoard(
   root: HTMLElement,
   rawModel: BoardViewModel,
@@ -481,10 +657,41 @@ export function renderBoard(
   const callbacks = normalizeCallbacks(callbacksOrReload);
   const pageDocument = root.ownerDocument;
   const board = element(pageDocument, "section", "ksql-flownet-board");
-  board.append(element(pageDocument, "h2", undefined, "Run状況"));
+  const toolbar = element(pageDocument, "header", "ksql-flownet-toolbar");
+  toolbar.append(
+    element(pageDocument, "h2", "ksql-flownet-toolbar-title", "Run状況"),
+  );
+  const toolbarActions = element(
+    pageDocument,
+    "div",
+    "ksql-flownet-toolbar-actions",
+  );
+  toolbarActions.append(
+    element(
+      pageDocument,
+      "span",
+      "ksql-flownet-judged-at",
+      !model.judgedAt
+        ? "判定時刻: 未判定"
+        : `判定時刻: ${new Date(model.judgedAt).toLocaleString("ja-JP")}`,
+    ),
+  );
+  const reload = element(
+    pageDocument,
+    "button",
+    "ksql-flownet-reload",
+    "再読込",
+  ) as HTMLButtonElement;
+  reload.type = "button";
+  reload.addEventListener("click", callbacks.onReload);
+  toolbarActions.append(reload);
+  toolbar.append(toolbarActions);
+  board.append(toolbar);
 
   const active = element(pageDocument, "section", "ksql-flownet-section");
-  active.append(element(pageDocument, "h3", undefined, "未終端Run"));
+  active.append(
+    sectionHeader(pageDocument, "進行中のRun", model.activeSection.rows.length),
+  );
   if (model.activeSection.state === "error") {
     active.append(sectionError(pageDocument, model.activeSection.error));
   } else if (model.activeSection.rows.length === 0) {
@@ -493,7 +700,7 @@ export function renderBoard(
         pageDocument,
         "p",
         "ksql-flownet-empty",
-        "未終端Runはありません。",
+        "進行中のRunはありません。",
       ),
     );
   } else {
@@ -509,7 +716,13 @@ export function renderBoard(
   board.append(active);
 
   const attention = element(pageDocument, "section", "ksql-flownet-section");
-  attention.append(element(pageDocument, "h3", undefined, "要対応(終端)"));
+  attention.append(
+    sectionHeader(
+      pageDocument,
+      "終了済み・対応が必要なRun",
+      model.attentionSection.rows.length,
+    ),
+  );
   if (model.attentionSection.state === "error") {
     attention.append(sectionError(pageDocument, model.attentionSection.error));
   } else if (model.attentionSection.rows.length === 0) {
@@ -518,7 +731,7 @@ export function renderBoard(
         pageDocument,
         "p",
         "ksql-flownet-empty",
-        "要対応(終端)Runはありません。",
+        "終了済みで対応が必要なRunはありません。",
       ),
     );
   } else {
@@ -548,27 +761,6 @@ export function renderBoard(
       element(pageDocument, "p", "ksql-flownet-warning", model.pendingWarning),
     );
   }
-  const footer = element(pageDocument, "footer", "ksql-flownet-footer");
-  footer.append(
-    element(
-      pageDocument,
-      "span",
-      "ksql-flownet-judged-at",
-      !model.judgedAt
-        ? "判定時刻: 未判定"
-        : `判定時刻: ${new Date(model.judgedAt).toLocaleString("ja-JP")}`,
-    ),
-  );
-  const reload = element(
-    pageDocument,
-    "button",
-    "ksql-flownet-reload",
-    "再読込",
-  ) as HTMLButtonElement;
-  reload.type = "button";
-  reload.addEventListener("click", callbacks.onReload);
-  footer.append(reload);
-  board.append(footer);
   replaceChildren(root, board);
 }
 
@@ -604,6 +796,7 @@ export function renderDetail(
         action: optional.action ?? ({ kind: "none" } as const),
         actionError: optional.actionError ?? null,
         cancelDetails: optional.cancelDetails ?? null,
+        errorSummary: optional.errorSummary ?? { state: "ready", items: [] },
       },
     );
     if (model.terminal) {
@@ -634,6 +827,9 @@ export function renderDetail(
         model.allowRerunFromNode,
       ),
     );
+    if (model.terminal && row.status !== "SUCCESS") {
+      content.append(renderDetailErrorSummary(pageDocument, row.errorSummary));
+    }
   }
   replaceChildren(root, content);
 }

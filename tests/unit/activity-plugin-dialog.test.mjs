@@ -121,6 +121,33 @@ function baseOptions(document, overrides = {}) {
   };
 }
 
+test("dialog chrome keeps the branded header, definition list, and secondary-primary footer order", () => {
+  const document = new FakeDocument();
+  openRequestDialog(baseOptions(document));
+  const dialog = allNodes(document.body).find(
+    (item) => item.className === "ksql-flownet-dialog",
+  );
+  const [header, content, footer] = dialog.children;
+  assert.deepEqual(
+    [header.className, content.className, footer.className],
+    [
+      "ksql-flownet-dialog-header",
+      "ksql-flownet-dialog-content",
+      "ksql-flownet-dialog-footer",
+    ],
+  );
+  assert.equal(header.children[0].className, "ksql-flownet-dialog-brand");
+  assert.equal(findText(header, "kSQL-FlowNet").tagName, "span");
+  assert.equal(findText(header, "停止要求").tagName, "h2");
+  assert.equal(findText(content, "Run ID:").tagName, "dt");
+  assert.equal(findText(content, "run_1").tagName, "dd");
+  assert.equal(findText(content, "操作:"), undefined);
+  assert.deepEqual(
+    footer.children.map((item) => item.textContent),
+    ["閉じる", "操作内容を確認"],
+  );
+});
+
 test("dialog confirms operation, requires a reason, creates once, shows success, and calls board reload once", async () => {
   const document = new FakeDocument();
   let posts = 0;
@@ -141,6 +168,34 @@ test("dialog confirms operation, requires a reason, creates once, shows success,
     (item) => item.tagName === "textarea",
   );
   assert.ok(form && reason);
+  const dialog = allNodes(document.body).find(
+    (item) => item.className === "ksql-flownet-dialog",
+  );
+  assert.deepEqual(
+    dialog.children.map((item) => item.className),
+    [
+      "ksql-flownet-dialog-header",
+      "ksql-flownet-dialog-content",
+      "ksql-flownet-dialog-footer",
+    ],
+  );
+  assert.equal(
+    dialog.children[0].children[0].className,
+    "ksql-flownet-dialog-brand",
+  );
+  assert.equal(findText(dialog.children[0], "kSQL-FlowNet").tagName, "span");
+  assert.equal(findText(dialog.children[0], "停止要求").tagName, "h2");
+  assert.equal(findText(form, "Run ID:").tagName, "dt");
+  assert.equal(findText(form, "run_1").tagName, "dd");
+  assert.equal(
+    findText(form, "操作:"),
+    undefined,
+    "input has no repeated action row",
+  );
+  assert.deepEqual(
+    dialog.children[2].children.map((item) => item.textContent),
+    ["閉じる", "操作内容を確認"],
+  );
   form.trigger("submit");
   assert.match(allText(document.body), /理由を入力してください/u);
   reason.value = "operator reason";
@@ -148,6 +203,19 @@ test("dialog confirms operation, requires a reason, creates once, shows success,
   await tick();
   assert.match(allText(document.body), /操作内容の確認/u);
   assert.match(allText(document.body), /実行中SQLは完走/u);
+  assert.equal(findText(dialog.children[0], "操作内容の確認").tagName, "h2");
+  assert.equal(findText(dialog.children[1], "操作:").tagName, "dt");
+  assert.equal(
+    findText(
+      dialog.children[1],
+      "停止は次のノード境界まで効きません(実行中SQLは完走します)。",
+    ).className,
+    "ksql-flownet-warning",
+  );
+  assert.deepEqual(
+    dialog.children[2].children.map((item) => item.textContent),
+    ["閉じる", "要求を作成"],
+  );
   const send = findText(document.body, "要求を作成");
   send.trigger("click");
   send.trigger("click");
@@ -157,6 +225,12 @@ test("dialog confirms operation, requires a reason, creates once, shows success,
   assert.equal(reloads, 1);
   assert.match(allText(document.body), /最大5分ほどで処理を開始します/u);
   assert.match(allText(document.body), /DONE\/REJECTED/u);
+  assert.equal(
+    allNodes(document.body).find(
+      (item) => item.className === "ksql-flownet-success",
+    ).tagName,
+    "p",
+  );
   const link = allNodes(document.body).find((item) => item.tagName === "a");
   assert.equal(link.attributes.get("href"), "/k/300/show#record=88");
 });
@@ -280,8 +354,17 @@ test("RELEASE shows requester/reason literally and fails closed when they are ab
       },
     }),
   );
-  assert.match(allText(document.body), /停止要求者: <script>/u);
-  assert.match(allText(document.body), /停止理由: <script>/u);
+  const info = allNodes(document.body).find(
+    (item) => item.className === "ksql-flownet-dialog-info",
+  );
+  assert.equal(findText(info, "停止要求者:").tagName, "dt");
+  assert.equal(findText(info, "停止理由:").tagName, "dt");
+  assert.equal(
+    allNodes(info).filter(
+      (item) => item.textContent === attack && item.tagName === "dd",
+    ).length,
+    2,
+  );
   assert.equal(document.createdTags.includes("script"), false);
 
   openRequestDialog(
@@ -378,8 +461,16 @@ test("RELEASE confirmation repeats stop context and both mandatory cautions", as
     .trigger("submit");
   await tick();
   const text = allText(document.body);
-  assert.match(text, /停止要求者: operator-a/u);
-  assert.match(text, /停止理由: maintenance/u);
+  assert.match(text, /停止要求者:/u);
+  assert.match(text, /operator-a/u);
+  assert.match(text, /停止理由:/u);
+  assert.match(text, /maintenance/u);
   assert.match(text, /本人に確認しましたか/u);
   assert.match(text, /次の定期resumeが再開し得ます/u);
+  assert.equal(
+    allNodes(document.body).filter(
+      (item) => item.className === "ksql-flownet-warning",
+    ).length,
+    2,
+  );
 });

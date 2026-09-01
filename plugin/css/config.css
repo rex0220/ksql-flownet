@@ -1,33 +1,241 @@
 .ksql-flownet-config {
-  max-width: 640px;
-  padding: 24px;
+  --ksql-flownet-logo: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%230f2742'/%3E%3Cpath d='M10 34h9l4-9 7 19 6-14 4 4h14' fill='none' stroke='%2322d3ee' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='15' cy='18' r='6' fill='%2334d399'/%3E%3Ccircle cx='48' cy='17' r='6' fill='%23fbbf24'/%3E%3Ccircle cx='49' cy='48' r='6' fill='%2322d3ee'/%3E%3Cpath d='M20 20l21-1M19 22l25 21' stroke='%23ffffff' stroke-opacity='.34' stroke-width='2'/%3E%3C/svg%3E");
+
+  max-width: 680px;
+  margin: 24px;
+  overflow: hidden;
+  border: 1px solid #dce2e5;
+  border-radius: 6px;
   color: #333;
   font-family: sans-serif;
+  font-size: 14px;
+  background: #fff;
 }
 
-.ksql-flownet-config label,
-.ksql-flownet-config input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.ksql-flownet-config input {
-  margin-top: 8px;
-  margin-bottom: 16px;
-  padding: 8px;
-}
-
-.ksql-flownet-config-error {
-  min-height: 1.5em;
-  color: #b91c1c;
-}
-
-.ksql-flownet-config-actions {
+.ksql-flownet-config-header {
   display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #dce2e5;
+  background: #f7f9fa;
+}
+
+.ksql-flownet-config-brand {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  background: var(--ksql-flownet-logo) center / contain no-repeat;
+}
+
+.ksql-flownet-config-heading {
+  display: grid;
+  gap: 1px;
+}
+
+.ksql-flownet-config-product {
+  color: #6b777d;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.ksql-flownet-config-title {
+  margin: 0;
+  color: #24353d;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.ksql-flownet-config-content {
+  padding: 14px 20px 20px;
+}
+
+.ksql-flownet-config-info {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-left: 4px solid #9eabb1;
+  border-radius: 3px;
+  color: #59666d;
+  background: #f5f7f8;
+}
+
+.ksql-flownet-config-sections {
+  display: grid;
   gap: 8px;
 }
 
+.ksql-flownet-config-section {
+  padding: 10px 14px;
+  border: 1px solid #dce2e5;
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* 入力は短め固定幅、右横に自動検出/プレビュー注釈(2026-09-01要望) */
+.ksql-flownet-config-section {
+  display: grid;
+  grid-template-columns: 16em 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: 14px;
+  align-items: center;
+}
+
+.ksql-flownet-config-section > label {
+  grid-column: 1 / -1;
+  margin-bottom: 6px;
+  color: #24353d;
+  font-weight: 700;
+}
+
+.ksql-flownet-config-section > input {
+  box-sizing: border-box;
+  grid-column: 1;
+  grid-row: 2 / span 2;
+  align-self: start;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #c9d1d5;
+  border-radius: 4px;
+  color: #333;
+  font: inherit;
+  background: #fff;
+}
+
+.ksql-flownet-config-status,
+.ksql-flownet-config-preview {
+  grid-column: 2;
+  min-height: 1.25em;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ksql-flownet-config-status {
+  color: #6b777d;
+}
+
+.ksql-flownet-config-preview {
+  color: #166534;
+}
+
+.ksql-flownet-config-preview-error {
+  color: #b91c1c;
+}
+
+.ksql-flownet-config-callout {
+  margin: 14px 0;
+  padding: 10px 12px;
+  border-left: 4px solid transparent;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.ksql-flownet-config-callout:empty {
+  display: none;
+}
+
+.ksql-flownet-config-callout-progress {
+  border-color: #2563eb;
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.ksql-flownet-config-callout-success {
+  border-color: #22c55e;
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.ksql-flownet-config-callout-error {
+  border-color: #dc2626;
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.ksql-flownet-config-deploy {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e8edef;
+  border-radius: 4px;
+  color: #33434b;
+  background: #f7f9fa;
+  cursor: pointer;
+}
+
+.ksql-flownet-config-deploy input {
+  width: auto;
+  margin: 0;
+}
+
+.ksql-flownet-config-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin: 12px -20px -20px;
+  padding: 10px 20px;
+  border-top: 1px solid #dce2e5;
+  background: #fafbfb;
+}
+
 .ksql-flownet-config-actions button {
-  padding: 8px 20px;
+  box-sizing: border-box;
+  min-width: 92px;
+  padding: 7px 16px;
+  border: 1px solid #c9d1d5;
+  border-radius: 4px;
+  color: #33434b;
+  font: inherit;
+  line-height: 1.4;
+  white-space: nowrap;
+  background: #fff;
+  cursor: pointer;
+}
+
+.ksql-flownet-config-actions button:hover {
+  border-color: #9eabb1;
+  background: #f7f9fa;
+}
+
+.ksql-flownet-config-actions .ksql-flownet-config-save {
+  border-color: #3498db;
+  color: #fff;
+  background: #3498db;
+}
+
+.ksql-flownet-config-actions .ksql-flownet-config-save:hover {
+  border-color: #2583c5;
+  background: #2583c5;
+}
+
+.ksql-flownet-config-section > input:focus-visible,
+.ksql-flownet-config-deploy input:focus-visible,
+.ksql-flownet-config-actions button:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.ksql-flownet-config-actions .ksql-flownet-config-save:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+@media (max-width: 760px) {
+  .ksql-flownet-config {
+    margin: 12px;
+  }
+
+  .ksql-flownet-config-content {
+    padding: 14px;
+  }
+
+  .ksql-flownet-config-actions {
+    margin: 16px -14px -14px;
+  }
 }

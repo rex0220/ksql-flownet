@@ -48,16 +48,17 @@ NETWORK_RUNレコードの詳細画面(`app.record.detail.show`)ヘッダスペ�
 | NETWORK_LOCK(active) | 実行管理アプリ | 一括取得(**G-09補正: lockレコードはnetwork_idを持たない** — lock_keyはハッシュのため照合には使わない) |
 | CANCEL_REQUEST | 実行管理アプリ | `CANCEL:<run_id>`。**stateは独立フィールドではなく`status_reason`のJSONパック**(G-07) — 構造検証付きでparseし、parse失敗・未知state・重複・run不一致は「判定不能」表示(LIVEやINTERRUPTEDへ倒さない) |
 | RUN_INVOCATION | **監査履歴アプリ**(プラグイン設定で指定) | **Run単位の全件取得はしない(N+1回避、G-05)**: active lockの`owner_invocation_id`集合だけを`invocation_id in (...)`で一括照合し、返った`run_id`で当該Runへ紐付け。導出の`includes()`判定は保存される |
+| JOBログ | **JOBログアプリ**(任意設定) | 終了済み・対応が必要なRunの`run_id`集合を`correlation_id in (...)`でchunk検索し、失敗statusのjobごとの最新レコードから`error_message`を表示へ補足する。未設定・取得失敗・該当なしは既存概要のままfail-openし、activity・操作判定には使わない |
 
 - 実行者の権限で読む(APIトークン不使用)。一次対応者に必要な権限: 実行管理・監査履歴の**閲覧**(ops-first-response.mdの「閲覧は自由」と整合)
 - ページングは`$id` keyset(limit 500、offset 1万件上限を回避 — G-06)。ID集合の`in (...)`は件数とクエリ長でchunk化。典型4 GET、件数依存で増加
 - 自動リロードはしない(手動再読込のみ)。多重クリック・画面遷移は世代番号で古い応答の上書きを防止
 - **fail-closed粒度(G-10)**: Run/Lock/監査の取得失敗はボード全体を判定不能、Cancel構造異常は当該Run行のみ判定不能(他行は表示可)。page/chunkの通信失敗は部分結果を破棄。判定不能行に4色バッジを使わない
-- **runtime API境界(G-09、P2-09で再定義)**: 実行管理・監査アプリは`GET /k/v1/records.json`のみ。操作要求アプリは`GET /k/v1/records.json`と起票時の`POST /k/v1/record.json`(単票)のみ。cursor・Bulk・PUT・DELETE、および実行管理・監査アプリへのPOSTは使用しない。設定画面の`setConfig`とConsoleでの一覧追加/deployは導入時操作として別区分で証跡化
+- **runtime API境界(G-09、P2-09で再定義)**: 実行管理・監査アプリ、および設定時のみJOBログアプリは`GET /k/v1/records.json`のみ。操作要求アプリは`GET /k/v1/records.json`と起票時の`POST /k/v1/record.json`(単票)のみ。cursor・Bulk・PUT・DELETE、および実行管理・監査・JOBログアプリへのPOSTは使用しない。設定画面の`setConfig`とConsoleでの一覧追加/deployは導入時操作として別区分で証跡化
 
 ## 5. プラグイン構成・配布
 
-- リポジトリ内`plugin/`ディレクトリ: `manifest.json`(desktop.jsのみ、mobile無し)+設定画面(`config.html/js` — 監査履歴アプリID・操作要求アプリIDの2項目)+esbuildバンドル
+- リポジトリ内`plugin/`ディレクトリ: `manifest.json`(desktop.jsのみ、mobile無し)+設定画面(`config.html/js` — 監査履歴アプリID・操作要求アプリID・JOBログアプリIDの3項目)+esbuildバンドル
 - ビルド成果物(zip)は`@kintone/plugin-packer`で生成。**署名秘密鍵(ppk)はリポジトリへコミットしない**(格納先と再発行手順をREADMEに記載)。生成物zipもコミットしない(リリース時に添付)
 - カスタマイズビュー「00_Run状況」の追加はConsoleスクリプト(`templates/add-run-board-view.console.js`)で行う(一覧name必須・index規律は既存テンプレの回帰テスト準拠)
 - 適用手順: スパイク環境で受入後、本番の実行管理・監査履歴・操作要求アプリへ適用する。プラグインzipのインストール・設定はユーザー作業

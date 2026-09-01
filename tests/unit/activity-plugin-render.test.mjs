@@ -113,6 +113,31 @@ test("board view model renders four badges, fixed actions, evidence, and judged 
     allNodes(root).filter((node) => node.textContent === "再読込").length,
     1,
   );
+  const board = root.children[0];
+  const toolbar = board.children[0];
+  assert.equal(toolbar.className, "ksql-flownet-toolbar");
+  assert.equal(toolbar.children[0].tagName, "h2");
+  assert.equal(toolbar.children[0].className, "ksql-flownet-toolbar-title");
+  assert.equal(toolbar.children[0].textContent, "Run状況");
+  assert.equal(findText(toolbar, "再読込").className, "ksql-flownet-reload");
+  assert.equal(
+    board.children.at(-1).className,
+    "ksql-flownet-section",
+    "reload must not be rendered in a board footer",
+  );
+  const sectionHeaders = allNodes(root).filter(
+    (node) => node.className === "ksql-flownet-section-header",
+  );
+  assert.equal(sectionHeaders.length, 2);
+  assert.deepEqual(
+    sectionHeaders.map((header) => header.children[1].textContent),
+    ["4件", "0件"],
+  );
+  assert.ok(
+    sectionHeaders.every(
+      (header) => header.children[1].className === "ksql-flownet-count-badge",
+    ),
+  );
   // レコード番号列は詳細画面への相対リンク(2026-09-01ユーザー要望)
   const links = allNodes(root).filter((node) => node.tagName === "a");
   assert.equal(links.length, 4);
@@ -129,7 +154,7 @@ test("empty and fail-closed models render without an activity badge", () => {
     { state: "ready", rows: [], judgedAt: 1, error: null },
     () => {},
   );
-  assert.match(allText(root), /未終端Runはありません/u);
+  assert.match(allText(root), /進行中のRunはありません/u);
   renderBoard(
     root,
     { state: "error", rows: [], judgedAt: null, error: "権限エラー" },
@@ -182,6 +207,57 @@ test("detail renders terminal text and a ready badge without duplication", () =>
     1,
   );
   assert.match(allText(root), /二次対応者へ連絡/u);
+});
+
+test("terminal detail renders at most three error nodes as text without XSS", () => {
+  const document = new FakeDocument();
+  const root = new FakeElement("div", document);
+  const attack = '<img src=x onerror="pwned=true">';
+  const longAttack = `${attack}${"x".repeat(300)}`;
+  renderDetail(root, {
+    state: "ready",
+    terminal: true,
+    requestEnabled: false,
+    requestAppId: null,
+    allowRerunFromNode: true,
+    row: {
+      runId: "run_1",
+      recordId: "1",
+      recordUrl: "/k/100/show#record=1",
+      businessKey: "business_1",
+      status: "FAILED",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+      activity: null,
+      resumeAllowed: true,
+      lifecycleStatus: "ACTIVE",
+      action: { kind: "none" },
+      actionError: null,
+      cancelDetails: null,
+      errorSummary: {
+        state: "ready",
+        items: [1, 2, 3, 4].map((id) => ({
+          nodeId: `${attack}_${id}`,
+          resultCode: "SQL_ERROR",
+          statusReason: id === 1 ? attack : null,
+          attemptRecordId: String(10 - id),
+          errorMessage: id === 1 ? longAttack : null,
+        })),
+      },
+    },
+  });
+  assert.equal(
+    allNodes(root).filter((node) => node.tagName === "li").length,
+    3,
+  );
+  assert.match(allText(root), /<img src=x/u);
+  assert.ok(
+    allNodes(root).some(
+      (node) => node.textContent === limitDisplayValue(longAttack),
+    ),
+    "error_messageはtextContentで最大表示長へ制限する",
+  );
+  assert.equal(document.createdTags.includes("img"), false);
+  assert.equal(document.createdTags.includes("script"), false);
 });
 
 test("two sections render every action kind, remaining count, copy callback, and do not proliferate DOM", () => {
@@ -279,8 +355,8 @@ test("two sections render every action kind, remaining count, copy callback, and
   renderBoard(root, model, callbacks);
   const text = allText(root);
   for (const expected of [
-    "未終端Run",
-    "要対応(終端)",
+    "進行中のRun",
+    "終了済み・対応が必要なRun",
     "停止要求",
     "解除要求",
     "リラン要求",
@@ -294,6 +370,18 @@ test("two sections render every action kind, remaining count, copy callback, and
   assert.equal(
     allNodes(root).filter((item) => item.tagName === "table").length,
     2,
+  );
+  assert.deepEqual(
+    allNodes(root)
+      .filter((item) => item.className === "ksql-flownet-count-badge")
+      .map((item) => item.textContent),
+    ["4件", "4件"],
+  );
+  assert.equal(
+    allNodes(root).filter(
+      (item) => item.className === "ksql-flownet-operation-cell",
+    ).length,
+    10,
   );
   assert.equal(root.children.length, 1, "replaceChildren keeps one board root");
   findText(root, "停止要求").listeners.get("click")();
@@ -322,7 +410,7 @@ test("section failures are isolated in the DOM", () => {
     },
     () => {},
   );
-  assert.match(allText(root), /未終端Runはありません/u);
+  assert.match(allText(root), /進行中のRunはありません/u);
   assert.match(allText(root), /terminal failure/u);
 });
 
@@ -340,4 +428,109 @@ test("Run ID copy reports clipboard success and failure", async () => {
     throw new Error("denied");
   };
   assert.equal(await copyRunId(document, "run_2"), false);
+});
+
+test("列名は日本語統一・日時はローカル表示・状態/時刻セルは改行禁止class(2026-09-01実機フィードバック)", async () => {
+  const { formatLocalDateTime } = await import("../../dist/plugin/render.js");
+  const formatted = formatLocalDateTime("2026-09-01T10:49:00Z");
+  assert.match(formatted, /2026\/09\/01/u);
+  assert.doesNotMatch(formatted, /Z|T10:49/u);
+  assert.equal(formatLocalDateTime("not-a-date"), "not-a-date");
+  const source = (await import("node:fs")).readFileSync(
+    new globalThis.URL("../../plugin/src/render.ts", import.meta.url),
+    "utf8",
+  );
+  for (const label of [
+    '"業務キー"',
+    '"状態"',
+    '"アクティビティ"',
+    '"開始時刻"',
+    '"更新時刻"',
+  ]) {
+    assert.ok(source.includes(label), `列名 ${label} が必要`);
+  }
+  for (const forbidden of [
+    '"Business Key"',
+    '"Status"',
+    '"Activity"',
+    '"Started At"',
+  ]) {
+    assert.ok(!source.includes(forbidden), `英語列名 ${forbidden} を残さない`);
+  }
+  assert.ok(source.includes("ksql-flownet-cell-nowrap"));
+});
+
+test("レコード/要求リンクは別タブで開き、エラー概要の同値重複を省く(2026-09-01要望)", async () => {
+  const source = (await import("node:fs")).readFileSync(
+    new globalThis.URL("../../plugin/src/render.ts", import.meta.url),
+    "utf8",
+  );
+  const targetCount = (
+    source.match(/setAttribute\("target", "_blank"\)/gu) ?? []
+  ).length;
+  assert.equal(targetCount, 2, "レコード番号と要求処理待ちの両リンクに_blank");
+  assert.equal(
+    (source.match(/noopener noreferrer/gu) ?? []).length,
+    2,
+    "rel=noopener noreferrer必須",
+  );
+  const { formatErrorSummaryLine } =
+    await import("../../dist/plugin/render.js");
+  assert.equal(
+    formatErrorSummaryLine({
+      state: "ready",
+      items: [
+        {
+          nodeId: "n1",
+          resultCode: "API_ERROR",
+          statusReason: "API_ERROR",
+          attemptRecordId: "1",
+        },
+      ],
+    }),
+    "n1: API_ERROR",
+  );
+  assert.match(
+    formatErrorSummaryLine({
+      state: "ready",
+      items: [
+        {
+          nodeId: "n1",
+          resultCode: "API_ERROR",
+          statusReason: "詳細理由",
+          attemptRecordId: "1",
+        },
+      ],
+    }),
+    /n1: API_ERROR \/ 詳細理由/u,
+  );
+});
+
+test("エラー本文はサブ行(colspan・折り返し)で表示し、概要セルは分類のみ(2026-09-01実機)", async () => {
+  const { formatErrorSummaryLine, errorSummaryMessage } =
+    await import("../../dist/plugin/render.js");
+  const summary = {
+    state: "ready",
+    items: [
+      {
+        nodeId: "n1",
+        resultCode: "API_ERROR",
+        statusReason: null,
+        attemptRecordId: "1",
+        errorMessage: "long message ".repeat(30),
+      },
+    ],
+  };
+  assert.equal(formatErrorSummaryLine(summary), "n1: API_ERROR");
+  const message = errorSummaryMessage(summary);
+  assert.ok(message.startsWith("n1: long message"));
+  assert.ok([...message].length <= 161, "本文はlimitDisplayValueで制限");
+  assert.equal(errorSummaryMessage({ state: "unavailable" }), null);
+  assert.equal(errorSummaryMessage({ state: "ready", items: [] }), null);
+  const source = (await import("node:fs")).readFileSync(
+    new globalThis.URL("../../plugin/src/render.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(source.includes('setAttribute("colspan", "7")'));
+  assert.ok(source.includes("ksql-flownet-error-message-row"));
 });

@@ -2,29 +2,100 @@
      完全なHTML文書(doctype宣言やhtml/head/bodyタグ)にするとDOMが展開されないため、
      フラグメントのみ記述する(2026-09-01実機)。 -->
 <main class="ksql-flownet-config">
-  <h1>kSQL-FlowNet Run状況 設定</h1>
-  <form id="ksql-flownet-config-form">
-    <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
-    <input
-      id="ksql-flownet-audit-app-id"
-      name="auditAppId"
-      type="text"
-      inputmode="numeric"
-      autocomplete="off"
-      required
-    />
-    <label for="ksql-flownet-request-app-id">操作要求アプリID(任意)</label>
-    <input
-      id="ksql-flownet-request-app-id"
-      name="requestAppId"
-      type="text"
-      inputmode="numeric"
-      autocomplete="off"
-    />
-    <p id="ksql-flownet-config-error" class="ksql-flownet-config-error"></p>
-    <div class="ksql-flownet-config-actions">
-      <button type="submit">保存</button>
-      <button id="ksql-flownet-config-cancel" type="button">キャンセル</button>
+  <header class="ksql-flownet-config-header">
+    <span class="ksql-flownet-config-brand" aria-hidden="true"></span>
+    <div class="ksql-flownet-config-heading">
+      <span class="ksql-flownet-config-product">kSQL-FlowNet</span>
+      <h1 class="ksql-flownet-config-title">Run状況 設定</h1>
     </div>
-  </form>
+  </header>
+  <div class="ksql-flownet-config-content">
+    <p class="ksql-flownet-config-info">
+      入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用します。自動検出先を上書きしたい場合のみアプリIDを入力してください。
+    </p>
+    <form id="ksql-flownet-config-form">
+      <div class="ksql-flownet-config-sections">
+        <section class="ksql-flownet-config-section">
+          <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
+          <input
+            id="ksql-flownet-audit-app-id"
+            name="auditAppId"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+          />
+          <p
+            id="ksql-flownet-audit-app-detection"
+            class="ksql-flownet-config-status"
+          ></p>
+          <p
+            id="ksql-flownet-audit-app-preview"
+            class="ksql-flownet-config-preview"
+          ></p>
+        </section>
+        <section class="ksql-flownet-config-section">
+          <label for="ksql-flownet-request-app-id"
+            >操作要求アプリID(任意)</label
+          >
+          <input
+            id="ksql-flownet-request-app-id"
+            name="requestAppId"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+          />
+          <p
+            id="ksql-flownet-request-app-detection"
+            class="ksql-flownet-config-status"
+          ></p>
+          <p
+            id="ksql-flownet-request-app-preview"
+            class="ksql-flownet-config-preview"
+          ></p>
+        </section>
+        <section class="ksql-flownet-config-section">
+          <label for="ksql-flownet-log-app-id">JOBログアプリID(任意)</label>
+          <input
+            id="ksql-flownet-log-app-id"
+            name="logAppId"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+          />
+          <p
+            id="ksql-flownet-log-app-detection"
+            class="ksql-flownet-config-status"
+          ></p>
+          <p
+            id="ksql-flownet-log-app-preview"
+            class="ksql-flownet-config-preview"
+          ></p>
+        </section>
+      </div>
+      <p
+        id="ksql-flownet-config-error"
+        class="ksql-flownet-config-callout"
+        role="status"
+        aria-live="polite"
+      ></p>
+      <label
+        class="ksql-flownet-config-deploy"
+        for="ksql-flownet-deploy-on-save"
+      >
+        <input
+          id="ksql-flownet-deploy-on-save"
+          name="deployOnSave"
+          type="checkbox"
+          checked
+        />
+        <span>保存時に運用環境へ反映(アプリ更新)</span>
+      </label>
+      <footer class="ksql-flownet-config-actions">
+        <button id="ksql-flownet-config-cancel" type="button">
+          キャンセル
+        </button>
+        <button class="ksql-flownet-config-save" type="submit">保存</button>
+      </footer>
+    </form>
+  </div>
 </main>

@@ -15,6 +15,7 @@ import {
   type PendingActionSummary,
 } from "./board-action.js";
 import { deriveRunActivity } from "./activity-entry.js";
+import { loadErrorSummaries } from "./error-summary.js";
 import {
   validateAuditAppId,
   validateRequestAppId,
@@ -81,6 +82,7 @@ export interface ActivityLoadDependencies {
   readonly stateAppId: number | string;
   readonly auditAppId: string;
   readonly requestAppId?: string;
+  readonly logAppId?: string;
   readonly nowMs?: () => number;
 }
 
@@ -280,6 +282,7 @@ async function readSupportingRecords(
       resumeAllowed: attributes.resumeAllowed,
       lifecycleStatus: attributes.lifecycleStatus,
       cancelDetails: cancel.details.get(run.runId) ?? null,
+      errorSummary: { state: "ready", items: [] },
       action: decideBoardAction({
         status: run.status,
         activity,
@@ -345,6 +348,13 @@ async function loadAttentionSection(
       dependencies.fetchRecords,
       dependencies.stateAppId,
     );
+    const summaries = await loadErrorSummaries(
+      dependencies.fetchRecords,
+      dependencies.stateAppId,
+      dependencies.auditAppId,
+      loaded.runs.map((run) => run.runId),
+      dependencies.logAppId,
+    );
     return {
       section: readySection(
         loaded.runs.map((run) => ({
@@ -353,6 +363,7 @@ async function loadAttentionSection(
           activity: null,
           actionError: null,
           cancelDetails: null,
+          errorSummary: summaries.get(run.runId) ?? { state: "unavailable" },
           action: decideBoardAction({
             status: run.status,
             activity: null,
@@ -366,7 +377,7 @@ async function loadAttentionSection(
   } catch {
     return {
       section: failedSection(
-        "要対応(終端)を読み込めません。閲覧権限を確認してください。",
+        "終了済み・対応が必要なRunを読み込めません。閲覧権限を確認してください。",
       ),
       remaining: 0,
     };
