@@ -6,6 +6,8 @@
 
 ## 前提
 
+実行管理アプリの「00_Run状況」activityボードは一次切り分けの補助表示である。判定時刻にはブラウザ時刻を使うため、復旧判断ではCLI `status --json`を正とし、画面との表示差や不審な表示があればCLIのactivity、lock owner、lease、Invocationを確認してから以下の手順へ進む。
+
 - 操作者は`KSQL_FLOWNET_SERVICE_PRINCIPAL`と`KSQL_FLOWNET_REQUESTED_BY`を自分の認証主体で設定した環境から操作する(自由記述の主体入力は存在しない)。
 - 全ての書込み操作(force-unlock-network、resolve-node、record-job-unlock)は理由ファイルと証拠参照が必須で、監査レコードが残る。
 - FlowNetはJob lock(kSQL-Flow所有、実行ログアプリ)を直接変更しない。Job lockの回復はkSQL-Flow側の`inspect-lock`/`force-unlock-job`で行い、その結果JSONを`record-job-unlock`でFlowNet監査へ関連付ける(D-26)。

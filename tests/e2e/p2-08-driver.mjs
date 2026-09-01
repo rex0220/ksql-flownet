@@ -23,7 +23,7 @@ if (
   !["live", "kill", "liveloop"].includes(mode) ||
   !scope?.startsWith("KSQL_FLOW_TEST_")
 ) {
-  console.error(
+  globalThis.console.error(
     "usage: node p2-08-driver.mjs <live|kill|liveloop> <KSQL_FLOW_TEST_...scope>",
   );
   process.exit(1);
@@ -56,36 +56,46 @@ if (mode === "liveloop") {
       loopScope,
       (graph) => graph.attempts.some(({ status }) => status === "RUNNING"),
     );
-    console.log(`LIVE-READY i=${iteration} run=${loopRunning.run.runId}`);
+    globalThis.console.log(
+      `LIVE-READY i=${iteration} run=${loopRunning.run.runId}`,
+    );
     const exit = await loopNetwork.completion;
-    console.log(`ITER-END i=${iteration} code=${exit.exitCode}`);
+    globalThis.console.log(`ITER-END i=${iteration} code=${exit.exitCode}`);
   }
-  console.log("LOOP-DONE");
+  globalThis.console.log("LOOP-DONE");
   process.exit(0);
 }
 
 const fixture = await prepareNetwork(scope, "network-p208-live.yaml");
-console.log(`FIXTURE network_id=${fixture.networkId}`);
+globalThis.console.log(`FIXTURE network_id=${fixture.networkId}`);
 const network = await startFlowNetNetwork(settings, fixture.networkPath, scope);
 const running = await waitForRunGraph(settings, scope, (graph) =>
   graph.attempts.some(({ status }) => status === "RUNNING"),
 );
-console.log(`RUN-ID ${running.run.runId}`);
+globalThis.console.log(`RUN-ID ${running.run.runId}`);
 const attempt = running.attempts.find(({ status }) => status === "RUNNING");
 await waitForRunningJobLog(settings, attempt.attemptId, "p208_longread");
-console.log(`LIVE-READY run=${running.run.runId} pid=${network.child.pid}`);
+globalThis.console.log(
+  `LIVE-READY run=${running.run.runId} pid=${network.child.pid}`,
+);
 
 if (mode === "kill") {
   const tree = await enumerateProcessTree(network.child.pid);
   const killed = killProcessList(tree);
-  console.log(`KILLED processes=${killed.length}`);
+  globalThis.console.log(`KILLED processes=${killed.length}`);
   const exit = await network.completion;
-  console.log(`CHILD-EXIT code=${exit.exitCode} signal=${exit.signal}`);
-  console.log("INTERRUPTED-PENDING lease30s+分精度60sの失効後にINTERRUPTEDへ");
+  globalThis.console.log(
+    `CHILD-EXIT code=${exit.exitCode} signal=${exit.signal}`,
+  );
+  globalThis.console.log(
+    "INTERRUPTED-PENDING lease30s+分精度60sの失効後にINTERRUPTEDへ",
+  );
   process.exit(0);
 }
 
 const completion = await network.completion;
-console.log(`CHILD-EXIT code=${completion.exitCode}`);
+globalThis.console.log(`CHILD-EXIT code=${completion.exitCode}`);
 const graph = await loadRunGraph(settings, scope);
-console.log(`FINAL run=${graph.run.runId} status=${graph.run.status}`);
+globalThis.console.log(
+  `FINAL run=${graph.run.runId} status=${graph.run.status}`,
+);

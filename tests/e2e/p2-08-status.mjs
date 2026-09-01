@@ -13,14 +13,14 @@ const status = await runFlowNetStatus(
   runId ? { runId } : {},
 );
 for (const run of status.output.runs) {
-  console.log(
+  globalThis.console.log(
     `run=${run.run_id} status=${run.status} activity=${run.activity ?? "(終端: なし)"} started_at=${run.started_at}`,
   );
 }
 if (status.output.lock) {
-  console.log(
+  globalThis.console.log(
     `lock owner=${status.output.lock.owner_invocation_id} lease=${status.output.lock.lease_expires_at} stale_candidate=${status.output.lock.stale_candidate}`,
   );
 } else {
-  console.log("lock: なし");
+  globalThis.console.log("lock: なし");
 }

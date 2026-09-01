@@ -72,7 +72,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
 test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — kintone埋め込み実機回帰)", async () => {
   const { readFileSync } = await import("node:fs");
   const html = readFileSync(
-    new URL("../../plugin/config.html", import.meta.url),
+    new globalThis.URL("../../plugin/config.html", import.meta.url),
     "utf8",
   );
   for (const forbidden of ["<!doctype", "<html", "<head", "<body"]) {

@@ -1,6 +1,6 @@
 # P2-08: 案A v1 導出プラグイン 実装計画
 
-- 文書状態: **DRAFT / 仕様レビュー完了・実装未着手**
+- 文書状態: **IMPLEMENTED / M1〜M4完了、本番適用・smoke待ち**
 - 作成日: 2026-09-01
 - 対象仕様: [p2-08-activity-plugin-spec.md](./p2-08-activity-plugin-spec.md)
 - 正本: [job-network-phase1-spec.md](./job-network-phase1-spec.md) §7.4、`tests/fixtures/status-activity/vectors.json`
@@ -285,6 +285,8 @@ rendererへkintone recordを直接渡さず、検証済みの次のview modelへ
 ### M4: viewテンプレート、運用文書、pack・本番適用 — M
 
 **目的**: 再現可能なview追加、署名・配布、本番導入手順、一次対応文言を揃え、npm公開ゲートを判定する。
+
+**完了状況(2026-09-01)**: M3実機受入([証跡](./test-results/p2-08-20260901/README.md))を反映し、viewテンプレートと回帰試験、プラグインのbuild・test・同一署名鍵によるpack・インストール手順、一次対応1ページ、復旧runbook、文書索引を整備した。E2E cleanupも、実測で前方一致しなかったkintone `like`を廃止し、全NETWORK_RUN取得後に`business_key` / `network_id`をJavaScriptの`startsWith(prefix)`で選別する方式へ恒久修正した。**M4のリポジトリ成果物は完了**。本番アプリへの適用とread-only smokeは未実施のため、npm公開ゲートは未解除とする。
 
 新規ファイル（想定）:
 

@@ -13,7 +13,7 @@ import {
 
 const [mode, runId, networkId] = process.argv.slice(2);
 if (!["request", "release"].includes(mode) || !runId || !networkId) {
-  console.error(
+  globalThis.console.error(
     "usage: node p2-08-cancel.mjs <request|release> <run_id> <network_id>",
   );
   process.exit(1);
@@ -42,10 +42,10 @@ const finalArgs =
       ]
     : args;
 const result = await runFlowNetCommand(settings, finalArgs);
-console.log(`exit=${result.exitCode}`);
-console.log(result.stdout.trim() || result.stderr.trim());
+globalThis.console.log(`exit=${result.exitCode}`);
+globalThis.console.log(result.stdout.trim() || result.stderr.trim());
 const status = await runFlowNetStatus(settings, networkId, { runId });
 const run = status.output.runs[0];
-console.log(
+globalThis.console.log(
   `CLI: status=${run.status} activity=${run.activity ?? "(終端)"} at ${new Date().toISOString()}`,
 );
