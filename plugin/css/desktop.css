@@ -470,3 +470,14 @@
 .ksql-flownet-table td.ksql-flownet-cell-nowrap {
   white-space: nowrap;
 }
+
+/* エラー本文のサブ行(全幅・折り返し — 長文で表を崩さない) */
+.ksql-flownet-table tr.ksql-flownet-error-message-row td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  background: #fdf6f6;
+  color: #8a4a45;
+  font-size: 12px;
+  padding: 4px 10px 8px;
+  border-top: none;
+}

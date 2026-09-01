@@ -505,3 +505,32 @@ test("レコード/要求リンクは別タブで開き、エラー概要の同�
     /n1: API_ERROR \/ 詳細理由/u,
   );
 });
+
+test("エラー本文はサブ行(colspan・折り返し)で表示し、概要セルは分類のみ(2026-09-01実機)", async () => {
+  const { formatErrorSummaryLine, errorSummaryMessage } =
+    await import("../../dist/plugin/render.js");
+  const summary = {
+    state: "ready",
+    items: [
+      {
+        nodeId: "n1",
+        resultCode: "API_ERROR",
+        statusReason: null,
+        attemptRecordId: "1",
+        errorMessage: "long message ".repeat(30),
+      },
+    ],
+  };
+  assert.equal(formatErrorSummaryLine(summary), "n1: API_ERROR");
+  const message = errorSummaryMessage(summary);
+  assert.ok(message.startsWith("n1: long message"));
+  assert.ok([...message].length <= 161, "本文はlimitDisplayValueで制限");
+  assert.equal(errorSummaryMessage({ state: "unavailable" }), null);
+  assert.equal(errorSummaryMessage({ state: "ready", items: [] }), null);
+  const source = (await import("node:fs")).readFileSync(
+    new globalThis.URL("../../plugin/src/render.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(source.includes('setAttribute("colspan", "7")'));
+  assert.ok(source.includes("ksql-flownet-error-message-row"));
+});

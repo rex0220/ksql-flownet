@@ -460,15 +460,31 @@ function renderTerminalTable(
       actionCell,
     );
     tbody.append(tr);
+    // エラー本文はメイン行に入れず全幅のサブ行で折り返し表示する
+    // (1セルに長文を入れると表全体が崩れる — 2026-09-01実機フィードバック)
+    const message = errorSummaryMessage(errorSummary);
+    if (message !== null) {
+      const messageRow = element(
+        pageDocument,
+        "tr",
+        "ksql-flownet-error-message-row",
+      );
+      const messageCell = element(
+        pageDocument,
+        "td",
+        "ksql-flownet-error-message-cell",
+        message,
+      );
+      messageCell.setAttribute("colspan", "7");
+      messageRow.append(messageCell);
+      tbody.append(messageRow);
+    }
   }
   table.append(thead, tbody);
   return table;
 }
 
-function errorSummaryItemText(item: ErrorSummaryItem): string {
-  if (typeof item.errorMessage === "string") {
-    return `${item.nodeId}: ${item.resultCode} — ${item.errorMessage}`;
-  }
+function classificationText(item: ErrorSummaryItem): string {
   // status_reasonがresult_codeと同値なら重複表示しない(2026-09-01実機フィードバック)
   const reason =
     item.statusReason === null || item.statusReason === item.resultCode
@@ -477,6 +493,14 @@ function errorSummaryItemText(item: ErrorSummaryItem): string {
   return `${item.nodeId}: ${item.resultCode}${reason}`;
 }
 
+function errorSummaryItemText(item: ErrorSummaryItem): string {
+  if (typeof item.errorMessage === "string") {
+    return `${item.nodeId}: ${item.resultCode} — ${item.errorMessage}`;
+  }
+  return classificationText(item);
+}
+
+/** ボードのエラー概要セル用: 分類のみ(本文はサブ行で表示)。 */
 export function formatErrorSummaryLine(summary: ErrorSummary): string {
   if (summary.state === "unavailable") {
     return "(エラー概要を取得できません)";
@@ -485,8 +509,17 @@ export function formatErrorSummaryLine(summary: ErrorSummary): string {
   if (first === undefined) return "—";
   const remaining = summary.items.length - 1;
   return limitDisplayValue(
-    `${errorSummaryItemText(first)}${remaining === 0 ? "" : ` / 他${remaining} node`}`,
+    `${classificationText(first)}${remaining === 0 ? "" : ` / 他${remaining} node`}`,
   );
+}
+
+/** サブ行に出すエラー本文(先頭ノード分)。無ければnull。 */
+export function errorSummaryMessage(summary: ErrorSummary): string | null {
+  if (summary.state === "unavailable") return null;
+  const first = summary.items[0];
+  if (first === undefined || typeof first.errorMessage !== "string")
+    return null;
+  return limitDisplayValue(`${first.nodeId}: ${first.errorMessage}`);
 }
 
 function renderDetailErrorSummary(
