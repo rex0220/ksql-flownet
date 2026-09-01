@@ -13,8 +13,12 @@ const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
 
 function inputElement(value = "") {
   const listeners = new Map();
+  const attributes = new Map();
   return {
     value,
+    attributes,
+    setAttribute: (name, attributeValue) =>
+      attributes.set(name, String(attributeValue)),
     addEventListener: (name, listener) => listeners.set(name, listener),
     dispatch: (name) => listeners.get(name)?.(),
   };

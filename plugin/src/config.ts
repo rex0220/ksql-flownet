@@ -150,6 +150,11 @@ async function renderAutoDetection(
       const name = await lookupAppName(appId);
       fields[key].detection.textContent =
         name === null ? `自動検出: ${appId}` : `自動検出: ${appId} (${name})`;
+      // 入力欄にも「空欄=自動検出」であることを薄字で示す(2026-09-01要望)
+      fields[key].input.setAttribute(
+        "placeholder",
+        `空欄で自動検出 (${appId})`,
+      );
     }),
   );
 }
