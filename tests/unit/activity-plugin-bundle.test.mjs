@@ -3,6 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 
+import {
+  createKintoneFetchRecords,
+  createKintonePostRecord,
+} from "../../dist/plugin/desktop.js";
+
 const bundlePath = new globalThis.URL(
   "../../plugin/dist/activity.js",
   import.meta.url,
@@ -103,4 +108,79 @@ test("desktopバンドルへ設定画面コードを混入させない(2026-09-0
       `desktop.jsに設定画面コードを含めない: ${forbidden}`,
     );
   }
+});
+
+test("runtime adapters allow only records GET and single-record POST", async () => {
+  const calls = [];
+  const api = async (url, method, body) => {
+    calls.push({ url, method, body });
+    return method === "GET" ? { records: [] } : { id: "1", revision: "1" };
+  };
+  api.url = (path, guest) => {
+    assert.equal(guest, true);
+    return path;
+  };
+  const fetchRecords = createKintoneFetchRecords({ api });
+  for (const app of [100, 200, 300]) {
+    await fetchRecords({ app, query: "limit 1", fields: ["$id"] });
+  }
+  await createKintonePostRecord({ api })({
+    app: 300,
+    record: {
+      request_type: { value: "STOP" },
+      run_id: { value: "run_1" },
+      reason: { value: "reason" },
+    },
+  });
+  const roles = new Map([
+    [100, "state"],
+    [200, "audit"],
+    [300, "request"],
+  ]);
+  const allowed = new Set([
+    "state|/k/v1/records.json|GET",
+    "audit|/k/v1/records.json|GET",
+    "request|/k/v1/records.json|GET",
+    "request|/k/v1/record.json|POST",
+  ]);
+  assert.equal(calls.length, 4);
+  for (const { url, method, body } of calls) {
+    const role = roles.get(body.app);
+    assert.ok(role, `unknown app role: ${body.app}`);
+    assert.ok(
+      allowed.has(`${role}|${url}|${method}`),
+      `${role}|${url}|${method}`,
+    );
+    if (method === "POST") {
+      assert.equal(role, "request");
+      assert.deepEqual(Object.keys(body.record), [
+        "request_type",
+        "run_id",
+        "reason",
+      ]);
+    }
+  }
+});
+
+test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
+  const desktop = readFileSync(
+    new globalThis.URL("../../plugin/dist/desktop.js", import.meta.url),
+    "utf8",
+  );
+  for (const [label, pattern] of [
+    ["cursor", /\/k\/v1\/records\/cursor\.json/u],
+    ["bulk", /\/k\/v1\/bulkRequest\.json/u],
+    ["PUT", /["']PUT["']/u],
+    ["DELETE", /["']DELETE["']/u],
+  ]) {
+    assert.doesNotMatch(desktop, pattern, label);
+  }
+  const endpoints = [...desktop.matchAll(/\/k\/v1\/[A-Za-z/]+\.json/gu)].map(
+    (match) => match[0],
+  );
+  assert.ok(endpoints.length >= 2, "allowed endpoints are present");
+  assert.deepEqual([...new Set(endpoints)].sort(), [
+    "/k/v1/record.json",
+    "/k/v1/records.json",
+  ]);
 });

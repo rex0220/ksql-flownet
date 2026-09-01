@@ -23,7 +23,7 @@
   | `LIVE`(緑) | lock ownerが当該Runに属しlease生存 — 実行中 | 待つ(触らない) |
   | `IDLE`(灰) | `started_at`なし — 未開始 | 定期起動を待つ |
   | `STOPPED`(黄) | CANCEL_REQUESTがREQUESTED/ACCEPTED — 意図停止(hold) | 止めた本人に確認。解除はRELEASE要求 |
-  | `INTERRUPTED`(赤) | 上記いずれでもない — **中断の疑い** | **二次対応者へ連絡**(Run IDを添えて) |
+  | `INTERRUPTED`(赤) | 上記いずれでもない — **中断の疑い** | **まずボードからリラン要求を1回**。要求の`result_code`が`OK`以外(`REJECTED`/`LOCK_CONFLICT`を含む)・再中断・繰り返す場合は二次対応者へ連絡 |
 - **終端Runは表示しない**(activityは未終端のみ — §7.4の凍結契約。終端の確認は既存一覧で行う)
 - 根拠列: LIVEはlockのowner_invocation_id/lease_expires_at、STOPPEDはCANCEL_REQUESTのレコード参照、を短く表示
 - ボード末尾に**判定時刻**(導出に使ったブラウザ時刻)と再読込ボタンを表示
@@ -40,7 +40,7 @@ NETWORK_RUNレコードの詳細画面(`app.record.detail.show`)ヘッダスペ�
 
 ## 4. データ取得と権限
 
-すべて**読取のみ**(kintone.api GET。書込みAPIは一切呼ばない):
+実行管理・監査は**GET限定**とし、書込みは操作要求アプリへの**単票POSTのみ**とする:
 
 | 入力 | 取得元 | 備考 |
 | --- | --- | --- |
@@ -53,14 +53,14 @@ NETWORK_RUNレコードの詳細画面(`app.record.detail.show`)ヘッダスペ�
 - ページングは`$id` keyset(limit 500、offset 1万件上限を回避 — G-06)。ID集合の`in (...)`は件数とクエリ長でchunk化。典型4 GET、件数依存で増加
 - 自動リロードはしない(手動再読込のみ)。多重クリック・画面遷移は世代番号で古い応答の上書きを防止
 - **fail-closed粒度(G-10)**: Run/Lock/監査の取得失敗はボード全体を判定不能、Cancel構造異常は当該Run行のみ判定不能(他行は表示可)。page/chunkの通信失敗は部分結果を破棄。判定不能行に4色バッジを使わない
-- **書込みゼロの範囲(G-09)**: `desktop.js`実行時は`GET /k/v1/records.json`のみ(cursor作成もPOSTのため不使用)。設定画面の`setConfig`とConsoleでの一覧追加/deployは導入時操作として別区分で証跡化
+- **runtime API境界(G-09、P2-09で再定義)**: 実行管理・監査アプリは`GET /k/v1/records.json`のみ。操作要求アプリは`GET /k/v1/records.json`と起票時の`POST /k/v1/record.json`(単票)のみ。cursor・Bulk・PUT・DELETE、および実行管理・監査アプリへのPOSTは使用しない。設定画面の`setConfig`とConsoleでの一覧追加/deployは導入時操作として別区分で証跡化
 
 ## 5. プラグイン構成・配布
 
-- リポジトリ内`plugin/`ディレクトリ: `manifest.json`(desktop.jsのみ、mobile無し)+設定画面(`config.html/js` — 監査履歴アプリIDの1項目だけ)+esbuildバンドル
+- リポジトリ内`plugin/`ディレクトリ: `manifest.json`(desktop.jsのみ、mobile無し)+設定画面(`config.html/js` — 監査履歴アプリID・操作要求アプリIDの2項目)+esbuildバンドル
 - ビルド成果物(zip)は`@kintone/plugin-packer`で生成。**署名秘密鍵(ppk)はリポジトリへコミットしない**(格納先と再発行手順をREADMEに記載)。生成物zipもコミットしない(リリース時に添付)
 - カスタマイズビュー「00_Run状況」の追加はConsoleスクリプト(`templates/add-run-board-view.console.js`)で行う(一覧name必須・index規律は既存テンプレの回帰テスト準拠)
-- 適用手順: E2E(スパイク4257/4258)で受入→本番4261/4262へ。プラグインzipのインストール・設定はユーザー作業
+- 適用手順: スパイク環境で受入後、本番の実行管理・監査履歴・操作要求アプリへ適用する。プラグインzipのインストール・設定はユーザー作業
 
 ## 6. 時刻の扱いとリスク
 
@@ -72,7 +72,7 @@ NETWORK_RUNレコードの詳細画面(`app.record.detail.show`)ヘッダスペ�
 1. **vector合格**: プラグインへバンドルした導出モジュールが共有vector全15ケースに合格(Node単体テスト。CIで製品側と同一vectorを読む)
 2. 入力組み立ての単体: レコードfixture→ActivityInput(lock/cancel/invocationの紐付け、終端除外、ページング境界)
 3. 実機(スパイク環境): (a)実行中Runが`LIVE`、(b)cancel-run後が`STOPPED`、(c)kill後が`INTERRUPTED`、(d)作成直後(未開始)が`IDLE`、(e)終端Runがボードに出ない — 各ケースでCLI `status --json`のactivityと**画面表示が一致**すること
-4. 書込みゼロ: 実機確認中のプラグイン由来リクエストにGET以外がないこと
+4. runtime API境界: 実機確認中のプラグイン由来リクエストは、実行管理・監査アプリへのGETと、操作要求アプリへの単票POSTだけであること。cursor・Bulk・PUT・DELETE、および実行管理・監査アプリへのPOSTがないこと
 5. 監査アプリ閲覧権限がないユーザーでのフェイル動作: エラーを明示表示し、誤ったactivityを表示しない(fail-closed)
 6. 一次対応1ページ・復旧runbookへボードの読み方(4値の意味と行動)を追記し、既存の文言と矛盾しないこと
 
@@ -81,8 +81,8 @@ NETWORK_RUNレコードの詳細画面(`app.record.detail.show`)ヘッダスペ�
 | # | 作業 | 内容 |
 | --- | --- | --- |
 | M1 | バンドル基盤+導出単体 | `plugin/`雛形、esbuildで`deriveRunActivity`同梱、vector合格テスト(受入1)、入力組み立て+単体(受入2) |
-| M2 | プラグイン本体 | Run状況ボード(カスタマイズビュー描画)、詳細画面バッジ、設定画面(監査アプリID)、fail-closed(受入5) |
-| M3 | 実機受入 | スパイク環境でLIVE/STOPPED/INTERRUPTED/IDLE/終端の5ケース+書込みゼロ確認(受入3・4)、証跡 |
+| M2 | プラグイン本体 | Run状況ボード(カスタマイズビュー描画)、詳細画面バッジ、設定画面(監査履歴アプリID・操作要求アプリID)、fail-closed(受入5) |
+| M3 | 実機受入 | スパイク環境でLIVE/STOPPED/INTERRUPTED/IDLE/終端の5ケース+runtime API境界確認(受入3・4)、証跡 |
 | M4 | 文書・本番適用 | 一覧追加テンプレ、一次対応1ページ/runbook追記(受入6)、本番インストール手順。完了をもって**npm公開ゲート解除** |
 
 実装はCodex、レビュー・実機受入はClaude Code(確立済み分担)。

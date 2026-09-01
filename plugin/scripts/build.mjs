@@ -128,6 +128,33 @@ async function inspectBrowserBundle(label, output, metadata) {
 await inspectBrowserBundle("activity", activityOutput, metafileText);
 await inspectBrowserBundle("desktop", desktopOutput, desktopMetafileText);
 
+const desktopText = await readFile(desktopOutput, "utf8");
+for (const [label, pattern] of [
+  ["cursor endpoint", /\/k\/v1\/records\/cursor\.json/u],
+  ["bulk endpoint", /\/k\/v1\/bulkRequest\.json/u],
+  ["PUT method", /["']PUT["']/u],
+  ["DELETE method", /["']DELETE["']/u],
+]) {
+  if (pattern.test(desktopText)) {
+    throw new Error(`forbidden runtime API found in desktop bundle: ${label}`);
+  }
+}
+
+const allowedDesktopEndpoints = new Set([
+  "/k/v1/records.json",
+  "/k/v1/record.json",
+]);
+const discoveredDesktopEndpoints = [
+  ...desktopText.matchAll(/\/k\/v1\/[A-Za-z/]+\.json/gu),
+].map((match) => match[0]);
+for (const endpoint of discoveredDesktopEndpoints) {
+  if (!allowedDesktopEndpoints.has(endpoint)) {
+    throw new Error(
+      `endpoint outside runtime allowlist found in desktop bundle: ${endpoint}`,
+    );
+  }
+}
+
 await Promise.all([
   buildWorkspaceEntry(resolve(pluginDirectory, "src", "activity-input.ts"), {
     outfile: resolve(testOutputDirectory, "activity-input.js"),
@@ -146,11 +173,15 @@ await Promise.all([
     legalComments: "none",
   }),
   ...[
+    "board-action",
     "board-controller",
     "config",
     "desktop",
     "detail-controller",
     "render",
+    "request-dialog",
+    "request-client",
+    "terminal-run-loader",
   ].map((name) =>
     buildWorkspaceEntry(resolve(pluginDirectory, "src", `${name}.ts`), {
       outfile: resolve(testOutputDirectory, `${name}.js`),

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   installConfigPage,
   validateAuditAppId,
+  validateRequestAppId,
 } from "../../dist/plugin/config.js";
 
 test("auditAppId accepts only a positive decimal string without normalization", () => {
@@ -18,9 +19,17 @@ test("auditAppId accepts only a positive decimal string without normalization", 
   }
 });
 
+test("requestAppId accepts empty or a positive decimal string", () => {
+  for (const valid of [undefined, "", "1", "9007199254740993"])
+    assert.equal(validateRequestAppId(valid).valid, true, String(valid));
+  for (const invalid of [null, "0", "-1", "1.5", " 12", "12 ", "abc"])
+    assert.equal(validateRequestAppId(invalid).valid, false, String(invalid));
+});
+
 test("config page rejects invalid saves and preserves the valid decimal string", () => {
   const listeners = new Map();
   const input = { value: "" };
+  const requestInput = { value: "" };
   const error = { textContent: "" };
   const form = {
     addEventListener: (name, listener) =>
@@ -32,6 +41,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
   };
   const elements = new Map([
     ["#ksql-flownet-audit-app-id", input],
+    ["#ksql-flownet-request-app-id", requestInput],
     ["#ksql-flownet-config-form", form],
     ["#ksql-flownet-config-error", error],
     ["#ksql-flownet-config-cancel", cancel],
@@ -45,7 +55,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
         $PLUGIN_ID: "plugin-id",
         plugin: {
           app: {
-            getConfig: () => ({ auditAppId: "41" }),
+            getConfig: () => ({ auditAppId: "41", requestAppId: "51" }),
             setConfig: (config, callback) => {
               saved.push(config);
               callback();
@@ -57,13 +67,19 @@ test("config page rejects invalid saves and preserves the valid decimal string",
       { querySelector: (selector) => elements.get(selector) ?? null },
     );
     assert.equal(input.value, "41");
+    assert.equal(requestInput.value, "51");
     input.value = " 42 ";
     listeners.get("form:submit")({ preventDefault: () => {} });
     assert.equal(saved.length, 0);
     assert.match(error.textContent, /正の10進整数/u);
     input.value = "42";
+    requestInput.value = " 52 ";
     listeners.get("form:submit")({ preventDefault: () => {} });
-    assert.deepEqual(saved, [{ auditAppId: "42" }]);
+    assert.equal(saved.length, 0);
+    assert.match(error.textContent, /空欄または正の10進整数/u);
+    requestInput.value = "52";
+    listeners.get("form:submit")({ preventDefault: () => {} });
+    assert.deepEqual(saved, [{ auditAppId: "42", requestAppId: "52" }]);
   } finally {
     globalThis.history = originalHistory;
   }
@@ -84,6 +100,7 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
   for (const required of [
     "ksql-flownet-config-form",
     "ksql-flownet-audit-app-id",
+    "ksql-flownet-request-app-id",
     "ksql-flownet-config-error",
     "ksql-flownet-config-cancel",
   ]) {

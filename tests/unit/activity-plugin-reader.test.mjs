@@ -5,7 +5,13 @@ import {
   chunkInConditions,
   readAllByChunks,
   readAllByKeyset,
+  readLimitedRecords,
 } from "../../dist/plugin/kintone-reader.js";
+import {
+  loadTerminalRuns,
+  TERMINAL_RUN_FIELDS,
+  TERMINAL_RUN_QUERY,
+} from "../../dist/plugin/terminal-run-loader.js";
 
 const field = (value) => ({ value });
 const record = (id) => ({ $id: field(String(id)), value: field(`v${id}`) });
@@ -100,4 +106,94 @@ test("non-monotonic pages and intermediate GET failures reject partial data", as
     /injected GET failure/u,
   );
   assert.equal(calls, 2);
+});
+
+test("limited reader requests totalCount and validates the response", async () => {
+  const requests = [];
+  const result = await readLimitedRecords(
+    async (request) => {
+      requests.push(request);
+      return { records: [record(1)], totalCount: "3" };
+    },
+    { app: 1, query: 'status in ("FAILED") limit 20', fields: ["status"] },
+  );
+  assert.deepEqual(result, { records: [record(1)], totalCount: 3 });
+  assert.equal(requests[0].totalCount, true);
+  await assert.rejects(
+    readLimitedRecords(async () => ({ records: [], totalCount: "bad" }), {
+      app: 1,
+      query: "limit 20",
+      fields: [],
+    }),
+    /invalid totalCount/u,
+  );
+});
+
+test("terminal loader uses the fixed query, fields, stable order and count", async () => {
+  const requests = [];
+  const terminalRecord = (id, status, updatedAt) => ({
+    $id: field(String(id)),
+    record_type: field("NETWORK_RUN"),
+    run_id: field(`run_${id}`),
+    business_key: field(`business_${id}`),
+    status: field(status),
+    lifecycle_status: field("ACTIVE"),
+    resume_allowed: field("true"),
+    updated_at: field(updatedAt),
+  });
+  const result = await loadTerminalRuns(async (request) => {
+    requests.push(request);
+    return {
+      records: [
+        terminalRecord(2, "FAILED", "2026-09-01T01:00:00Z"),
+        terminalRecord(1, "CANCELLED", "2026-09-01T01:00:00Z"),
+        terminalRecord(3, "UNKNOWN", "2026-09-01T00:00:00Z"),
+      ],
+      totalCount: "25",
+    };
+  }, "state-app");
+  assert.deepEqual(requests, [
+    {
+      app: "state-app",
+      query: TERMINAL_RUN_QUERY,
+      fields: TERMINAL_RUN_FIELDS,
+      totalCount: true,
+    },
+  ]);
+  assert.equal(
+    requests[0].query,
+    'record_type in ("NETWORK_RUN") and status in ("FAILED", "CANCELLED", "UNKNOWN") and lifecycle_status in ("ACTIVE") order by updated_at desc, $id desc limit 20',
+  );
+  assert.equal(result.runs.length, 3);
+  assert.equal(result.totalCount, 25);
+  assert.equal(result.remainingCount, 22);
+  assert.deepEqual(
+    result.runs.map(({ recordId, status }) => [recordId, status]),
+    [
+      ["2", "FAILED"],
+      ["1", "CANCELLED"],
+      ["3", "UNKNOWN"],
+    ],
+  );
+});
+
+test("terminal loader failure stays rejectable for section-level isolation", async () => {
+  await assert.rejects(
+    loadTerminalRuns(async () => {
+      throw new Error("terminal only failed");
+    }, 1),
+    /terminal only failed/u,
+  );
+  await assert.rejects(
+    loadTerminalRuns(
+      async () => ({
+        records: Array.from({ length: 21 }, (_, index) => ({
+          $id: field(String(index + 1)),
+        })),
+        totalCount: "21",
+      }),
+      1,
+    ),
+    /上限20件/u,
+  );
 });

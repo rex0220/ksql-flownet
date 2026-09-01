@@ -8,10 +8,12 @@ export interface RecordsRequest {
   readonly app: number | string;
   readonly query: string;
   readonly fields: readonly string[];
+  readonly totalCount?: true;
 }
 
 export interface RecordsResponse {
   readonly records: readonly KintoneRecord[];
+  readonly totalCount?: string;
 }
 
 export type FetchRecords = (
@@ -23,6 +25,7 @@ export interface KeysetReadOptions {
   readonly baseQuery: string;
   readonly fields: readonly string[];
   readonly pageSize?: number;
+  readonly maxFinalQueryLength?: number;
 }
 
 export interface ChunkOptions {
@@ -33,6 +36,17 @@ export interface ChunkOptions {
 export interface ChunkedReadOptions extends KeysetReadOptions, ChunkOptions {
   readonly field: string;
   readonly values: readonly string[];
+}
+
+export interface LimitedReadOptions {
+  readonly app: number | string;
+  readonly query: string;
+  readonly fields: readonly string[];
+}
+
+export interface LimitedReadResult {
+  readonly records: readonly KintoneRecord[];
+  readonly totalCount: number;
 }
 
 function joinCondition(left: string, right: string): string {
@@ -82,6 +96,42 @@ export function chunkInConditions(
   return chunks.map((chunk) => `${field} in (${chunk.join(", ")})`);
 }
 
+function assertQueryLength(query: string, maximum: number | undefined): void {
+  if (maximum === undefined) return;
+  if (!Number.isInteger(maximum) || maximum < 1) {
+    throw new KintoneRecordError("maxFinalQueryLength must be positive");
+  }
+  if (query.length > maximum) {
+    throw new KintoneRecordError("final query exceeds maxFinalQueryLength");
+  }
+}
+
+export async function readLimitedRecords(
+  fetchRecords: FetchRecords,
+  options: LimitedReadOptions,
+): Promise<LimitedReadResult> {
+  const response = await fetchRecords({
+    app: options.app,
+    query: options.query,
+    fields: options.fields,
+    totalCount: true,
+  });
+  if (
+    typeof response.totalCount !== "string" ||
+    !/^(0|[1-9][0-9]*)$/.test(response.totalCount)
+  ) {
+    throw new KintoneRecordError("invalid totalCount response");
+  }
+  const totalCount = Number(response.totalCount);
+  if (!Number.isSafeInteger(totalCount)) {
+    throw new KintoneRecordError("totalCount is outside safe range");
+  }
+  if (response.records.length > totalCount) {
+    throw new KintoneRecordError("records exceed totalCount");
+  }
+  return { records: response.records, totalCount };
+}
+
 export async function readAllByKeyset(
   fetchRecords: FetchRecords,
   options: KeysetReadOptions,
@@ -98,10 +148,12 @@ export async function readAllByKeyset(
 
   for (;;) {
     const keyset = lastId === null ? "" : `$id > ${lastId.toString()}`;
+    const query =
+      `${joinCondition(options.baseQuery, keyset)} order by $id asc limit ${pageSize}`.trim();
+    assertQueryLength(query, options.maxFinalQueryLength);
     const response = await fetchRecords({
       app: options.app,
-      query:
-        `${joinCondition(options.baseQuery, keyset)} order by $id asc limit ${pageSize}`.trim(),
+      query,
       fields,
     });
     let pageLastId: bigint | null = lastId;
@@ -139,6 +191,9 @@ export async function readAllByChunks(
       baseQuery: joinCondition(options.baseQuery, condition),
       fields: options.fields,
       ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
+      ...(options.maxFinalQueryLength === undefined
+        ? {}
+        : { maxFinalQueryLength: options.maxFinalQueryLength }),
     });
     records.push(...chunkRecords);
   }

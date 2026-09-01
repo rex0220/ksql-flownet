@@ -1,36 +1,92 @@
+import type { NetworkRunStatus } from "../../src/domain/persistence-model.js";
+import type { CancelActionDetails } from "./activity-input.js";
+import type {
+  BoardActionViewModel,
+  BoardRequestAction,
+} from "./board-action.js";
 import type { RunActivity } from "./activity-entry.js";
 
-export interface ActivityRowViewModel {
+export interface ActionRowViewModel {
   readonly runId: string;
   readonly recordId: string;
   readonly recordUrl: string;
   readonly businessKey: string;
-  readonly status: string;
-  readonly startedAt: string | null;
+  readonly status: NetworkRunStatus;
+  readonly updatedAt: string;
   readonly activity: RunActivity | null;
+  readonly resumeAllowed: boolean;
+  readonly lifecycleStatus: "ACTIVE" | "ARCHIVED";
+  readonly action: BoardActionViewModel;
+  readonly actionError: string | null;
+  readonly cancelDetails: CancelActionDetails | null;
+}
+
+export interface ActivityRowViewModel extends ActionRowViewModel {
+  readonly startedAt: string | null;
   readonly evidence: string;
   readonly actionText: string;
   readonly judgedAt: number;
   readonly error: string | null;
 }
 
+export type TerminalRowViewModel = ActionRowViewModel;
+
+export interface BoardSectionViewModel<T> {
+  readonly state: "ready" | "error";
+  readonly rows: readonly T[];
+  readonly error: string | null;
+}
+
 export interface BoardViewModel {
+  readonly activeSection: BoardSectionViewModel<ActivityRowViewModel>;
+  readonly attentionSection: BoardSectionViewModel<TerminalRowViewModel>;
+  readonly attentionRemainingCount: number;
+  readonly pendingWarning: string | null;
+  readonly requestEnabled: boolean;
+  readonly requestAppId: string | null;
+  readonly judgedAt: number;
+  /** P2-08の公開単体契約との互換値。 */
   readonly state: "ready" | "error";
   readonly rows: readonly ActivityRowViewModel[];
-  readonly judgedAt: number | null;
   readonly error: string | null;
 }
 
 export type DetailViewModel =
-  | { readonly state: "terminal" }
-  | { readonly state: "ready"; readonly row: ActivityRowViewModel }
+  | {
+      readonly state: "ready";
+      readonly row: ActivityRowViewModel | TerminalRowViewModel;
+      readonly terminal: boolean;
+      readonly requestEnabled: boolean;
+      readonly requestAppId: string | null;
+      readonly allowRerunFromNode: boolean;
+    }
   | { readonly state: "error"; readonly error: string };
+
+export interface ActionTarget {
+  readonly action: BoardRequestAction;
+  readonly runId: string;
+  readonly allowRerunFromNode: boolean;
+  readonly interrupted: boolean;
+  readonly cancelDetails: CancelActionDetails | null;
+}
+
+export interface RenderCallbacks {
+  readonly onReload: () => void;
+  readonly onAction?: (target: ActionTarget) => void;
+  readonly onCopyRunId?: (runId: string, button: HTMLButtonElement) => void;
+}
 
 export const ACTION_TEXT: Readonly<Record<RunActivity, string>> = {
   LIVE: "待つ(触らない)",
   IDLE: "定期起動を待つ",
   STOPPED: "止めた本人に確認。解除はRELEASE要求",
   INTERRUPTED: "二次対応者へ連絡(Run IDを添えて)",
+};
+
+const ACTION_LABEL: Readonly<Record<BoardRequestAction, string>> = {
+  RERUN: "リラン要求",
+  STOP: "停止要求",
+  RELEASE: "解除要求",
 };
 
 const MAX_DISPLAY_LENGTH = 160;
@@ -77,6 +133,293 @@ function activityCell(
   return cell;
 }
 
+function requestLink(
+  pageDocument: Document,
+  requestAppId: string,
+  requestId: string,
+  label: string,
+): HTMLAnchorElement {
+  const link = pageDocument.createElement("a");
+  link.className = "ksql-flownet-pending";
+  link.textContent = limitDisplayValue(label);
+  link.setAttribute("href", `/k/${requestAppId}/show#record=${requestId}`);
+  return link;
+}
+
+function copyButton(
+  pageDocument: Document,
+  runId: string,
+  callback?: RenderCallbacks["onCopyRunId"],
+): HTMLButtonElement {
+  const button = element(
+    pageDocument,
+    "button",
+    "ksql-flownet-copy",
+    "Run IDをコピー",
+  ) as HTMLButtonElement;
+  button.type = "button";
+  button.addEventListener("click", () => {
+    if (callback !== undefined) {
+      callback(runId, button);
+      return;
+    }
+    void copyRunId(pageDocument, runId).then((copied) => {
+      button.textContent = copied ? "コピーしました" : "コピーできませんでした";
+    });
+  });
+  return button;
+}
+
+export async function copyRunId(
+  pageDocument: Document,
+  runId: string,
+): Promise<boolean> {
+  try {
+    const clipboard = pageDocument.defaultView?.navigator.clipboard;
+    if (clipboard !== undefined) {
+      await clipboard.writeText(runId);
+      return true;
+    }
+    const textarea = pageDocument.createElement("textarea");
+    textarea.value = runId;
+    textarea.setAttribute("readonly", "");
+    pageDocument.body.append(textarea);
+    textarea.select();
+    const copied = pageDocument.execCommand("copy");
+    textarea.remove();
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
+function actionContent(
+  pageDocument: Document,
+  row: ActionRowViewModel,
+  requestEnabled: boolean,
+  requestAppId: string | null,
+  callbacks: RenderCallbacks,
+  allowRerunFromNode: boolean,
+): HTMLElement {
+  const content = element(pageDocument, "div", "ksql-flownet-action-cell");
+  switch (row.action.kind) {
+    case "invalid":
+      content.append(
+        element(pageDocument, "span", "ksql-flownet-error", "判定不能"),
+        element(
+          pageDocument,
+          "span",
+          "ksql-flownet-error-detail",
+          row.actionError ?? row.action.message,
+        ),
+      );
+      break;
+    case "pending":
+      if (requestAppId !== null) {
+        content.append(
+          requestLink(
+            pageDocument,
+            requestAppId,
+            row.action.pending.oldestId,
+            row.action.pending.label,
+          ),
+        );
+      } else {
+        content.append(
+          element(
+            pageDocument,
+            "span",
+            "ksql-flownet-pending",
+            row.action.pending.label,
+          ),
+        );
+      }
+      if (row.action.secondaryNotice !== null) {
+        content.append(
+          element(pageDocument, "span", undefined, row.action.secondaryNotice),
+        );
+      }
+      if (row.action.copyRunId) {
+        content.append(
+          copyButton(pageDocument, row.runId, callbacks.onCopyRunId),
+        );
+      }
+      break;
+    case "disabled":
+      content.append(
+        element(
+          pageDocument,
+          "span",
+          "ksql-flownet-disabled",
+          row.action.message,
+        ),
+      );
+      break;
+    case "action":
+      if (requestEnabled && callbacks.onAction !== undefined) {
+        const button = element(
+          pageDocument,
+          "button",
+          "ksql-flownet-action",
+          ACTION_LABEL[row.action.action],
+        ) as HTMLButtonElement;
+        button.type = "button";
+        button.addEventListener("click", () =>
+          callbacks.onAction?.({
+            action: row.action.kind === "action" ? row.action.action : "RERUN",
+            runId: row.runId,
+            allowRerunFromNode,
+            interrupted: row.activity === "INTERRUPTED",
+            cancelDetails: row.cancelDetails,
+          }),
+        );
+        content.append(button);
+      }
+      break;
+    case "unknown":
+      content.append(
+        element(pageDocument, "span", undefined, row.action.message),
+        copyButton(pageDocument, row.runId, callbacks.onCopyRunId),
+      );
+      break;
+    case "none":
+      break;
+  }
+  return content;
+}
+
+function recordCell(
+  pageDocument: Document,
+  row: ActionRowViewModel,
+): HTMLElement {
+  const link = pageDocument.createElement("a");
+  link.textContent = row.recordId;
+  link.setAttribute("href", row.recordUrl);
+  const cell = element(pageDocument, "td");
+  cell.append(link);
+  return cell;
+}
+
+function renderActiveTable(
+  pageDocument: Document,
+  rows: readonly ActivityRowViewModel[],
+  model: BoardViewModel,
+  callbacks: RenderCallbacks,
+): HTMLElement {
+  const table = element(pageDocument, "table", "ksql-flownet-table");
+  const thead = element(pageDocument, "thead");
+  const header = element(pageDocument, "tr");
+  for (const label of [
+    "レコード",
+    "Business Key",
+    "Run ID",
+    "Status",
+    "Activity",
+    "Started At",
+    "根拠・一次対応",
+    "操作",
+  ])
+    header.append(element(pageDocument, "th", undefined, label));
+  thead.append(header);
+  const tbody = element(pageDocument, "tbody");
+  for (const row of rows) {
+    const tr = element(pageDocument, "tr");
+    const actionCell = element(pageDocument, "td");
+    actionCell.append(
+      actionContent(
+        pageDocument,
+        row,
+        model.requestEnabled,
+        model.requestAppId,
+        callbacks,
+        false,
+      ),
+    );
+    tr.append(
+      recordCell(pageDocument, row),
+      element(pageDocument, "td", undefined, row.businessKey),
+      element(pageDocument, "td", undefined, row.runId),
+      element(pageDocument, "td", undefined, row.status),
+      activityCell(pageDocument, row),
+      element(pageDocument, "td", undefined, row.startedAt ?? "未開始"),
+      element(
+        pageDocument,
+        "td",
+        row.error === null ? undefined : "ksql-flownet-error-detail",
+        row.error ?? [row.evidence, row.actionText].filter(Boolean).join(" / "),
+      ),
+      actionCell,
+    );
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  return table;
+}
+
+function renderTerminalTable(
+  pageDocument: Document,
+  rows: readonly TerminalRowViewModel[],
+  model: BoardViewModel,
+  callbacks: RenderCallbacks,
+): HTMLElement {
+  const table = element(pageDocument, "table", "ksql-flownet-table");
+  const thead = element(pageDocument, "thead");
+  const header = element(pageDocument, "tr");
+  for (const label of [
+    "レコード",
+    "Business Key",
+    "Run ID",
+    "Status",
+    "更新時刻",
+    "操作",
+  ])
+    header.append(element(pageDocument, "th", undefined, label));
+  thead.append(header);
+  const tbody = element(pageDocument, "tbody");
+  for (const row of rows) {
+    const tr = element(pageDocument, "tr");
+    const actionCell = element(pageDocument, "td");
+    actionCell.append(
+      actionContent(
+        pageDocument,
+        row,
+        model.requestEnabled,
+        model.requestAppId,
+        callbacks,
+        false,
+      ),
+    );
+    tr.append(
+      recordCell(pageDocument, row),
+      element(pageDocument, "td", undefined, row.businessKey),
+      element(pageDocument, "td", undefined, row.runId),
+      element(pageDocument, "td", undefined, row.status),
+      element(pageDocument, "td", undefined, row.updatedAt),
+      actionCell,
+    );
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  return table;
+}
+
+function sectionError(
+  pageDocument: Document,
+  message: string | null,
+): HTMLElement {
+  const box = element(pageDocument, "div", "ksql-flownet-section-error");
+  box.append(
+    element(pageDocument, "span", "ksql-flownet-error", "読込失敗(判定不能)"),
+    element(
+      pageDocument,
+      "span",
+      "ksql-flownet-error-detail",
+      message ?? "読込に失敗しました。",
+    ),
+  );
+  return box;
+}
+
 function replaceChildren(root: HTMLElement, child: HTMLElement): void {
   root.replaceChildren(child);
 }
@@ -88,27 +431,64 @@ export function renderBoardLoading(root: HTMLElement): void {
   );
 }
 
+function normalizeCallbacks(
+  callbacksOrReload: RenderCallbacks | (() => void),
+): RenderCallbacks {
+  return typeof callbacksOrReload === "function"
+    ? { onReload: callbacksOrReload }
+    : callbacksOrReload;
+}
+
+function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
+  if (model.activeSection !== undefined) return model;
+  const legacy = model as unknown as {
+    state: "ready" | "error";
+    rows: readonly ActivityRowViewModel[];
+    error: string | null;
+    judgedAt: number | null;
+  };
+  const rows = legacy.rows.map((row) => {
+    const optional = row as unknown as Partial<ActionRowViewModel>;
+    return Object.assign({}, row, {
+      updatedAt: optional.updatedAt ?? row.startedAt ?? "",
+      resumeAllowed: optional.resumeAllowed ?? true,
+      lifecycleStatus: optional.lifecycleStatus ?? ("ACTIVE" as const),
+      action: optional.action ?? ({ kind: "none" } as const),
+      actionError: optional.actionError ?? null,
+      cancelDetails: optional.cancelDetails ?? null,
+    });
+  });
+  return {
+    activeSection: { state: legacy.state, rows, error: legacy.error },
+    attentionSection: { state: "ready", rows: [], error: null },
+    attentionRemainingCount: 0,
+    pendingWarning: null,
+    requestEnabled: false,
+    requestAppId: null,
+    judgedAt: legacy.judgedAt ?? 0,
+    state: legacy.state,
+    rows,
+    error: legacy.error,
+  } as BoardViewModel;
+}
+
 export function renderBoard(
   root: HTMLElement,
-  model: BoardViewModel,
-  onReload: () => void,
+  rawModel: BoardViewModel,
+  callbacksOrReload: RenderCallbacks | (() => void),
 ): void {
+  const model = normalizeLegacyModel(rawModel);
+  const callbacks = normalizeCallbacks(callbacksOrReload);
   const pageDocument = root.ownerDocument;
   const board = element(pageDocument, "section", "ksql-flownet-board");
   board.append(element(pageDocument, "h2", undefined, "Run状況"));
 
-  if (model.state === "error") {
-    board.append(
-      element(pageDocument, "p", "ksql-flownet-error", "判定不能"),
-      element(
-        pageDocument,
-        "p",
-        "ksql-flownet-error-detail",
-        model.error ?? "読込に失敗しました。CLI statusで確認してください。",
-      ),
-    );
-  } else if (model.rows.length === 0) {
-    board.append(
+  const active = element(pageDocument, "section", "ksql-flownet-section");
+  active.append(element(pageDocument, "h3", undefined, "未終端Run"));
+  if (model.activeSection.state === "error") {
+    active.append(sectionError(pageDocument, model.activeSection.error));
+  } else if (model.activeSection.rows.length === 0) {
+    active.append(
       element(
         pageDocument,
         "p",
@@ -117,58 +497,64 @@ export function renderBoard(
       ),
     );
   } else {
-    const table = element(pageDocument, "table", "ksql-flownet-table");
-    const thead = element(pageDocument, "thead");
-    const header = element(pageDocument, "tr");
-    for (const label of [
-      "レコード",
-      "Business Key",
-      "Run ID",
-      "Status",
-      "Activity",
-      "Started At",
-      "根拠・一次対応",
-    ]) {
-      header.append(element(pageDocument, "th", undefined, label));
-    }
-    thead.append(header);
-    const tbody = element(pageDocument, "tbody");
-    for (const row of model.rows) {
-      const tr = element(pageDocument, "tr");
-      // レコード番号は詳細画面への相対リンク(hrefは数値idのみで構成しレコード値を含めない)
-      const recordLink = pageDocument.createElement("a");
-      recordLink.textContent = row.recordId;
-      recordLink.setAttribute("href", row.recordUrl);
-      const recordCell = element(pageDocument, "td");
-      recordCell.append(recordLink);
-      tr.append(
-        recordCell,
-        element(pageDocument, "td", undefined, row.businessKey),
-        element(pageDocument, "td", undefined, row.runId),
-        element(pageDocument, "td", undefined, row.status),
-        activityCell(pageDocument, row),
-        element(pageDocument, "td", undefined, row.startedAt ?? "未開始"),
+    active.append(
+      renderActiveTable(
+        pageDocument,
+        model.activeSection.rows,
+        model,
+        callbacks,
+      ),
+    );
+  }
+  board.append(active);
+
+  const attention = element(pageDocument, "section", "ksql-flownet-section");
+  attention.append(element(pageDocument, "h3", undefined, "要対応(終端)"));
+  if (model.attentionSection.state === "error") {
+    attention.append(sectionError(pageDocument, model.attentionSection.error));
+  } else if (model.attentionSection.rows.length === 0) {
+    attention.append(
+      element(
+        pageDocument,
+        "p",
+        "ksql-flownet-empty",
+        "要対応(終端)Runはありません。",
+      ),
+    );
+  } else {
+    attention.append(
+      renderTerminalTable(
+        pageDocument,
+        model.attentionSection.rows,
+        model,
+        callbacks,
+      ),
+    );
+    if (model.attentionRemainingCount > 0) {
+      attention.append(
         element(
           pageDocument,
-          "td",
-          row.error === null ? undefined : "ksql-flownet-error-detail",
-          row.error ??
-            [row.evidence, row.actionText].filter(Boolean).join(" / "),
+          "p",
+          "ksql-flownet-remaining",
+          `他${model.attentionRemainingCount}件(決着済みを含む)`,
         ),
       );
-      tbody.append(tr);
     }
-    table.append(thead, tbody);
-    board.append(table);
   }
+  board.append(attention);
 
+  if (model.pendingWarning !== null) {
+    board.append(
+      element(pageDocument, "p", "ksql-flownet-warning", model.pendingWarning),
+    );
+  }
   const footer = element(pageDocument, "footer", "ksql-flownet-footer");
   footer.append(
     element(
       pageDocument,
       "span",
       "ksql-flownet-judged-at",
-      model.judgedAt === null
+      !model.judgedAt
         ? "判定時刻: 未判定"
         : `判定時刻: ${new Date(model.judgedAt).toLocaleString("ja-JP")}`,
     ),
@@ -180,43 +566,74 @@ export function renderBoard(
     "再読込",
   ) as HTMLButtonElement;
   reload.type = "button";
-  reload.addEventListener("click", onReload);
+  reload.addEventListener("click", callbacks.onReload);
   footer.append(reload);
   board.append(footer);
   replaceChildren(root, board);
 }
 
-export function renderDetail(root: HTMLElement, model: DetailViewModel): void {
+export function renderDetail(
+  root: HTMLElement,
+  model: DetailViewModel,
+  callbacks: Omit<RenderCallbacks, "onReload"> = {},
+): void {
   const pageDocument = root.ownerDocument;
   const content = element(pageDocument, "div", "ksql-flownet-detail");
-  if (model.state === "terminal") {
+  if ((model as unknown as { state: string }).state === "terminal") {
     content.append(
       element(pageDocument, "span", undefined, "終端(activityなし)"),
     );
-  } else if (model.state === "error") {
+    replaceChildren(root, content);
+    return;
+  }
+  if (model.state === "error") {
     content.append(
       element(pageDocument, "span", "ksql-flownet-error", "判定不能"),
       element(pageDocument, "span", "ksql-flownet-error-detail", model.error),
     );
   } else {
-    const { row } = model;
-    if (row.error !== null || row.activity === null) {
+    const legacyRow = model.row as ActivityRowViewModel;
+    const optional = legacyRow as unknown as Partial<ActionRowViewModel>;
+    const row: ActivityRowViewModel | TerminalRowViewModel = Object.assign(
+      {},
+      legacyRow,
+      {
+        updatedAt: optional.updatedAt ?? legacyRow.startedAt ?? "",
+        resumeAllowed: optional.resumeAllowed ?? true,
+        lifecycleStatus: optional.lifecycleStatus ?? ("ACTIVE" as const),
+        action: optional.action ?? ({ kind: "none" } as const),
+        actionError: optional.actionError ?? null,
+        cancelDetails: optional.cancelDetails ?? null,
+      },
+    );
+    if (model.terminal) {
+      content.append(
+        element(pageDocument, "span", undefined, "終端(activityなし)"),
+      );
+    } else if ("error" in row && row.error !== null) {
       content.append(
         element(pageDocument, "span", "ksql-flownet-error", "判定不能"),
-        element(
-          pageDocument,
-          "span",
-          "ksql-flownet-error-detail",
-          row.error ?? "activityを導出できませんでした。",
-        ),
+        element(pageDocument, "span", "ksql-flownet-error-detail", row.error),
       );
-    } else {
-      content.append(
-        badge(pageDocument, row.activity),
-        element(pageDocument, "span", undefined, row.evidence),
-        element(pageDocument, "span", undefined, row.actionText),
-      );
+    } else if (row.activity !== null) {
+      content.append(badge(pageDocument, row.activity));
+      if ("evidence" in row) {
+        content.append(
+          element(pageDocument, "span", undefined, row.evidence),
+          element(pageDocument, "span", undefined, row.actionText),
+        );
+      }
     }
+    content.append(
+      actionContent(
+        pageDocument,
+        row,
+        model.requestEnabled,
+        model.requestAppId,
+        { onReload: () => {}, ...callbacks },
+        model.allowRerunFromNode,
+      ),
+    );
   }
   replaceChildren(root, content);
 }
