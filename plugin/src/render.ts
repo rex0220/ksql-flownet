@@ -5,6 +5,7 @@ import type {
   BoardRequestAction,
 } from "./board-action.js";
 import type { RunActivity } from "./activity-entry.js";
+import type { ErrorSummary, ErrorSummaryItem } from "./error-summary.js";
 
 export interface ActionRowViewModel {
   readonly runId: string;
@@ -19,6 +20,7 @@ export interface ActionRowViewModel {
   readonly action: BoardActionViewModel;
   readonly actionError: string | null;
   readonly cancelDetails: CancelActionDetails | null;
+  readonly errorSummary: ErrorSummary;
 }
 
 export interface ActivityRowViewModel extends ActionRowViewModel {
@@ -405,11 +407,16 @@ function renderTerminalTable(
     "業務キー",
     "Run ID",
     "状態",
+    "エラー概要",
     "更新時刻",
     "操作",
   ]);
   const tbody = element(pageDocument, "tbody");
   for (const row of rows) {
+    const errorSummary = row.errorSummary ?? {
+      state: "ready" as const,
+      items: [],
+    };
     const tr = element(pageDocument, "tr");
     const actionCell = element(
       pageDocument,
@@ -434,6 +441,14 @@ function renderTerminalTable(
       element(
         pageDocument,
         "td",
+        errorSummary.state === "unavailable"
+          ? "ksql-flownet-error-detail"
+          : undefined,
+        formatErrorSummaryLine(errorSummary),
+      ),
+      element(
+        pageDocument,
+        "td",
         "ksql-flownet-cell-nowrap",
         formatLocalDateTime(row.updatedAt),
       ),
@@ -443,6 +458,55 @@ function renderTerminalTable(
   }
   table.append(thead, tbody);
   return table;
+}
+
+function errorSummaryItemText(item: ErrorSummaryItem): string {
+  return `${item.nodeId}: ${item.resultCode}${
+    item.statusReason === null ? "" : ` / ${item.statusReason}`
+  }`;
+}
+
+export function formatErrorSummaryLine(summary: ErrorSummary): string {
+  if (summary.state === "unavailable") {
+    return "(エラー概要を取得できません)";
+  }
+  const first = summary.items[0];
+  if (first === undefined) return "—";
+  const remaining = summary.items.length - 1;
+  return limitDisplayValue(
+    `${errorSummaryItemText(first)}${remaining === 0 ? "" : ` / 他${remaining} node`}`,
+  );
+}
+
+function renderDetailErrorSummary(
+  pageDocument: Document,
+  summary: ErrorSummary,
+): HTMLElement {
+  const box = element(pageDocument, "div", "ksql-flownet-error-summary");
+  box.append(element(pageDocument, "strong", undefined, "エラー概要"));
+  if (summary.state === "unavailable") {
+    box.append(
+      element(
+        pageDocument,
+        "span",
+        "ksql-flownet-error-detail",
+        "(エラー概要を取得できません)",
+      ),
+    );
+    return box;
+  }
+  if (summary.items.length === 0) {
+    box.append(element(pageDocument, "span", undefined, "該当情報なし"));
+    return box;
+  }
+  const list = element(pageDocument, "ul");
+  for (const item of summary.items.slice(0, 3)) {
+    list.append(
+      element(pageDocument, "li", undefined, errorSummaryItemText(item)),
+    );
+  }
+  box.append(list);
+  return box;
 }
 
 function sectionError(
@@ -498,6 +562,7 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
       action: optional.action ?? ({ kind: "none" } as const),
       actionError: optional.actionError ?? null,
       cancelDetails: optional.cancelDetails ?? null,
+      errorSummary: optional.errorSummary ?? { state: "ready", items: [] },
     });
   });
   return {
@@ -675,6 +740,7 @@ export function renderDetail(
         action: optional.action ?? ({ kind: "none" } as const),
         actionError: optional.actionError ?? null,
         cancelDetails: optional.cancelDetails ?? null,
+        errorSummary: optional.errorSummary ?? { state: "ready", items: [] },
       },
     );
     if (model.terminal) {
@@ -705,6 +771,9 @@ export function renderDetail(
         model.allowRerunFromNode,
       ),
     );
+    if (model.terminal && row.status !== "SUCCESS") {
+      content.append(renderDetailErrorSummary(pageDocument, row.errorSummary));
+    }
   }
   replaceChildren(root, content);
 }

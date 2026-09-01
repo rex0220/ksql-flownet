@@ -4,6 +4,7 @@ import {
   type RunActionAttributes,
 } from "./activity-input.js";
 import { decideBoardAction } from "./board-action.js";
+import { loadErrorSummaries } from "./error-summary.js";
 import {
   loadRowsForRuns,
   type ActivityLoadDependencies,
@@ -80,6 +81,17 @@ export async function loadDetail(
         lifecycleStatus: attributes.lifecycleStatus,
         actionError: null,
         cancelDetails: null,
+        errorSummary:
+          run.status === "SUCCESS"
+            ? { state: "ready", items: [] }
+            : ((
+                await loadErrorSummaries(
+                  dependencies.fetchRecords,
+                  dependencies.stateAppId,
+                  dependencies.auditAppId,
+                  [run.runId],
+                )
+              ).get(run.runId) ?? { state: "unavailable" }),
         action: decideBoardAction({
           status: run.status,
           activity: null,

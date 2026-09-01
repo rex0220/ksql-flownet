@@ -15,6 +15,7 @@ import {
   type PendingActionSummary,
 } from "./board-action.js";
 import { deriveRunActivity } from "./activity-entry.js";
+import { loadErrorSummaries } from "./error-summary.js";
 import {
   validateAuditAppId,
   validateRequestAppId,
@@ -280,6 +281,7 @@ async function readSupportingRecords(
       resumeAllowed: attributes.resumeAllowed,
       lifecycleStatus: attributes.lifecycleStatus,
       cancelDetails: cancel.details.get(run.runId) ?? null,
+      errorSummary: { state: "ready", items: [] },
       action: decideBoardAction({
         status: run.status,
         activity,
@@ -345,6 +347,12 @@ async function loadAttentionSection(
       dependencies.fetchRecords,
       dependencies.stateAppId,
     );
+    const summaries = await loadErrorSummaries(
+      dependencies.fetchRecords,
+      dependencies.stateAppId,
+      dependencies.auditAppId,
+      loaded.runs.map((run) => run.runId),
+    );
     return {
       section: readySection(
         loaded.runs.map((run) => ({
@@ -353,6 +361,7 @@ async function loadAttentionSection(
           activity: null,
           actionError: null,
           cancelDetails: null,
+          errorSummary: summaries.get(run.runId) ?? { state: "unavailable" },
           action: decideBoardAction({
             status: run.status,
             activity: null,

@@ -10,6 +10,18 @@
   font-size: 14px;
 }
 
+.ksql-flownet-error-summary {
+  display: flex;
+  flex-basis: 100%;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ksql-flownet-error-summary ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
 .ksql-flownet-board {
   padding: 16px;
   background: #f5f7f8;

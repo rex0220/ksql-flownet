@@ -178,6 +178,7 @@ await Promise.all([
     "config",
     "desktop",
     "detail-controller",
+    "error-summary",
     "render",
     "request-dialog",
     "request-client",

@@ -438,6 +438,36 @@ test("pending aggregate failure discards badges but preserves both sections and 
   assert.match(model.pendingWarning, /重複確認ができません/u);
 });
 
+test("error summary GET failure preserves terminal rows and acceptance actions", async () => {
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      if (
+        request.query.includes('record_type in ("NETWORK_RUN")') &&
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        return { records: [terminalRecord(9)], totalCount: "1" };
+      }
+      if (request.query.includes('status not in ("SUCCESS"')) {
+        return { records: [] };
+      }
+      if (request.query.includes('record_type in ("NODE_ATTEMPT")')) {
+        throw new Error("audit denied");
+      }
+      if (request.query.includes('record_type in ("NODE_STATE")')) {
+        return { records: [] };
+      }
+      throw new Error("unexpected request");
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    nowMs: () => NOW,
+  });
+  const row = model.attentionSection.rows[0];
+  assert.equal(model.attentionSection.state, "ready");
+  assert.equal(row.action.kind, "action");
+  assert.deepEqual(row.errorSummary, { state: "unavailable" });
+});
+
 test("terminal detail routes SUCCESS/FAILED/CANCELLED/UNKNOWN through the shared action table", async () => {
   const expected = {
     SUCCESS: "none",

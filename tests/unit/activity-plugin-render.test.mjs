@@ -209,6 +209,49 @@ test("detail renders terminal text and a ready badge without duplication", () =>
   assert.match(allText(root), /二次対応者へ連絡/u);
 });
 
+test("terminal detail renders at most three error nodes as text without XSS", () => {
+  const document = new FakeDocument();
+  const root = new FakeElement("div", document);
+  const attack = '<img src=x onerror="pwned=true">';
+  renderDetail(root, {
+    state: "ready",
+    terminal: true,
+    requestEnabled: false,
+    requestAppId: null,
+    allowRerunFromNode: true,
+    row: {
+      runId: "run_1",
+      recordId: "1",
+      recordUrl: "/k/100/show#record=1",
+      businessKey: "business_1",
+      status: "FAILED",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+      activity: null,
+      resumeAllowed: true,
+      lifecycleStatus: "ACTIVE",
+      action: { kind: "none" },
+      actionError: null,
+      cancelDetails: null,
+      errorSummary: {
+        state: "ready",
+        items: [1, 2, 3, 4].map((id) => ({
+          nodeId: `${attack}_${id}`,
+          resultCode: "SQL_ERROR",
+          statusReason: id === 1 ? attack : null,
+          attemptRecordId: String(10 - id),
+        })),
+      },
+    },
+  });
+  assert.equal(
+    allNodes(root).filter((node) => node.tagName === "li").length,
+    3,
+  );
+  assert.match(allText(root), /<img src=x/u);
+  assert.equal(document.createdTags.includes("img"), false);
+  assert.equal(document.createdTags.includes("script"), false);
+});
+
 test("two sections render every action kind, remaining count, copy callback, and do not proliferate DOM", () => {
   const document = new FakeDocument();
   const root = new FakeElement("div", document);
