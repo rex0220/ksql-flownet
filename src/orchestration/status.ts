@@ -1,6 +1,5 @@
 import type {
   NetworkRun,
-  CancelRequestState,
   NodeAttempt,
   NodeState,
   RunInvocation,
@@ -16,6 +15,13 @@ import type {
   Versioned,
 } from "../persistence/repository.js";
 import { detectReconciliation } from "./reconciliation.js";
+import { deriveRunActivity, type RunActivity } from "./run-activity.js";
+
+export {
+  deriveRunActivity,
+  type ActivityInput,
+  type RunActivity,
+} from "./run-activity.js";
 
 export interface StatusInput {
   readonly networkId: string;
@@ -49,17 +55,6 @@ export interface RunSummaryOutput {
   readonly finished_at: string | null;
   readonly updated_at: string;
   readonly activity?: RunActivity;
-}
-
-export type RunActivity = "LIVE" | "IDLE" | "INTERRUPTED" | "STOPPED";
-
-export interface ActivityInput {
-  readonly status: NetworkRun["status"];
-  readonly startedAt: string | null;
-  readonly invocationIds: readonly string[];
-  readonly lock: NetworkLockStatus | null;
-  readonly cancelState: CancelRequestState | null;
-  readonly nowMs: number;
 }
 
 export interface RunStatusOutput extends RunSummaryOutput {
@@ -126,21 +121,6 @@ function summary(
     updated_at: run.updated_at,
     ...(activity === null ? {} : { activity }),
   };
-}
-
-export function deriveRunActivity(input: ActivityInput): RunActivity | null {
-  if (["SUCCESS", "FAILED", "CANCELLED", "UNKNOWN"].includes(input.status))
-    return null;
-  if (input.cancelState === "REQUESTED" || input.cancelState === "ACCEPTED")
-    return "STOPPED";
-  if (
-    input.lock !== null &&
-    input.invocationIds.includes(input.lock.owner_invocation_id) &&
-    input.nowMs <=
-      Date.parse(input.lock.lease_expires_at) + KINTONE_DATETIME_TRUNCATION_MS
-  )
-    return "LIVE";
-  return input.startedAt === null ? "IDLE" : "INTERRUPTED";
 }
 
 function requireMatchingRun(

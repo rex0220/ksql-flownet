@@ -1,0 +1,23 @@
+{
+  "manifest_version": 1,
+  "version": 4,
+  "type": "APP",
+  "name": {
+    "en": "kSQL-FlowNet Run Activity",
+    "ja": "kSQL-FlowNet Run状況"
+  },
+  "description": {
+    "en": "Read-only Run activity display for kSQL-FlowNet.",
+    "ja": "kSQL-FlowNetのRun activityを読み取り専用で表示します。"
+  },
+  "icon": "assets/icon.png",
+  "desktop": {
+    "js": ["dist/desktop.js"],
+    "css": ["css/desktop.css"]
+  },
+  "config": {
+    "html": "config.html",
+    "js": ["dist/config.js"],
+    "css": ["css/config.css"]
+  }
+}

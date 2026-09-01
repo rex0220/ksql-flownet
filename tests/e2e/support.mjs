@@ -178,6 +178,12 @@ export function field(record, name) {
   return record?.[name]?.value ?? null;
 }
 
+export function matchesE2ECleanupPrefix(record, prefix) {
+  return ["business_key", "network_id"].some((name) =>
+    String(field(record, name) ?? "").startsWith(prefix),
+  );
+}
+
 function numberField(record, name) {
   const value = Number(field(record, name));
   return Number.isFinite(value) ? value : null;
@@ -929,10 +935,15 @@ async function deleteRecords(settings, target, records) {
 }
 
 export async function cleanupM5Records(settings, prefix = M5_PREFIX) {
-  const runRecords = await getPersistenceRecords(
+  // 2026-09-01実機では、文字列1行フィールドのlikeは完全一致相当で
+  // prefix検索にならなかった。全NETWORK_RUNを取得し、JS側で前方一致を判定する。
+  const allRunRecords = await getAllPersistenceRecords(
     settings,
     "state",
-    `record_type in ("NETWORK_RUN") and (business_key like ${quote(prefix)} or network_id like ${quote(prefix)})`,
+    'record_type in ("NETWORK_RUN")',
+  );
+  const runRecords = allRunRecords.filter((record) =>
+    matchesE2ECleanupPrefix(record, prefix),
   );
   const runIds = [
     ...new Set(runRecords.map((record) => field(record, "run_id"))),

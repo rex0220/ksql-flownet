@@ -1,6 +1,6 @@
 # P2-08: 案A v1 導出プラグイン 実装計画
 
-- 文書状態: **DRAFT / 仕様レビュー完了・実装未着手**
+- 文書状態: **IMPLEMENTED / M1〜M4完了、本番適用・smoke待ち**
 - 作成日: 2026-09-01
 - 対象仕様: [p2-08-activity-plugin-spec.md](./p2-08-activity-plugin-spec.md)
 - 正本: [job-network-phase1-spec.md](./job-network-phase1-spec.md) §7.4、`tests/fixtures/status-activity/vectors.json`
@@ -8,9 +8,9 @@
 
 ## 1. 結論
 
-P2-08は実現可能であり、`deriveRunActivity`のexport追加やFlowNet orchestration本体の変更は不要である。ただし、DRAFT仕様は次の4点を実装前提として補正する必要がある。
+P2-08は実現可能である。M1の実測で`status.ts`経由のtree shakingが成立しなかったため、§2.1で予約した後方互換フォールバックを2026-09-01に承認し、`deriveRunActivity`をブラウザ中立な`run-activity.ts`へ抽出する。ただし、DRAFT仕様は次の4点を実装前提として補正する必要がある。
 
-1. `deriveRunActivity`自体はブラウザで実行できる純関数だが、所在する`status.ts`は「依存なし」ではない。専用entryからnamed importし、esbuild後のbundleに`node:` import、`require`、`process`が残らないことを機械検査する。
+1. `deriveRunActivity`自体はブラウザで実行できる純関数だが、元の所在moduleである`status.ts`は「依存なし」ではない。専用entryから`run-activity.ts`をnamed importし、esbuild後のbundleに`node:` import、`require`、`process`が残らないことを機械検査する。`status.ts`は移動したexportをre-exportし、既存import pathを維持する。
 2. カスタマイズビューの`html`へプラグイン専用root要素を置き、`app.record.index.show`で`viewType === "custom"`かつ`viewName === "00_Run状況"`のときだけ描画する。内部DOM classには依存しない。
 3. `RUN_INVOCATION`を未終端Runごとに全件取得しない。現在の`NETWORK_LOCK.owner_invocation_id`だけを監査履歴アプリへ一括照合し、`invocation_id -> run_id`を作る。これは`deriveRunActivity`のowner所属判定と意味的に等価である。
 4. `CANCEL_REQUEST`の状態は`status`フィールドではなく、`status_reason`内のJSONに格納されている。JSON構造、state、run_id、重複を検証し、異常時は該当activityを表示しない。
@@ -37,11 +37,12 @@ P2-08は実現可能であり、`deriveRunActivity`のexport追加やFlowNet orc
 2. **FLAWED — DRAFT §3の「依存なしの純関数」は、関数と所在moduleを混同している。**
    - `ActivityInput`の`NetworkRun`、`CancelRequestState`、`NetworkLockStatus`はtype-only importなのでbundle時に消える（`src/orchestration/status.ts:1-11,56-62`）。関数本体が実行時に参照するrepo定数は`KINTONE_DATETIME_TRUNCATION_MS`だけで、Node組込みAPI、I/O、現在時刻取得、共有可変状態を使わない。この意味では、同じ入力に同じ結果を返すブラウザ実行可能な純関数である。
    - 一方、`status.ts`全体には`RepositoryError`と`detectReconciliation`のruntime importがあり（`src/orchestration/status.ts:13,18`）、後者のmoduleは`node:crypto`をimportする（`src/orchestration/reconciliation.ts:1`）。従ってmodule自体を「依存なし」とは呼べない。
-   - 補正: `plugin/src/activity-entry.ts`は`deriveRunActivity`だけをnamed import/re-exportする。esbuildのtree shaking後にブラウザ非互換依存が消えることを、metafileとbundle文字列検査、Node `vm`実行で受入する。CLI側の実装を複製しない。
+   - 補正: 当初は`plugin/src/activity-entry.ts`から`status.ts`の`deriveRunActivity`だけをnamed import/re-exportし、esbuildのtree shaking後にブラウザ非互換依存が消えることを受入条件とした。2026-09-01の実測で`node:crypto`が残ったため、予約済みフォールバックを発動し、entryは`run-activity.ts`からnamed importする。metafileとbundle文字列検査、Node `vm`実行で受入し、CLI側の実装を複製しない。
 
-3. **CORRECT — 現在のexport状況で単体bundle可能であり、後方互換変更は不要である。**
-   - `ActivityInput`と`deriveRunActivity`はいずれも既にexportされている（`src/orchestration/status.ts:56,131`）。
-   - orchestration変更の予備案は現時点では起票しない。実際のesbuildでtree shaking不能が確認された場合だけ、ブラウザ中立moduleへの移動と`status.ts`からのre-exportを「必要な後方互換変更」として別レビューへ戻す。これはM1の失敗時条件であり、先回りして実装しない。
+3. **CORRECT — 予約済みの後方互換フォールバックを承認し、既存import pathを維持する。**
+   - 当初は`ActivityInput`と`deriveRunActivity`が`status.ts`からexport済みであるため、同moduleからの単体bundleを試みた。
+   - 2026-09-01、実esbuildのmetafile・成果物検査で`status.ts`経由のtree shakingでは`reconciliation.ts`由来の`node:crypto`を除去できないことを確認した。M1の停止条件どおり実装を停止して報告し、レビュー後に予約済みフォールバックが承認された。
+   - 承認範囲は、`deriveRunActivity`、`ActivityInput`、`RunActivity`を新規`src/orchestration/run-activity.ts`へ移動し、実行時依存を`KINTONE_DATETIME_TRUNCATION_MS`だけに限定する変更である。domain・lock型はtype-only importとし、`status.ts`は新moduleからimportして利用すると同時に3 exportをre-exportする。挙動と既存呼び出し元のimport pathは変更しない。
 
 4. **CORRECT — esbuildとplugin-packerはbuild-only依存として追加できる。**
    - 現行のcompiler、lint、format関連はすべて`devDependencies`であり、実行時依存は`ajv`と`yaml`だけである（`package.json:28-39`）。`esbuild`と`@kintone/plugin-packer`も`devDependencies`に置く方針と衝突しない。
@@ -115,7 +116,7 @@ P2-08は実現可能であり、`deriveRunActivity`のexport追加やFlowNet orc
 
 | ID | 固定事項 | 採用値 |
 | --- | --- | --- |
-| G-01 | bundle entry | `status.ts`から`deriveRunActivity`だけをnamed import。browser非互換依存ゼロを成果物検査 |
+| G-01 | bundle entry | フォールバック承認後の`run-activity.ts`から`deriveRunActivity`だけをnamed import。`status.ts`は後方互換re-export。browser非互換依存ゼロを成果物検査 |
 | G-02 | CUSTOM view root | `#ksql-flownet-run-board`、`pager: false`、`device: "DESKTOP"` |
 | G-03 | 一覧event guard | `app.record.index.show` + `viewType === "custom"` + `viewName === "00_Run状況"` |
 | G-04 | detail挿入点 | `app.record.detail.show` + `kintone.app.record.getHeaderMenuSpaceElement()` |
@@ -284,6 +285,8 @@ rendererへkintone recordを直接渡さず、検証済みの次のview modelへ
 ### M4: viewテンプレート、運用文書、pack・本番適用 — M
 
 **目的**: 再現可能なview追加、署名・配布、本番導入手順、一次対応文言を揃え、npm公開ゲートを判定する。
+
+**完了状況(2026-09-01)**: M3実機受入([証跡](./test-results/p2-08-20260901/README.md))を反映し、viewテンプレートと回帰試験、プラグインのbuild・test・同一署名鍵によるpack・インストール手順、一次対応1ページ、復旧runbook、文書索引を整備した。E2E cleanupも、実測で前方一致しなかったkintone `like`を廃止し、全NETWORK_RUN取得後に`business_key` / `network_id`をJavaScriptの`startsWith(prefix)`で選別する方式へ恒久修正した。**M4のリポジトリ成果物は完了**。本番アプリへの適用とread-only smokeは未実施のため、npm公開ゲートは未解除とする。
 
 新規ファイル（想定）:
 

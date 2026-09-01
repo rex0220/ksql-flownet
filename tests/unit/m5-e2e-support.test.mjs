@@ -6,11 +6,33 @@ import {
   childEnvironment,
   createM5Timing,
   describeRunIdentity,
+  matchesE2ECleanupPrefix,
   m5ConfirmedBy,
   requireM5Environment,
   resolveKsqlFlowCliPath,
   resolveProcessTreeRootId,
 } from "../e2e/support.mjs";
+
+test("E2E cleanup matches business and network prefixes in JavaScript", () => {
+  const record = (businessKey, networkId) => ({
+    business_key: { value: businessKey },
+    network_id: { value: networkId },
+  });
+
+  assert.equal(
+    matchesE2ECleanupPrefix(record("scope_suffix", "network"), "scope"),
+    true,
+  );
+  assert.equal(
+    matchesE2ECleanupPrefix(record("business", "scope_suffix"), "scope"),
+    true,
+  );
+  assert.equal(
+    matchesE2ECleanupPrefix(record("business_scope", "network"), "scope"),
+    false,
+  );
+  assert.equal(matchesE2ECleanupPrefix({}, "scope"), false);
+});
 
 test("M5 run identity fixes all R1 inputs and exposes the generated key", () => {
   const first = describeRunIdentity("e2e", "network-one", "business-one");
