@@ -339,6 +339,7 @@ FDRで決定したkintone構成をrepository interfaceの背後へ実装する�
 | P2-04 | FlowNet側ノード上限時間 | ノード単位の実行上限時間をFlowNet側にも持たせる(現状はkSQL-Flowのbatch_timeout_secとrun-subprocessのkill経路に依存)。「子プロセスを信用しない」原則の層を閉じる | 2026-08-31外部評価R2-7 |
 | P2-05 | `idempotent`の操作種別分類 | 冪等性判定の主軸を操作種別(キー指定UPSERT/bare INSERT/DELETE/外部副作用)の分類に置き、非決定要素検査を補助へ。kSQL-Flow側の解析能力が必要 | 2026-08-31外部評価R2-5。Phase 1は宣言+決定性補助検査(§4.2明確化済み) |
 | P2-06 | bundle転送の有界リトライ | bundle upload/verify-downloadの5xx・通信断に有界リトライ(例: 3回/2秒backoff)を追加。fail-closed結果は不変で、偽の失敗だけを減らす | 2026-08-31実測: kintoneファイルAPIが数分間断続的に500/503を返し(records系は正常)、NEWがBUNDLE_UPLOAD_FAILEDで失敗。回復後の`--resume-run`で正常継続できることは確認済み(現行のfail-closed挙動は仕様どおり) |
+| P2-08 | 案A v1: 導出プラグイン | kintoneプラグインとして実行管理アプリへ導出表示(activity 4値・要対応Run・blocked_by/最新Attempt)を追加。書込みなし。導出規則の正本は凍結仕様§7.4と共有test vector(`tests/fixtures/status-activity/`) — **プラグインが同一vectorへ合格することを受入条件**とする(討論§9.3(1): CLIと画面のドリフト防止)。**npm公開のゲート**: ksql-flownetのnpm公開は本タスク完了後とする(2026-09-01ユーザー決定 — 公開時に画面系の導入体験まで揃えるため) | PRE-03(案A v0)の後継。討論§7.9/Q-A「v1は初回導入後に判断」→2026-09-01に実施決定 |
 | P2-07 | 検査例外承認の供給配線 | validateJobInspectionsは承認済み例外(ApprovedInspectionException)を受け取れるが、ensure-runは常に空配列で呼び出しており、network.yaml/CLIから例外を供給する経路が存在しない。KSQL1306が実際に検出されるジョブは現状承認不能で拒否される(fail-closedで危険ではないが機構が到達不能) | 2026-08-31初回導入計画の検証で発見。初回対象(月次案件集計)は例外不要のため導入は阻害しない |
 
 ## 6. テスト戦略
