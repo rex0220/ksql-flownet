@@ -10,6 +10,12 @@ const pluginOutputDirectory = resolve(pluginDirectory, "dist");
 const testOutputDirectory = resolve(repositoryDirectory, "dist", "plugin");
 const activityOutput = resolve(pluginOutputDirectory, "activity.js");
 const metafileOutput = resolve(pluginOutputDirectory, "activity-meta.json");
+const desktopOutput = resolve(pluginOutputDirectory, "desktop.js");
+const desktopMetafileOutput = resolve(
+  pluginOutputDirectory,
+  "desktop-meta.json",
+);
+const configOutput = resolve(pluginOutputDirectory, "config.js");
 
 const workspaceResolver = {
   name: "workspace-resolver",
@@ -71,8 +77,36 @@ const activityBuild = await buildWorkspaceEntry(
   },
 );
 
+const desktopBuild = await buildWorkspaceEntry(
+  resolve(pluginDirectory, "src", "desktop.ts"),
+  {
+    outfile: desktopOutput,
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    treeShaking: true,
+    legalComments: "none",
+    sourcemap: false,
+    metafile: true,
+  },
+);
+
+await buildWorkspaceEntry(resolve(pluginDirectory, "src", "config.ts"), {
+  outfile: configOutput,
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  target: "es2022",
+  treeShaking: true,
+  legalComments: "none",
+  sourcemap: false,
+});
+
 const metafileText = `${JSON.stringify(activityBuild.metafile, null, 2)}\n`;
+const desktopMetafileText = `${JSON.stringify(desktopBuild.metafile, null, 2)}\n`;
 await writeFile(metafileOutput, metafileText, "utf8");
+await writeFile(desktopMetafileOutput, desktopMetafileText, "utf8");
 
 const forbidden = [
   ["node:", /node:/u],
@@ -80,14 +114,19 @@ const forbidden = [
   ["require(", /require\s*\(/u],
   ["process.", /process\s*\./u],
 ];
-const bundleText = await readFile(activityOutput, "utf8");
-for (const [label, pattern] of forbidden) {
-  if (pattern.test(bundleText) || pattern.test(metafileText)) {
-    throw new Error(
-      `browser-incompatible token found in activity bundle: ${label}`,
-    );
+async function inspectBrowserBundle(label, output, metadata) {
+  const bundleText = await readFile(output, "utf8");
+  for (const [tokenLabel, pattern] of forbidden) {
+    if (pattern.test(bundleText) || pattern.test(metadata)) {
+      throw new Error(
+        `browser-incompatible token found in ${label} bundle: ${tokenLabel}`,
+      );
+    }
   }
 }
+
+await inspectBrowserBundle("activity", activityOutput, metafileText);
+await inspectBrowserBundle("desktop", desktopOutput, desktopMetafileText);
 
 await Promise.all([
   buildWorkspaceEntry(resolve(pluginDirectory, "src", "activity-input.ts"), {
@@ -106,4 +145,20 @@ await Promise.all([
     target: "node22",
     legalComments: "none",
   }),
+  ...[
+    "board-controller",
+    "config",
+    "desktop",
+    "detail-controller",
+    "render",
+  ].map((name) =>
+    buildWorkspaceEntry(resolve(pluginDirectory, "src", `${name}.ts`), {
+      outfile: resolve(testOutputDirectory, `${name}.js`),
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      target: "node22",
+      legalComments: "none",
+    }),
+  ),
 ]);

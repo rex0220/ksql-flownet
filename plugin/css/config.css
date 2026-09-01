@@ -1,0 +1,32 @@
+.ksql-flownet-config {
+  max-width: 640px;
+  padding: 24px;
+  color: #333;
+  font-family: sans-serif;
+}
+
+.ksql-flownet-config label,
+.ksql-flownet-config input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ksql-flownet-config input {
+  margin-top: 8px;
+  padding: 8px;
+}
+
+.ksql-flownet-config-error {
+  min-height: 1.5em;
+  color: #b91c1c;
+}
+
+.ksql-flownet-config-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ksql-flownet-config-actions button {
+  padding: 8px 20px;
+}

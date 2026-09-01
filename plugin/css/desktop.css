@@ -1,0 +1,77 @@
+#ksql-flownet-run-board,
+.ksql-flownet-detail {
+  color: #333;
+  font-size: 14px;
+}
+
+.ksql-flownet-board {
+  padding: 16px;
+  background: #fff;
+}
+
+.ksql-flownet-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ksql-flownet-table th,
+.ksql-flownet-table td {
+  padding: 10px;
+  border: 1px solid #d5d5d5;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.ksql-flownet-badge {
+  display: inline-block;
+  min-width: 88px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ksql-flownet-badge--live {
+  color: #14532d;
+  background: #bbf7d0;
+}
+
+.ksql-flownet-badge--idle {
+  color: #374151;
+  background: #e5e7eb;
+}
+
+.ksql-flownet-badge--stopped {
+  color: #713f12;
+  background: #fef08a;
+}
+
+.ksql-flownet-badge--interrupted,
+.ksql-flownet-error {
+  color: #7f1d1d;
+  background: #fecaca;
+}
+
+.ksql-flownet-error {
+  display: inline-block;
+  padding: 4px 8px;
+  font-weight: 700;
+}
+
+.ksql-flownet-error-detail {
+  margin-left: 8px;
+  color: #991b1b;
+}
+
+.ksql-flownet-footer,
+.ksql-flownet-detail {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.ksql-flownet-reload {
+  padding: 6px 16px;
+  cursor: pointer;
+}

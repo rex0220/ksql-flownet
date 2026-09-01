@@ -12,6 +12,12 @@
   },
   "icon": "assets/icon.png",
   "desktop": {
-    "js": ["dist/activity.js"]
+    "js": ["dist/desktop.js"],
+    "css": ["css/desktop.css"]
+  },
+  "config": {
+    "html": "config.html",
+    "js": ["dist/config.js"],
+    "css": ["css/config.css"]
   }
 }
