@@ -1,31 +1,22 @@
-<!doctype html>
-<html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>kSQL-FlowNet Run状況 設定</title>
-  </head>
-  <body>
-    <main class="ksql-flownet-config">
-      <h1>kSQL-FlowNet Run状況 設定</h1>
-      <form id="ksql-flownet-config-form">
-        <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
-        <input
-          id="ksql-flownet-audit-app-id"
-          name="auditAppId"
-          type="text"
-          inputmode="numeric"
-          autocomplete="off"
-          required
-        />
-        <p id="ksql-flownet-config-error" class="ksql-flownet-config-error"></p>
-        <div class="ksql-flownet-config-actions">
-          <button type="submit">保存</button>
-          <button id="ksql-flownet-config-cancel" type="button">
-            キャンセル
-          </button>
-        </div>
-      </form>
-    </main>
-  </body>
-</html>
+<!-- kintoneプラグイン設定画面はこのファイルの中身をkintone側ページへ埋め込む。
+     完全なHTML文書(doctype宣言やhtml/head/bodyタグ)にするとDOMが展開されないため、
+     フラグメントのみ記述する(2026-09-01実機)。 -->
+<main class="ksql-flownet-config">
+  <h1>kSQL-FlowNet Run状況 設定</h1>
+  <form id="ksql-flownet-config-form">
+    <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
+    <input
+      id="ksql-flownet-audit-app-id"
+      name="auditAppId"
+      type="text"
+      inputmode="numeric"
+      autocomplete="off"
+      required
+    />
+    <p id="ksql-flownet-config-error" class="ksql-flownet-config-error"></p>
+    <div class="ksql-flownet-config-actions">
+      <button type="submit">保存</button>
+      <button id="ksql-flownet-config-cancel" type="button">キャンセル</button>
+    </div>
+  </form>
+</main>

@@ -68,3 +68,25 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     globalThis.history = originalHistory;
   }
 });
+
+test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — kintone埋め込み実機回帰)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync(
+    new URL("../../plugin/config.html", import.meta.url),
+    "utf8",
+  );
+  for (const forbidden of ["<!doctype", "<html", "<head", "<body"]) {
+    assert.ok(
+      !html.toLowerCase().includes(forbidden),
+      `config.htmlに${forbidden}を含めない(kintoneが中身を埋め込むため)`,
+    );
+  }
+  for (const required of [
+    "ksql-flownet-config-form",
+    "ksql-flownet-audit-app-id",
+    "ksql-flownet-config-error",
+    "ksql-flownet-config-cancel",
+  ]) {
+    assert.ok(html.includes(required), `config.htmlに${required}が必要`);
+  }
+});
