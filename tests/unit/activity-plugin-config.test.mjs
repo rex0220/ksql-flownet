@@ -322,12 +322,19 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
   );
   for (const forbidden of ["<!doctype", "<html", "<head", "<body"]) {
     assert.ok(
-      !html.toLowerCase().includes(forbidden),
+      !new RegExp(`${forbidden}(?:\\s|>)`, "iu").test(html),
       `config.htmlに${forbidden}を含めない(kintoneが中身を埋め込むため)`,
     );
   }
   for (const required of [
+    "ksql-flownet-config-header",
+    "ksql-flownet-config-brand",
+    "ksql-flownet-config-product",
+    "ksql-flownet-config-title",
+    "ksql-flownet-config-info",
     "ksql-flownet-config-form",
+    "ksql-flownet-config-sections",
+    "ksql-flownet-config-section",
     "ksql-flownet-audit-app-id",
     "ksql-flownet-request-app-id",
     "ksql-flownet-log-app-id",
@@ -344,6 +351,42 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用",
   ]) {
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
+  }
+  assert.equal(
+    html.match(/class="ksql-flownet-config-section"/gu)?.length,
+    3,
+    "3つのアプリ項目を個別のセクションカードにする",
+  );
+  assert.ok(
+    html.indexOf('id="ksql-flownet-config-cancel"') <
+      html.indexOf('class="ksql-flownet-config-save"'),
+    "フッターはキャンセル、保存の順にする",
+  );
+  assert.ok(
+    html.indexOf('class="ksql-flownet-config-deploy"') <
+      html.indexOf('class="ksql-flownet-config-actions"'),
+    "運用環境への反映帯をフッター直前に置く",
+  );
+});
+
+test("config.cssはrequest dialogと同じロゴ・ヘッダー・カード・フッター意匠を持つ", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(
+    new globalThis.URL("../../plugin/css/config.css", import.meta.url),
+    "utf8",
+  );
+  for (const required of [
+    "--ksql-flownet-logo:",
+    ".ksql-flownet-config-header",
+    ".ksql-flownet-config-info",
+    ".ksql-flownet-config-section",
+    ".ksql-flownet-config-deploy",
+    ".ksql-flownet-config-actions",
+    ".ksql-flownet-config-callout-progress",
+    ".ksql-flownet-config-callout-success",
+    ".ksql-flownet-config-callout-error",
+  ]) {
+    assert.ok(css.includes(required), `config.cssに${required}が必要`);
   }
 });
 
