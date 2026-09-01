@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "version": 21,
+  "version": 22,
   "type": "APP",
   "name": {
     "en": "kSQL-FlowNet Run Activity",
