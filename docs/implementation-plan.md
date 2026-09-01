@@ -333,8 +333,8 @@ FDRで決定したkintone構成をrepository interfaceの背後へ実装する�
 
 | ID | 作業単位 | 概要 | 経緯 |
 | --- | --- | --- | --- |
-| P2-01 | アプリ起点リラン(案B) | kSQL-Flowのrerun_request同型の外付けポーラー方式。**専用のリラン要求アプリ**(実行管理アプリへは相乗りしない — 機械専用制約)へ要求を書き、run_id単位の状態機械(REQUESTED→ACCEPTED→DONE/REJECTED)で管理。要求者はkintoneシステムフィールド、相関は--requested-by埋め込み(形式固定)。ポーラーが検出→run-network --resume-run [--rerun-from]起動。受理範囲は安全性で固定(冪等FAILED/BLOCKEDの再開+PRE-06形式のRun単位停止)。FlowNet本体は変更なし | 2026-08-31討論で永続化モデルを更新(旧記載「実行管理アプリへ要求フィールド追加」は機械専用制約に反するため破棄)。PRE-06が要求モデルのプロトタイプ |
-| P2-02 | ノード境界の停止要求(画面起点) | **CLI起点はPRE-06へ格上げ済み(2026-08-31)**。P2に残るのは要求アプリ起点(案Bと同時) | 2026-08-31外部評価R2-3→討論→vision改訂 |
+| P2-01 | アプリ起点リラン(案B) — **実装完了(2026-09-01)** | **[仕様](./p2-01-app-rerun-spec.md)・[実装計画](./p2-01-implementation-plan.md)どおりM0〜M4完了、実機E2E受入1〜9合格([証跡](./test-results/p2-01-20260901/README.md))、mainへマージ(b83b4c5)。P2-02のアプリ起点停止(STOP/RELEASE)も同梱。本番接続(要求アプリ作成・ポーラーcron)は未実施 — templates/README.mdの手順による。** 原記録: kSQL-Flowのrerun_request同型の外付けポーラー方式。**専用のリラン要求アプリ**(実行管理アプリへは相乗りしない — 機械専用制約)へ要求を書き、run_id単位の状態機械(REQUESTED→ACCEPTED→DONE/REJECTED)で管理。要求者はkintoneシステムフィールド、相関は--requested-by埋め込み(形式固定)。ポーラーが検出→run-network --resume-run [--rerun-from]起動。受理範囲は安全性で固定(冪等FAILED/BLOCKEDの再開+PRE-06形式のRun単位停止)。FlowNet本体は変更なし | 2026-08-31討論で永続化モデルを更新(旧記載「実行管理アプリへ要求フィールド追加」は機械専用制約に反するため破棄)。PRE-06が要求モデルのプロトタイプ |
+| P2-02 | ノード境界の停止要求(画面起点) — **完了(2026-09-01)** | **CLI起点はPRE-06へ格上げ済み(2026-08-31)**。要求アプリ起点はP2-01と同時実装完了(STOP/RELEASE、実機E2E受入4・5合格) | 2026-08-31外部評価R2-3→討論→vision改訂 |
 | P2-03 | 連続失敗ブレーキ | **PRE-02へ格上げ済み(2026-08-31討論)**。backoff・宣言的ポリシー等の拡張のみPhase 2に残す | 2026-08-31外部評価R2-4→討論で本番導入前タスクへ |
 | P2-04 | FlowNet側ノード上限時間 | ノード単位の実行上限時間をFlowNet側にも持たせる(現状はkSQL-Flowのbatch_timeout_secとrun-subprocessのkill経路に依存)。「子プロセスを信用しない」原則の層を閉じる | 2026-08-31外部評価R2-7 |
 | P2-05 | `idempotent`の操作種別分類 | 冪等性判定の主軸を操作種別(キー指定UPSERT/bare INSERT/DELETE/外部副作用)の分類に置き、非決定要素検査を補助へ。kSQL-Flow側の解析能力が必要 | 2026-08-31外部評価R2-5。Phase 1は宣言+決定性補助検査(§4.2明確化済み) |
