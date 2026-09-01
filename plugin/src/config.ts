@@ -68,6 +68,24 @@ export function installConfigPage(
   cancel.addEventListener("click", () => globalThis.history.back());
 }
 
+/**
+ * kintone設定ページはconfig.htmlの中身を挿入する前にJSを実行することがあるため、
+ * DOM未構築(loading)ならDOMContentLoadedまで待つ(2026-09-01実機: 即時実行だと
+ * 要素不足エラーになった)。
+ */
+export function bootstrapConfigPage(
+  kintoneApi: ConfigKintone,
+  pageDocument: Document,
+): void {
+  const install = () =>
+    installConfigPage(kintoneApi, kintoneApi.$PLUGIN_ID, pageDocument);
+  if (pageDocument.readyState === "loading") {
+    pageDocument.addEventListener("DOMContentLoaded", install, { once: true });
+    return;
+  }
+  install();
+}
+
 declare const kintone: ConfigKintone | undefined;
 declare const document: Document | undefined;
 if (
@@ -75,5 +93,5 @@ if (
   typeof document !== "undefined" &&
   typeof kintone.$PLUGIN_ID === "string"
 ) {
-  installConfigPage(kintone, kintone.$PLUGIN_ID, document);
+  bootstrapConfigPage(kintone, document);
 }

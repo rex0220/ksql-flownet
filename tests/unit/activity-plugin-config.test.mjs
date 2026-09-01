@@ -90,3 +90,31 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
   }
 });
+
+test("bootstrapはdocument構築中ならDOMContentLoadedまで設置を遅延する(2026-09-01実機回帰)", async () => {
+  const { bootstrapConfigPage } = await import("../../dist/plugin/config.js");
+  const listeners = [];
+  let queried = 0;
+  const pageDocument = {
+    readyState: "loading",
+    addEventListener: (name, handler, options) => {
+      listeners.push({ name, handler, options });
+    },
+    querySelector: () => {
+      queried += 1;
+      return null;
+    },
+  };
+  const kintoneApi = {
+    $PLUGIN_ID: "p",
+    plugin: { app: { getConfig: () => ({}), setConfig: () => {} } },
+  };
+  bootstrapConfigPage(kintoneApi, pageDocument);
+  assert.equal(queried, 0, "loading中はDOMへ触らない");
+  assert.equal(listeners.length, 1);
+  assert.equal(listeners[0].name, "DOMContentLoaded");
+  assert.deepEqual(listeners[0].options, { once: true });
+  // DOM構築後に発火 → 要素不足なら明示エラー(設置自体は試行される)
+  assert.throws(() => listeners[0].handler(), /要素が不足/u);
+  assert.ok(queried > 0, "DOMContentLoaded後に設置を試行する");
+});
