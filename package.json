@@ -18,16 +18,21 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:plugin": "node plugin/scripts/build.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
+    "pack:plugin": "npm run build:plugin && kintone-plugin-packer --out plugin/zip/ksql-flownet-activity.zip plugin",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pretest": "npm run build",
-    "test": "node --test tests/unit/*.test.mjs"
+    "pretest": "npm run build && npm run build:plugin",
+    "test": "node --test tests/unit/*.test.mjs",
+    "test:plugin": "npm run build:plugin && node --test tests/unit/activity-plugin-*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
+    "@kintone/plugin-packer": "^9.1.2",
     "@types/node": "^24.0.0",
+    "esbuild": "^0.28.2",
     "eslint": "^10.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",

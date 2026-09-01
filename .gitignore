@@ -7,3 +7,6 @@ node_modules/
 tests/integration/results/
 tests/e2e/results/
 .ksql/
+plugin/dist/
+plugin/zip/
+*.ppk
