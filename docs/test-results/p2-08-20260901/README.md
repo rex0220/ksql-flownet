@@ -31,3 +31,8 @@
 
 - **kintone `like`演算子は文字列1行フィールドで完全一致相当**(前方一致しない — 実測: `like "KSQL_FLOW_TEST_p208m3"`は`..._p208m3c`に不一致)。共通cleanup(`cleanupM5Records`)のprefix意図が効かず、**接尾辞付きbusiness_keyのRunが歴代E2Eで清掃を逃れていた**(今回ボードに出た残置Runの正体)。実キー列挙方式で38 Run(state105+audit128レコード)を清掃済み。cleanupの恒久修正はM4で実施
 - ユーザー要望による改善: ボードへレコード番号列(詳細画面への相対リンク)を追加(v4)
+
+## 本番適用記録(2026-09-01、ユーザー実施)
+
+- 本番実行管理アプリへプラグインv4を追加・設定(監査履歴アプリ指定)、`add-run-board-view.console.js`で「00_Run状況」(CUSTOM・index0)を追加(既存一覧はindex1〜7へ正しくシフト — API検証済み)、ボード表示確認(未終端Runなしの空状態)
+- 本適用をもってP2-08は完了。**npm公開ゲート(implementation-plan P2-08行)は解除** — 公開の実施自体は別途ユーザー判断
