@@ -9,6 +9,14 @@
   background: #fff;
 }
 
+.ksql-flownet-section + .ksql-flownet-section {
+  margin-top: 28px;
+}
+
+.ksql-flownet-section h3 {
+  margin: 0 0 10px;
+}
+
 .ksql-flownet-table {
   width: 100%;
   border-collapse: collapse;
@@ -69,6 +77,101 @@
   gap: 12px;
   align-items: center;
   margin-top: 12px;
+}
+
+.ksql-flownet-detail,
+.ksql-flownet-action-cell {
+  flex-wrap: wrap;
+}
+
+.ksql-flownet-action-cell {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ksql-flownet-action,
+.ksql-flownet-copy,
+.ksql-flownet-dialog-close {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.ksql-flownet-action:focus-visible,
+.ksql-flownet-copy:focus-visible,
+.ksql-flownet-dialog-close:focus-visible,
+.ksql-flownet-dialog input:focus-visible,
+.ksql-flownet-dialog textarea:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.ksql-flownet-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.ksql-flownet-pending {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.ksql-flownet-disabled {
+  color: #6b7280;
+}
+
+.ksql-flownet-warning {
+  padding: 8px 12px;
+  color: #713f12;
+  background: #fef3c7;
+}
+
+.ksql-flownet-success {
+  color: #14532d;
+  font-weight: 700;
+}
+
+.ksql-flownet-dialog-overlay {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 45%);
+}
+
+.ksql-flownet-dialog {
+  width: min(640px, 100%);
+  max-height: 90vh;
+  padding: 20px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 30%);
+}
+
+.ksql-flownet-dialog-form,
+.ksql-flownet-dialog-content,
+.ksql-flownet-dialog label {
+  display: grid;
+  gap: 10px;
+}
+
+.ksql-flownet-dialog textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.ksql-flownet-dialog input,
+.ksql-flownet-dialog textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px;
+}
+
+.ksql-flownet-dialog-close {
+  margin-top: 16px;
 }
 
 .ksql-flownet-reload {

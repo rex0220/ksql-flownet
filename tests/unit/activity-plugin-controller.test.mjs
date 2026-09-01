@@ -22,6 +22,9 @@ const runRecord = (id, overrides = {}) => ({
   business_key: field(`business_${id}`),
   status: field("RUNNING"),
   started_at: field("2026-08-31T23:00:00.000Z"),
+  lifecycle_status: field("ACTIVE"),
+  resume_allowed: field("true"),
+  updated_at: field("2026-09-01T00:00:00.000Z"),
   ...overrides,
 });
 const lockRecord = () => ({
@@ -93,7 +96,7 @@ test("index/detail guards reject other views and record types", () => {
   assert.equal(apiCalls, 0);
 });
 
-test("terminal detail performs no GET and displays terminal state", async () => {
+test("terminal detail performs no GET when request app is unset and uses shared action model", async () => {
   let calls = 0;
   const model = await loadDetail(
     {
@@ -107,7 +110,9 @@ test("terminal detail performs no GET and displays terminal state", async () => 
     },
     runRecord(1, { status: field("SUCCESS") }),
   );
-  assert.deepEqual(model, { state: "terminal" });
+  assert.equal(model.state, "ready");
+  assert.equal(model.terminal, true);
+  assert.equal(model.row.action.kind, "none");
   assert.equal(calls, 0);
 });
 
@@ -115,6 +120,11 @@ test("board uses the minimum four records GET requests with scoped apps, fields,
   const requests = [];
   const fetchRecords = async (request) => {
     requests.push(request);
+    if (
+      request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+    ) {
+      return { records: [], totalCount: "0" };
+    }
     if (request.query.includes('record_type in ("NETWORK_RUN")')) {
       return { records: [runRecord(1)] };
     }
@@ -137,17 +147,26 @@ test("board uses the minimum four records GET requests with scoped apps, fields,
   });
   assert.equal(model.state, "ready");
   assert.equal(model.rows[0]?.activity, "LIVE");
-  assert.equal(requests.length, 4);
+  assert.equal(requests.length, 5);
   assert.deepEqual(
-    requests.map(({ app }) => app),
-    [100, 100, 100, "200"],
+    requests.map(({ app }) => app).sort(),
+    [100, 100, 100, 100, "200"].sort(),
   );
   assert.match(requests[0].query, /status not in/u);
-  assert.match(requests[1].query, /status in \("RUNNING"\)/u);
-  assert.match(requests[2].query, /run_id in \("run_1"\)/u);
-  assert.match(requests[3].query, /invocation_id in \("invoke_1"\)/u);
-  assert.ok(requests.every(({ query }) => query.includes("limit 500")));
-  assert.deepEqual(requests[3].fields, [
+  assert.ok(
+    requests.some(({ query }) => /status in \("RUNNING"\)/u.test(query)),
+  );
+  assert.ok(requests.some(({ query }) => /run_id in \("run_1"\)/u.test(query)));
+  const invocationRequest = requests.find(({ query }) =>
+    /invocation_id in \("invoke_1"\)/u.test(query),
+  );
+  assert.ok(invocationRequest);
+  assert.ok(
+    requests
+      .filter(({ totalCount }) => totalCount !== true)
+      .every(({ query }) => query.includes("limit 500")),
+  );
+  assert.deepEqual(invocationRequest.fields, [
     "$id",
     "record_type",
     "invocation_id",
@@ -186,12 +205,17 @@ test("configuration and supporting-read failures expose no partial activity badg
   });
   assert.equal(invalid.state, "error");
   assert.equal(invalid.rows.length, 0);
-  assert.equal(invalidConfigCalls, 0);
+  assert.equal(invalidConfigCalls, 1, "独立した要対応セクションだけはGETする");
 
   let calls = 0;
   const failed = await loadBoard({
     fetchRecords: async (request) => {
       calls += 1;
+      if (
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        return { records: [], totalCount: "0" };
+      }
       if (request.query.includes('record_type in ("NETWORK_RUN")')) {
         return { records: [runRecord(1)] };
       }
@@ -206,10 +230,11 @@ test("configuration and supporting-read failures expose no partial activity badg
     stateAppId: 100,
     auditAppId: "200",
   });
-  assert.equal(calls, 4);
+  assert.equal(calls, 5);
   assert.equal(failed.state, "error");
   assert.equal(failed.rows.length, 0);
-  assert.equal(failed.judgedAt, null);
+  assert.equal(failed.activeSection.state, "error");
+  assert.ok(Number.isFinite(failed.judgedAt));
 });
 
 test("a malformed Cancel suppresses only its row badge", async () => {
@@ -341,4 +366,142 @@ test("$PLUGIN_IDは読込時に捕捉し、イベント時にapiから再読取�
   for (const passed of getConfigArguments) {
     assert.equal(passed, "valid-at-load-2");
   }
+});
+
+const terminalRecord = (id, status = "FAILED") =>
+  runRecord(id, {
+    status: field(status),
+    started_at: field(""),
+  });
+
+test("active and attention sections fail independently in both directions", async () => {
+  const activeFailed = await loadBoard({
+    fetchRecords: async (request) => {
+      if (
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        return { records: [terminalRecord(9)], totalCount: "1" };
+      }
+      throw new Error("active failed");
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    nowMs: () => NOW,
+  });
+  assert.equal(activeFailed.activeSection.state, "error");
+  assert.equal(activeFailed.attentionSection.state, "ready");
+  assert.equal(activeFailed.attentionSection.rows[0].runId, "run_9");
+
+  const attentionFailed = await loadBoard({
+    fetchRecords: async (request) => {
+      if (
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        throw new Error("attention failed");
+      }
+      if (request.query.includes('record_type in ("NETWORK_RUN")')) {
+        return { records: [] };
+      }
+      throw new Error("unexpected supporting read");
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    nowMs: () => NOW,
+  });
+  assert.equal(attentionFailed.activeSection.state, "ready");
+  assert.equal(attentionFailed.attentionSection.state, "error");
+});
+
+test("pending aggregate failure discards badges but preserves both sections and actions", async () => {
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      if (request.app === "300") throw new Error("pending denied");
+      if (
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        return { records: [terminalRecord(9)], totalCount: "5" };
+      }
+      if (request.query.includes('record_type in ("NETWORK_RUN")')) {
+        return { records: [] };
+      }
+      throw new Error("unexpected request");
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "300",
+    nowMs: () => NOW,
+  });
+  assert.equal(model.activeSection.state, "ready");
+  assert.equal(model.attentionSection.state, "ready");
+  assert.equal(model.attentionSection.rows[0].action.kind, "action");
+  assert.equal(model.attentionRemainingCount, 4);
+  assert.match(model.pendingWarning, /重複確認ができません/u);
+});
+
+test("terminal detail routes SUCCESS/FAILED/CANCELLED/UNKNOWN through the shared action table", async () => {
+  const expected = {
+    SUCCESS: "none",
+    FAILED: "action",
+    CANCELLED: "action",
+    UNKNOWN: "unknown",
+  };
+  for (const [status, kind] of Object.entries(expected)) {
+    const model = await loadDetail(
+      {
+        fetchRecords: async () => {
+          throw new Error("request app is unset, so no GET is allowed");
+        },
+        stateAppId: 100,
+        auditAppId: "200",
+        nowMs: () => NOW,
+      },
+      terminalRecord(1, status),
+    );
+    assert.equal(model.state, "ready", status);
+    assert.equal(model.row.action.kind, kind, status);
+    assert.equal(
+      model.allowRerunFromNode,
+      status === "FAILED" || status === "CANCELLED",
+      status,
+    );
+  }
+});
+
+test("STOPPED with missing requester details is fail-closed for RELEASE only", async () => {
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      if (
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        return { records: [], totalCount: "0" };
+      }
+      if (request.query.includes('record_type in ("NETWORK_RUN")')) {
+        return { records: [runRecord(1)] };
+      }
+      if (request.query.includes('record_type in ("NETWORK_LOCK")')) {
+        return { records: [] };
+      }
+      if (request.query.includes('record_type in ("CANCEL_REQUEST")')) {
+        return {
+          records: [
+            {
+              $id: field("41"),
+              record_type: field("CANCEL_REQUEST"),
+              record_key: field("CANCEL:run_1"),
+              run_id: field("run_1"),
+              status_reason: field('{"state":"ACCEPTED"}'),
+            },
+          ],
+        };
+      }
+      throw new Error("unexpected request");
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    nowMs: () => NOW,
+  });
+  const row = model.activeSection.rows[0];
+  assert.equal(row.activity, "STOPPED");
+  assert.equal(row.action.kind, "invalid");
+  assert.match(row.actionError, /解除要求を起票できません/u);
 });

@@ -120,11 +120,10 @@ test("runtime adapters allow only records GET and single-record POST", async () 
     assert.equal(guest, true);
     return path;
   };
-  await createKintoneFetchRecords({ api })({
-    app: 100,
-    query: "limit 1",
-    fields: ["$id"],
-  });
+  const fetchRecords = createKintoneFetchRecords({ api });
+  for (const app of [100, 200, 300]) {
+    await fetchRecords({ app, query: "limit 1", fields: ["$id"] });
+  }
   await createKintonePostRecord({ api })({
     app: 300,
     record: {
@@ -133,13 +132,34 @@ test("runtime adapters allow only records GET and single-record POST", async () 
       reason: { value: "reason" },
     },
   });
-  assert.deepEqual(
-    calls.map(({ url, method, body }) => [url, method, body.app]),
-    [
-      ["/k/v1/records.json", "GET", 100],
-      ["/k/v1/record.json", "POST", 300],
-    ],
-  );
+  const roles = new Map([
+    [100, "state"],
+    [200, "audit"],
+    [300, "request"],
+  ]);
+  const allowed = new Set([
+    "state|/k/v1/records.json|GET",
+    "audit|/k/v1/records.json|GET",
+    "request|/k/v1/records.json|GET",
+    "request|/k/v1/record.json|POST",
+  ]);
+  assert.equal(calls.length, 4);
+  for (const { url, method, body } of calls) {
+    const role = roles.get(body.app);
+    assert.ok(role, `unknown app role: ${body.app}`);
+    assert.ok(
+      allowed.has(`${role}|${url}|${method}`),
+      `${role}|${url}|${method}`,
+    );
+    if (method === "POST") {
+      assert.equal(role, "request");
+      assert.deepEqual(Object.keys(body.record), [
+        "request_type",
+        "run_id",
+        "reason",
+      ]);
+    }
+  }
 });
 
 test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
@@ -155,4 +175,12 @@ test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
   ]) {
     assert.doesNotMatch(desktop, pattern, label);
   }
+  const endpoints = [...desktop.matchAll(/\/k\/v1\/[A-Za-z/]+\.json/gu)].map(
+    (match) => match[0],
+  );
+  assert.ok(endpoints.length >= 2, "allowed endpoints are present");
+  assert.deepEqual([...new Set(endpoints)].sort(), [
+    "/k/v1/record.json",
+    "/k/v1/records.json",
+  ]);
 });

@@ -1,23 +1,38 @@
 import {
   assembleActivityInputs,
+  parseCancelActionDetails,
   parseCancelRecord,
   parseInvocationRecord,
   parseLockRecord,
+  parseRunActionAttributes,
   parseRunRecord,
   type ActivityRun,
+  type CancelActionDetails,
+  type RunActionAttributes,
 } from "./activity-input.js";
+import {
+  decideBoardAction,
+  type PendingActionSummary,
+} from "./board-action.js";
 import { deriveRunActivity } from "./activity-entry.js";
-import { validateAuditAppId } from "./config-validation.js";
+import {
+  validateAuditAppId,
+  validateRequestAppId,
+} from "./config-validation.js";
 import {
   readAllByChunks,
   readAllByKeyset,
   type FetchRecords,
 } from "./kintone-reader.js";
 import { requiredText, type KintoneRecord } from "./kintone-record.js";
+import { loadPendingRequests } from "./request-client.js";
+import { loadTerminalRuns } from "./terminal-run-loader.js";
 import {
   ACTION_TEXT,
   type ActivityRowViewModel,
+  type BoardSectionViewModel,
   type BoardViewModel,
+  type TerminalRowViewModel,
 } from "./render.js";
 
 const RUN_FIELDS = [
@@ -27,6 +42,9 @@ const RUN_FIELDS = [
   "business_key",
   "status",
   "started_at",
+  "lifecycle_status",
+  "resume_allowed",
+  "updated_at",
 ] as const;
 const LOCK_FIELDS = [
   "$id",
@@ -55,26 +73,37 @@ const INVOCATION_FIELDS = [
 export interface LoadedRun extends ActivityRun {
   readonly businessKey: string;
   readonly recordId: string;
+  readonly actionAttributes: RunActionAttributes | null;
 }
 
 export interface ActivityLoadDependencies {
   readonly fetchRecords: FetchRecords;
   readonly stateAppId: number | string;
   readonly auditAppId: string;
+  readonly requestAppId?: string;
   readonly nowMs?: () => number;
 }
 
 interface CancelResult {
   readonly states: ReadonlyMap<string, "REQUESTED" | "ACCEPTED" | "RELEASED">;
   readonly evidence: ReadonlyMap<string, string>;
+  readonly details: ReadonlyMap<string, CancelActionDetails>;
+  readonly detailErrors: ReadonlyMap<string, string>;
   readonly errors: ReadonlyMap<string, string>;
 }
 
 function parseLoadedRun(record: KintoneRecord): LoadedRun {
+  let actionAttributes: RunActionAttributes | null = null;
+  try {
+    actionAttributes = parseRunActionAttributes(record);
+  } catch {
+    // activityは従来どおり導出し、操作だけをfail-closedにする。
+  }
   return {
     ...parseRunRecord(record),
     businessKey: requiredText(record, "business_key"),
     recordId: requiredText(record, "$id"),
+    actionAttributes,
   };
 }
 
@@ -84,6 +113,8 @@ function parseCancels(
 ): CancelResult {
   const states = new Map<string, "REQUESTED" | "ACCEPTED" | "RELEASED">();
   const evidence = new Map<string, string>();
+  const details = new Map<string, CancelActionDetails>();
+  const detailErrors = new Map<string, string>();
   const errors = new Map<string, string>();
   for (const record of records) {
     const runId = requiredText(record, "run_id");
@@ -95,6 +126,8 @@ function parseCancels(
     if (states.has(runId) || errors.has(runId)) {
       states.delete(runId);
       evidence.delete(runId);
+      details.delete(runId);
+      detailErrors.delete(runId);
       errors.set(
         runId,
         "CANCEL_REQUESTが重複しています。CLI statusで確認してください。",
@@ -105,6 +138,14 @@ function parseCancels(
       const state = parseCancelRecord(record, runId);
       states.set(runId, state);
       evidence.set(runId, `Cancel #${requiredText(record, "$id")} / ${state}`);
+      try {
+        details.set(runId, parseCancelActionDetails(record, runId));
+      } catch {
+        detailErrors.set(
+          runId,
+          "停止要求者または停止理由を確認できないため、解除要求を起票できません。",
+        );
+      }
     } catch {
       errors.set(
         runId,
@@ -112,7 +153,17 @@ function parseCancels(
       );
     }
   }
-  return { states, evidence, errors };
+  return { states, evidence, details, detailErrors, errors };
+}
+
+function actionAttributes(run: LoadedRun): RunActionAttributes {
+  return (
+    run.actionAttributes ?? {
+      lifecycleStatus: "ACTIVE",
+      resumeAllowed: false,
+      updatedAt: run.startedAt ?? "",
+    }
+  );
 }
 
 async function readSupportingRecords(
@@ -203,37 +254,61 @@ async function readSupportingRecords(
     } else if (activity === "STOPPED") {
       evidence = cancel.evidence.get(run.runId) ?? "Cancel要求あり";
     }
+    const attributes = actionAttributes(run);
+    const releaseInfoError =
+      activity === "STOPPED"
+        ? (cancel.detailErrors.get(run.runId) ?? null)
+        : null;
+    const judgementError =
+      rowError !== null ||
+      run.actionAttributes === null ||
+      releaseInfoError !== null;
     return {
       runId: run.runId,
       recordId: run.recordId,
-      // レコード詳細への遷移用(同一kintone内の相対URL。レコード値は含めない)
       recordUrl: `/k/${dependencies.stateAppId}/show#record=${run.recordId}`,
       businessKey: run.businessKey,
       status: run.status,
       startedAt: run.startedAt,
+      updatedAt: attributes.updatedAt,
       activity,
       evidence,
       actionText: activity === null ? "" : ACTION_TEXT[activity],
       judgedAt: nowMs,
       error: rowError,
+      actionError: releaseInfoError,
+      resumeAllowed: attributes.resumeAllowed,
+      lifecycleStatus: attributes.lifecycleStatus,
+      cancelDetails: cancel.details.get(run.runId) ?? null,
+      action: decideBoardAction({
+        status: run.status,
+        activity,
+        resumeAllowed: attributes.resumeAllowed,
+        lifecycleStatus: attributes.lifecycleStatus,
+        judgementError,
+      }),
     };
   });
 }
 
-function errorModel(message: string): BoardViewModel {
-  return { state: "error", rows: [], judgedAt: null, error: message };
+function readySection<T>(rows: readonly T[]): BoardSectionViewModel<T> {
+  return { state: "ready", rows, error: null };
 }
 
-export async function loadBoard(
+function failedSection<T>(message: string): BoardSectionViewModel<T> {
+  return { state: "error", rows: [], error: message };
+}
+
+async function loadActiveSection(
   dependencies: ActivityLoadDependencies,
-): Promise<BoardViewModel> {
+  nowMs: number,
+): Promise<BoardSectionViewModel<ActivityRowViewModel>> {
   const config = validateAuditAppId(dependencies.auditAppId);
   if (!config.valid || config.value === null) {
-    return errorModel(
+    return failedSection(
       `${config.message ?? "設定が不正です。"} プラグイン設定を確認してください。`,
     );
   }
-  const nowMs = (dependencies.nowMs ?? Date.now)();
   try {
     const runs = (
       await readAllByKeyset(dependencies.fetchRecords, {
@@ -243,21 +318,130 @@ export async function loadBoard(
         fields: RUN_FIELDS,
       })
     ).map(parseLoadedRun);
-    if (runs.length === 0) {
-      return { state: "ready", rows: [], judgedAt: nowMs, error: null };
-    }
-    const rows = await readSupportingRecords(
-      { ...dependencies, auditAppId: config.value },
-      runs,
-      nowMs,
-      true,
+    if (runs.length === 0) return readySection([]);
+    return readySection(
+      await readSupportingRecords(
+        { ...dependencies, auditAppId: config.value },
+        runs,
+        nowMs,
+        true,
+      ),
     );
-    return { state: "ready", rows, judgedAt: nowMs, error: null };
   } catch {
-    return errorModel(
+    return failedSection(
       "Run状況を安全に判定できません。閲覧権限・アプリ設定を確認し、CLI statusを正として確認してください。",
     );
   }
+}
+
+async function loadAttentionSection(
+  dependencies: ActivityLoadDependencies,
+): Promise<{
+  section: BoardSectionViewModel<TerminalRowViewModel>;
+  remaining: number;
+}> {
+  try {
+    const loaded = await loadTerminalRuns(
+      dependencies.fetchRecords,
+      dependencies.stateAppId,
+    );
+    return {
+      section: readySection(
+        loaded.runs.map((run) => ({
+          ...run,
+          recordUrl: `/k/${dependencies.stateAppId}/show#record=${run.recordId}`,
+          activity: null,
+          actionError: null,
+          cancelDetails: null,
+          action: decideBoardAction({
+            status: run.status,
+            activity: null,
+            resumeAllowed: run.resumeAllowed,
+            lifecycleStatus: run.lifecycleStatus,
+          }),
+        })),
+      ),
+      remaining: loaded.remainingCount,
+    };
+  } catch {
+    return {
+      section: failedSection(
+        "要対応(終端)を読み込めません。閲覧権限を確認してください。",
+      ),
+      remaining: 0,
+    };
+  }
+}
+
+function applyPending<T extends ActivityRowViewModel | TerminalRowViewModel>(
+  rows: readonly T[],
+  pending: ReadonlyMap<string, PendingActionSummary>,
+): readonly T[] {
+  return rows.map((row) => ({
+    ...row,
+    action: decideBoardAction({
+      status: row.status,
+      activity: row.activity,
+      resumeAllowed: row.resumeAllowed,
+      lifecycleStatus: row.lifecycleStatus,
+      pending: pending.get(row.runId) ?? null,
+      judgementError: row.action.kind === "invalid",
+    }),
+  }));
+}
+
+export async function loadBoard(
+  dependencies: ActivityLoadDependencies,
+): Promise<BoardViewModel> {
+  const nowMs = (dependencies.nowMs ?? Date.now)();
+  const [activeSection, attention] = await Promise.all([
+    loadActiveSection(dependencies, nowMs),
+    loadAttentionSection(dependencies),
+  ]);
+  const requestConfig = validateRequestAppId(dependencies.requestAppId ?? "");
+  const requestEnabled =
+    requestConfig.valid &&
+    requestConfig.value !== null &&
+    requestConfig.value !== "";
+  let pendingWarning: string | null = null;
+  let active = activeSection;
+  let terminal = attention.section;
+  if (requestEnabled) {
+    const runIds = [
+      ...(active.state === "ready" ? active.rows.map((row) => row.runId) : []),
+      ...(terminal.state === "ready"
+        ? terminal.rows.map((row) => row.runId)
+        : []),
+    ];
+    const uniqueRunIds = [...new Set(runIds)];
+    if (uniqueRunIds.length > 0) {
+      const result = await loadPendingRequests(
+        dependencies.fetchRecords,
+        requestConfig.value,
+        uniqueRunIds,
+      );
+      if (result.state === "unavailable") pendingWarning = result.warning;
+      if (active.state === "ready") {
+        active = readySection(applyPending(active.rows, result.byRunId));
+      }
+      if (terminal.state === "ready") {
+        terminal = readySection(applyPending(terminal.rows, result.byRunId));
+      }
+    }
+  }
+  return {
+    activeSection: active,
+    attentionSection: terminal,
+    attentionRemainingCount: attention.remaining,
+    pendingWarning,
+    requestEnabled,
+    requestAppId: requestEnabled ? requestConfig.value : null,
+    judgedAt: nowMs,
+    // P2-08の外部単体利用との互換値。描画の正本はsection model。
+    state: active.state,
+    rows: active.rows,
+    error: active.error,
+  };
 }
 
 export async function loadRowsForRuns(

@@ -11,6 +11,10 @@ import type {
   RecordsResponse,
 } from "./kintone-reader.js";
 import type { KintoneRecord } from "./kintone-record.js";
+import {
+  openRequestDialog,
+  type RequestDialogTarget,
+} from "./request-dialog.js";
 import type {
   CreateRecordResponse,
   CreateRequestBody,
@@ -20,6 +24,7 @@ import {
   renderBoard,
   renderBoardLoading,
   renderDetail,
+  type ActionTarget,
   type DetailViewModel,
 } from "./render.js";
 
@@ -108,15 +113,27 @@ export function createKintonePostRecord(api: KintoneRecordPostApi): PostRecord {
     api.api(api.api.url("/k/v1/record.json", true), "POST", request);
 }
 
+interface RuntimeDependencies {
+  readonly load: ActivityLoadDependencies;
+  readonly postRecord: PostRecord;
+}
+
 function runtimeDependencies(
   api: RuntimeKintone,
   pluginId: string,
-): ActivityLoadDependencies | null {
+): RuntimeDependencies | null {
   const stateAppId = api.app.getId();
   if (stateAppId === null) return null;
-  const auditAppId = api.plugin.app.getConfig(pluginId).auditAppId ?? "";
-  const fetchRecords = createKintoneFetchRecords(api);
-  return { fetchRecords, stateAppId, auditAppId };
+  const config = api.plugin.app.getConfig(pluginId);
+  return {
+    load: {
+      fetchRecords: createKintoneFetchRecords(api),
+      stateAppId,
+      auditAppId: config.auditAppId ?? "",
+      requestAppId: config.requestAppId ?? "",
+    },
+    postRecord: createKintonePostRecord(api),
+  };
 }
 
 function configError(): DetailViewModel {
@@ -126,12 +143,45 @@ function configError(): DetailViewModel {
   };
 }
 
+function dialogTarget(target: ActionTarget): RequestDialogTarget {
+  return {
+    action: target.action,
+    runId: target.runId,
+    allowRerunFromNode: target.allowRerunFromNode,
+    interrupted: target.interrupted,
+    cancelDetails: target.cancelDetails,
+  };
+}
+
+function pendingDetail(
+  model: DetailViewModel,
+  requestId: string,
+): DetailViewModel {
+  if (model.state !== "ready") return model;
+  return {
+    ...model,
+    row: {
+      ...model.row,
+      action: {
+        kind: "pending",
+        pending: {
+          oldestId: requestId,
+          count: 1,
+          label: `要求処理待ち #${requestId}`,
+        },
+        secondaryNotice:
+          model.row.status === "UNKNOWN"
+            ? "二次対応者へ連絡してください。"
+            : null,
+        copyRunId: model.row.status === "UNKNOWN",
+      },
+    },
+  };
+}
+
 export function installDesktop(
   api: RuntimeKintone,
   pageDocument: Document,
-  // kintone.$PLUGIN_IDはプラグインJSの同期実行中しか有効でないため、
-  // 読み込み時に捕捉した値を受け取る(イベントハンドラ内でapi.$PLUGIN_IDを
-  // 読むとgetConfigがUsageエラーになる — 2026-09-01実機)
   pluginId: string = api.$PLUGIN_ID,
 ): void {
   let activeBoard: { root: HTMLElement; controller: BoardController } | null =
@@ -150,10 +200,28 @@ export function installDesktop(
       activeBoard = null;
     }
     if (activeBoard === null) {
-      const controller = new BoardController(() => loadBoard(dependencies), {
-        loading: () => renderBoardLoading(root),
-        render: (model, reload) => renderBoard(root, model, reload),
-      });
+      const controller = new BoardController(
+        () => loadBoard(dependencies.load),
+        {
+          loading: () => renderBoardLoading(root),
+          render: (model, reload) =>
+            renderBoard(root, model, {
+              onReload: reload,
+              onAction: (target) => {
+                if (model.requestAppId === null) return;
+                openRequestDialog({
+                  pageDocument,
+                  host: pageDocument.body,
+                  target: dialogTarget(target),
+                  fetchRecords: dependencies.load.fetchRecords,
+                  postRecord: dependencies.postRecord,
+                  requestAppId: model.requestAppId,
+                  onCreated: () => reload(),
+                });
+              },
+            }),
+        },
+      );
       activeBoard = { root, controller };
     }
     activeBoard.controller.reload();
@@ -175,14 +243,38 @@ export function installDesktop(
     const dependencies = runtimeDependencies(api, pluginId);
     if (
       dependencies === null ||
-      !validateAuditAppId(dependencies.auditAppId).valid
+      !validateAuditAppId(dependencies.load.auditAppId).valid
     ) {
       renderDetail(root, configError());
       return event;
     }
     const record = event.record;
-    void loadDetail(dependencies, record).then((model) => {
-      if (generation === detailGeneration) renderDetail(root, model);
+    void loadDetail(dependencies.load, record).then((loadedModel) => {
+      if (generation !== detailGeneration) return;
+      let currentModel = loadedModel;
+      const render = (): void =>
+        renderDetail(root, currentModel, {
+          onAction: (target) => {
+            if (
+              currentModel.state !== "ready" ||
+              currentModel.requestAppId === null
+            )
+              return;
+            openRequestDialog({
+              pageDocument,
+              host: pageDocument.body,
+              target: dialogTarget(target),
+              fetchRecords: dependencies.load.fetchRecords,
+              postRecord: dependencies.postRecord,
+              requestAppId: currentModel.requestAppId,
+              onCreated: (created) => {
+                currentModel = pendingDetail(currentModel, created.id);
+                render();
+              },
+            });
+          },
+        });
+      render();
     });
     return event;
   }) as (event: never) => unknown);
@@ -192,7 +284,6 @@ declare const kintone: RuntimeKintone | undefined;
 declare const document: Document | undefined;
 
 if (typeof kintone !== "undefined" && typeof document !== "undefined") {
-  // 版と$PLUGIN_ID捕捉可否の診断ログ(値そのものは出さない)
   console.info(
     `kSQL-FlowNet Run状況 plugin v4 loaded (plugin_id captured: ${typeof kintone.$PLUGIN_ID === "string" && kintone.$PLUGIN_ID !== ""})`,
   );
