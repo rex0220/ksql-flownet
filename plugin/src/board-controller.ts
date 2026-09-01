@@ -54,6 +54,7 @@ const INVOCATION_FIELDS = [
 
 export interface LoadedRun extends ActivityRun {
   readonly businessKey: string;
+  readonly recordId: string;
 }
 
 export interface ActivityLoadDependencies {
@@ -73,6 +74,7 @@ function parseLoadedRun(record: KintoneRecord): LoadedRun {
   return {
     ...parseRunRecord(record),
     businessKey: requiredText(record, "business_key"),
+    recordId: requiredText(record, "$id"),
   };
 }
 
@@ -203,6 +205,9 @@ async function readSupportingRecords(
     }
     return {
       runId: run.runId,
+      recordId: run.recordId,
+      // レコード詳細への遷移用(同一kintone内の相対URL。レコード値は含めない)
+      recordUrl: `/k/${dependencies.stateAppId}/show#record=${run.recordId}`,
       businessKey: run.businessKey,
       status: run.status,
       startedAt: run.startedAt,

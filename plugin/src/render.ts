@@ -2,6 +2,8 @@ import type { RunActivity } from "./activity-entry.js";
 
 export interface ActivityRowViewModel {
   readonly runId: string;
+  readonly recordId: string;
+  readonly recordUrl: string;
   readonly businessKey: string;
   readonly status: string;
   readonly startedAt: string | null;
@@ -119,6 +121,7 @@ export function renderBoard(
     const thead = element(pageDocument, "thead");
     const header = element(pageDocument, "tr");
     for (const label of [
+      "レコード",
       "Business Key",
       "Run ID",
       "Status",
@@ -132,7 +135,14 @@ export function renderBoard(
     const tbody = element(pageDocument, "tbody");
     for (const row of model.rows) {
       const tr = element(pageDocument, "tr");
+      // レコード番号は詳細画面への相対リンク(hrefは数値idのみで構成しレコード値を含めない)
+      const recordLink = pageDocument.createElement("a");
+      recordLink.textContent = row.recordId;
+      recordLink.setAttribute("href", row.recordUrl);
+      const recordCell = element(pageDocument, "td");
+      recordCell.append(recordLink);
       tr.append(
+        recordCell,
         element(pageDocument, "td", undefined, row.businessKey),
         element(pageDocument, "td", undefined, row.runId),
         element(pageDocument, "td", undefined, row.status),

@@ -16,6 +16,11 @@ class FakeElement {
     this.textContent = "";
     this.className = "";
     this.listeners = new Map();
+    this.attributes = new Map();
+  }
+
+  setAttribute(name, value) {
+    this.attributes.set(name, String(value));
   }
 
   set innerHTML(_value) {
@@ -60,6 +65,8 @@ function allText(root) {
 function row(activity, index) {
   return {
     runId: `run_${index}`,
+    recordId: `${100 + index}`,
+    recordUrl: `/k/1/show#record=${100 + index}`,
     businessKey: `business_${index}`,
     status: "RUNNING",
     startedAt: index === 2 ? null : "2026-09-01T00:00:00.000Z",
@@ -101,6 +108,12 @@ test("board view model renders four badges, fixed actions, evidence, and judged 
     allNodes(root).filter((node) => node.textContent === "再読込").length,
     1,
   );
+  // レコード番号列は詳細画面への相対リンク(2026-09-01ユーザー要望)
+  const links = allNodes(root).filter((node) => node.tagName === "a");
+  assert.equal(links.length, 4);
+  assert.equal(links[0].textContent, "100");
+  assert.equal(links[0].attributes.get("href"), "/k/1/show#record=100");
+  assert.match(allText(root), /レコード/u);
 });
 
 test("empty and fail-closed models render without an activity badge", () => {
