@@ -48,12 +48,12 @@
 }
 
 .ksql-flownet-config-content {
-  padding: 20px;
+  padding: 14px 20px 20px;
 }
 
 .ksql-flownet-config-info {
-  margin: 0 0 16px;
-  padding: 12px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
   border-left: 4px solid #9eabb1;
   border-radius: 3px;
   color: #59666d;
@@ -62,11 +62,11 @@
 
 .ksql-flownet-config-sections {
   display: grid;
-  gap: 14px;
+  gap: 8px;
 }
 
 .ksql-flownet-config-section {
-  padding: 16px;
+  padding: 10px 14px;
   border: 1px solid #dce2e5;
   border-radius: 4px;
   background: #fff;
@@ -159,11 +159,14 @@
 }
 
 .ksql-flownet-config-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   gap: 10px;
   justify-content: flex-end;
-  margin: 20px -20px -20px;
-  padding: 14px 20px;
+  margin: 12px -20px -20px;
+  padding: 10px 20px;
   border-top: 1px solid #dce2e5;
   background: #fafbfb;
 }
