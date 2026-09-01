@@ -1,11 +1,13 @@
 import {
   validateAuditAppId,
+  validateLogAppId,
   validateRequestAppId,
   type PluginConfig,
 } from "./config-validation.js";
 
 export {
   validateAuditAppId,
+  validateLogAppId,
   validateRequestAppId,
   type ConfigValidationResult,
   type PluginConfig,
@@ -32,6 +34,9 @@ export function installConfigPage(
   const requestInput = pageDocument.querySelector<HTMLInputElement>(
     "#ksql-flownet-request-app-id",
   );
+  const logInput = pageDocument.querySelector<HTMLInputElement>(
+    "#ksql-flownet-log-app-id",
+  );
   const form = pageDocument.querySelector<HTMLFormElement>(
     "#ksql-flownet-config-form",
   );
@@ -44,6 +49,7 @@ export function installConfigPage(
   if (
     input === null ||
     requestInput === null ||
+    logInput === null ||
     form === null ||
     error === null ||
     cancel === null
@@ -56,6 +62,7 @@ export function installConfigPage(
   const savedConfig = kintoneApi.plugin.app.getConfig(pluginId);
   input.value = savedConfig.auditAppId ?? "";
   requestInput.value = savedConfig.requestAppId ?? "";
+  logInput.value = savedConfig.logAppId ?? "";
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const result = validateAuditAppId(input.value);
@@ -68,9 +75,18 @@ export function installConfigPage(
       error.textContent = requestResult.message;
       return;
     }
+    const logResult = validateLogAppId(logInput.value);
+    if (!logResult.valid || logResult.value === null) {
+      error.textContent = logResult.message;
+      return;
+    }
     error.textContent = "";
     kintoneApi.plugin.app.setConfig(
-      { auditAppId: result.value, requestAppId: requestResult.value },
+      {
+        auditAppId: result.value,
+        requestAppId: requestResult.value,
+        logAppId: logResult.value,
+      },
       () => globalThis.history.back(),
     );
   });

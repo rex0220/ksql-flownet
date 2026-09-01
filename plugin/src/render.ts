@@ -447,8 +447,8 @@ function renderTerminalTable(
         pageDocument,
         "td",
         errorSummary.state === "unavailable"
-          ? "ksql-flownet-error-detail"
-          : undefined,
+          ? "ksql-flownet-error-detail ksql-flownet-cell-nowrap"
+          : "ksql-flownet-cell-nowrap",
         formatErrorSummaryLine(errorSummary),
       ),
       element(
@@ -466,6 +466,9 @@ function renderTerminalTable(
 }
 
 function errorSummaryItemText(item: ErrorSummaryItem): string {
+  if (typeof item.errorMessage === "string") {
+    return `${item.nodeId}: ${item.resultCode} — ${item.errorMessage}`;
+  }
   // status_reasonがresult_codeと同値なら重複表示しない(2026-09-01実機フィードバック)
   const reason =
     item.statusReason === null || item.statusReason === item.resultCode
@@ -509,9 +512,21 @@ function renderDetailErrorSummary(
   }
   const list = element(pageDocument, "ul");
   for (const item of summary.items.slice(0, 3)) {
-    list.append(
-      element(pageDocument, "li", undefined, errorSummaryItemText(item)),
-    );
+    const row = element(pageDocument, "li");
+    if (typeof item.errorMessage === "string") {
+      row.append(
+        element(
+          pageDocument,
+          "span",
+          undefined,
+          `${item.nodeId}: ${item.resultCode} — `,
+        ),
+        element(pageDocument, "span", undefined, item.errorMessage),
+      );
+    } else {
+      row.textContent = limitDisplayValue(errorSummaryItemText(item));
+    }
+    list.append(row);
   }
   box.append(list);
   return box;

@@ -90,6 +90,7 @@ export async function loadDetail(
                   dependencies.stateAppId,
                   dependencies.auditAppId,
                   [run.runId],
+                  dependencies.logAppId,
                 )
               ).get(run.runId) ?? { state: "unavailable" }),
         action: decideBoardAction({

@@ -121,7 +121,7 @@ test("runtime adapters allow only records GET and single-record POST", async () 
     return path;
   };
   const fetchRecords = createKintoneFetchRecords({ api });
-  for (const app of [100, 200, 300]) {
+  for (const app of [100, 200, 300, 400]) {
     await fetchRecords({ app, query: "limit 1", fields: ["$id"] });
   }
   await createKintonePostRecord({ api })({
@@ -136,14 +136,16 @@ test("runtime adapters allow only records GET and single-record POST", async () 
     [100, "state"],
     [200, "audit"],
     [300, "request"],
+    [400, "log"],
   ]);
   const allowed = new Set([
     "state|/k/v1/records.json|GET",
     "audit|/k/v1/records.json|GET",
     "request|/k/v1/records.json|GET",
+    "log|/k/v1/records.json|GET",
     "request|/k/v1/record.json|POST",
   ]);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   for (const { url, method, body } of calls) {
     const role = roles.get(body.app);
     assert.ok(role, `unknown app role: ${body.app}`);

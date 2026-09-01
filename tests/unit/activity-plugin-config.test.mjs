@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   installConfigPage,
   validateAuditAppId,
+  validateLogAppId,
   validateRequestAppId,
 } from "../../dist/plugin/config.js";
 
@@ -26,10 +27,18 @@ test("requestAppId accepts empty or a positive decimal string", () => {
     assert.equal(validateRequestAppId(invalid).valid, false, String(invalid));
 });
 
+test("logAppId accepts empty or a positive decimal string", () => {
+  for (const valid of [undefined, "", "1", "9007199254740993"])
+    assert.equal(validateLogAppId(valid).valid, true, String(valid));
+  for (const invalid of [null, "0", "-1", "1.5", " 12", "12 ", "abc"])
+    assert.equal(validateLogAppId(invalid).valid, false, String(invalid));
+});
+
 test("config page rejects invalid saves and preserves the valid decimal string", () => {
   const listeners = new Map();
   const input = { value: "" };
   const requestInput = { value: "" };
+  const logInput = { value: "" };
   const error = { textContent: "" };
   const form = {
     addEventListener: (name, listener) =>
@@ -42,6 +51,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
   const elements = new Map([
     ["#ksql-flownet-audit-app-id", input],
     ["#ksql-flownet-request-app-id", requestInput],
+    ["#ksql-flownet-log-app-id", logInput],
     ["#ksql-flownet-config-form", form],
     ["#ksql-flownet-config-error", error],
     ["#ksql-flownet-config-cancel", cancel],
@@ -55,7 +65,11 @@ test("config page rejects invalid saves and preserves the valid decimal string",
         $PLUGIN_ID: "plugin-id",
         plugin: {
           app: {
-            getConfig: () => ({ auditAppId: "41", requestAppId: "51" }),
+            getConfig: () => ({
+              auditAppId: "41",
+              requestAppId: "51",
+              logAppId: "61",
+            }),
             setConfig: (config, callback) => {
               saved.push(config);
               callback();
@@ -68,6 +82,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     );
     assert.equal(input.value, "41");
     assert.equal(requestInput.value, "51");
+    assert.equal(logInput.value, "61");
     input.value = " 42 ";
     listeners.get("form:submit")({ preventDefault: () => {} });
     assert.equal(saved.length, 0);
@@ -78,8 +93,15 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     assert.equal(saved.length, 0);
     assert.match(error.textContent, /空欄または正の10進整数/u);
     requestInput.value = "52";
+    logInput.value = " 62 ";
     listeners.get("form:submit")({ preventDefault: () => {} });
-    assert.deepEqual(saved, [{ auditAppId: "42", requestAppId: "52" }]);
+    assert.equal(saved.length, 0);
+    assert.match(error.textContent, /JOBログアプリID/u);
+    logInput.value = "62";
+    listeners.get("form:submit")({ preventDefault: () => {} });
+    assert.deepEqual(saved, [
+      { auditAppId: "42", requestAppId: "52", logAppId: "62" },
+    ]);
   } finally {
     globalThis.history = originalHistory;
   }
@@ -101,6 +123,7 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-config-form",
     "ksql-flownet-audit-app-id",
     "ksql-flownet-request-app-id",
+    "ksql-flownet-log-app-id",
     "ksql-flownet-config-error",
     "ksql-flownet-config-cancel",
   ]) {

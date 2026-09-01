@@ -82,6 +82,7 @@ export interface ActivityLoadDependencies {
   readonly stateAppId: number | string;
   readonly auditAppId: string;
   readonly requestAppId?: string;
+  readonly logAppId?: string;
   readonly nowMs?: () => number;
 }
 
@@ -352,6 +353,7 @@ async function loadAttentionSection(
       dependencies.stateAppId,
       dependencies.auditAppId,
       loaded.runs.map((run) => run.runId),
+      dependencies.logAppId,
     );
     return {
       section: readySection(

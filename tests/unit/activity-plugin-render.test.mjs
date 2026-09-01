@@ -213,6 +213,7 @@ test("terminal detail renders at most three error nodes as text without XSS", ()
   const document = new FakeDocument();
   const root = new FakeElement("div", document);
   const attack = '<img src=x onerror="pwned=true">';
+  const longAttack = `${attack}${"x".repeat(300)}`;
   renderDetail(root, {
     state: "ready",
     terminal: true,
@@ -239,6 +240,7 @@ test("terminal detail renders at most three error nodes as text without XSS", ()
           resultCode: "SQL_ERROR",
           statusReason: id === 1 ? attack : null,
           attemptRecordId: String(10 - id),
+          errorMessage: id === 1 ? longAttack : null,
         })),
       },
     },
@@ -248,6 +250,12 @@ test("terminal detail renders at most three error nodes as text without XSS", ()
     3,
   );
   assert.match(allText(root), /<img src=x/u);
+  assert.ok(
+    allNodes(root).some(
+      (node) => node.textContent === limitDisplayValue(longAttack),
+    ),
+    "error_messageはtextContentで最大表示長へ制限する",
+  );
   assert.equal(document.createdTags.includes("img"), false);
   assert.equal(document.createdTags.includes("script"), false);
 });

@@ -131,6 +131,7 @@ function runtimeDependencies(
       stateAppId,
       auditAppId: config.auditAppId ?? "",
       requestAppId: config.requestAppId ?? "",
+      logAppId: config.logAppId ?? "",
     },
     postRecord: createKintonePostRecord(api),
   };
