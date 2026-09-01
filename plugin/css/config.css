@@ -72,15 +72,27 @@
   background: #fff;
 }
 
+/* 入力は短め固定幅、右横に自動検出/プレビュー注釈(2026-09-01要望) */
+.ksql-flownet-config-section {
+  display: grid;
+  grid-template-columns: 16em 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: 14px;
+  align-items: center;
+}
+
 .ksql-flownet-config-section > label {
-  display: block;
-  margin-bottom: 8px;
+  grid-column: 1 / -1;
+  margin-bottom: 6px;
   color: #24353d;
   font-weight: 700;
 }
 
 .ksql-flownet-config-section > input {
   box-sizing: border-box;
+  grid-column: 1;
+  grid-row: 2 / span 2;
+  align-self: start;
   width: 100%;
   padding: 8px;
   border: 1px solid #c9d1d5;
@@ -92,10 +104,11 @@
 
 .ksql-flownet-config-status,
 .ksql-flownet-config-preview {
+  grid-column: 2;
   min-height: 1.25em;
-  margin: 5px 0 0;
+  margin: 0;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .ksql-flownet-config-status {
