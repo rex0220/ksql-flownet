@@ -84,10 +84,11 @@ export function createKintoneFetchRecords(
 
 function runtimeDependencies(
   api: RuntimeKintone,
+  pluginId: string,
 ): ActivityLoadDependencies | null {
   const stateAppId = api.app.getId();
   if (stateAppId === null) return null;
-  const auditAppId = api.plugin.app.getConfig(api.$PLUGIN_ID).auditAppId ?? "";
+  const auditAppId = api.plugin.app.getConfig(pluginId).auditAppId ?? "";
   const fetchRecords = createKintoneFetchRecords(api);
   return { fetchRecords, stateAppId, auditAppId };
 }
@@ -102,6 +103,10 @@ function configError(): DetailViewModel {
 export function installDesktop(
   api: RuntimeKintone,
   pageDocument: Document,
+  // kintone.$PLUGIN_IDはプラグインJSの同期実行中しか有効でないため、
+  // 読み込み時に捕捉した値を受け取る(イベントハンドラ内でapi.$PLUGIN_IDを
+  // 読むとgetConfigがUsageエラーになる — 2026-09-01実機)
+  pluginId: string = api.$PLUGIN_ID,
 ): void {
   let activeBoard: { root: HTMLElement; controller: BoardController } | null =
     null;
@@ -111,7 +116,7 @@ export function installDesktop(
     if (!isRunBoardEvent(event)) return event;
     const root = pageDocument.getElementById("ksql-flownet-run-board");
     if (root === null) return event;
-    const dependencies = runtimeDependencies(api);
+    const dependencies = runtimeDependencies(api, pluginId);
     if (dependencies === null) return event;
 
     if (activeBoard !== null && activeBoard.root !== root) {
@@ -141,7 +146,7 @@ export function installDesktop(
       header.append(root);
     }
 
-    const dependencies = runtimeDependencies(api);
+    const dependencies = runtimeDependencies(api, pluginId);
     if (
       dependencies === null ||
       !validateAuditAppId(dependencies.auditAppId).valid

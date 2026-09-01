@@ -270,3 +270,75 @@ test("reload generations ignore slow old responses and keep one active render", 
   assert.equal(loading, 2);
   assert.deepEqual(rendered, [newModel]);
 });
+
+test("$PLUGIN_IDは読込時に捕捉し、イベント時にapiから再読取しない(2026-09-01実機回帰)", () => {
+  const handlers = new Map();
+  const getConfigArguments = [];
+  const apiFunction = async () => ({ records: [] });
+  apiFunction.url = (path) => path;
+  const api = {
+    $PLUGIN_ID: "valid-at-load",
+    events: { on: (name, handler) => handlers.set(name, handler) },
+    app: {
+      getId: () => 100,
+      record: { getHeaderMenuSpaceElement: () => null },
+    },
+    plugin: {
+      app: {
+        getConfig: (pluginId) => {
+          getConfigArguments.push(pluginId);
+          if (typeof pluginId !== "string" || pluginId === "") {
+            throw new Error("Usage: kintone.plugin.app.getConfig(pluginId)");
+          }
+          return { auditAppId: "" };
+        },
+      },
+    },
+    api: apiFunction,
+  };
+  const root = { id: "ksql-flownet-run-board" };
+  installDesktop(api, {
+    getElementById: (id) => (id === "ksql-flownet-run-board" ? null : null),
+    createElement: () => root,
+  });
+  // kintoneは同期実行後に$PLUGIN_IDを無効化する挙動を模す
+  api.$PLUGIN_ID = undefined;
+  handlers.get("app.record.detail.show")({
+    record: { record_type: { type: "DROP_DOWN", value: "NETWORK_RUN" } },
+  });
+  assert.deepEqual(getConfigArguments, []);
+  // headerがnullのため依存組立まで到達しないケースを除き、getConfigが呼ばれる場合は
+  // 捕捉済みIDが渡ることをindex経路でも確認する(rootなし=未到達なので呼数0のまま)
+  handlers.get("app.record.index.show")({
+    viewType: "custom",
+    viewName: "00_Run状況",
+  });
+  assert.deepEqual(getConfigArguments, []);
+  // 到達可能な経路で検証: rootありのdocumentで再installし、イベント発火
+  const handlers2 = new Map();
+  const api2 = { ...api, events: { on: (n, h) => handlers2.set(n, h) } };
+  api2.$PLUGIN_ID = "valid-at-load-2";
+  const boardRoot = {
+    replaceChildren: () => {},
+    appendChild: () => {},
+    ownerDocument: null,
+  };
+  installDesktop(api2, {
+    getElementById: (id) =>
+      id === "ksql-flownet-run-board" ? boardRoot : null,
+    createElement: () => ({ id: "" }),
+  });
+  api2.$PLUGIN_ID = undefined;
+  try {
+    handlers2.get("app.record.index.show")({
+      viewType: "custom",
+      viewName: "00_Run状況",
+    });
+  } catch {
+    // 描画スタブ不足による例外はここでは対象外(getConfig引数のみ検証)
+  }
+  assert.ok(getConfigArguments.length > 0, "index経路でgetConfigが呼ばれる");
+  for (const passed of getConfigArguments) {
+    assert.equal(passed, "valid-at-load-2");
+  }
+});
