@@ -110,7 +110,7 @@ test("desktopバンドルへ設定画面コードを混入させない(2026-09-0
   }
 });
 
-test("runtime adapters allow only records GET and single-record POST", async () => {
+test("runtime adapters allow only form fields GET, records GET, and single-record POST", async () => {
   const calls = [];
   const api = async (url, method, body) => {
     calls.push({ url, method, body });
@@ -182,6 +182,7 @@ test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
   );
   assert.ok(endpoints.length >= 2, "allowed endpoints are present");
   assert.deepEqual([...new Set(endpoints)].sort(), [
+    "/k/v1/app/form/fields.json",
     "/k/v1/record.json",
     "/k/v1/records.json",
   ]);

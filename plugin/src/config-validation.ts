@@ -27,6 +27,15 @@ export function validateAuditAppId(value: unknown): ConfigValidationResult {
   };
 }
 
+export function validateAuditAppIdOverride(
+  value: unknown,
+): ConfigValidationResult {
+  if (value === undefined || value === "") {
+    return { valid: true, value: "", message: null };
+  }
+  return validateAuditAppId(value);
+}
+
 export function validateRequestAppId(value: unknown): ConfigValidationResult {
   if (value === undefined || value === "") {
     return { valid: true, value: "", message: null };

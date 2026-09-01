@@ -3,6 +3,9 @@
      フラグメントのみ記述する(2026-09-01実機)。 -->
 <main class="ksql-flownet-config">
   <h1>kSQL-FlowNet Run状況 設定</h1>
+  <p>
+    通常は空欄で関連レコード一覧から自動検出します。上書きしたい場合のみ入力してください。
+  </p>
   <form id="ksql-flownet-config-form">
     <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
     <input
@@ -11,7 +14,6 @@
       type="text"
       inputmode="numeric"
       autocomplete="off"
-      required
     />
     <label for="ksql-flownet-request-app-id">操作要求アプリID(任意)</label>
     <input

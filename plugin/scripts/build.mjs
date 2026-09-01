@@ -141,6 +141,7 @@ for (const [label, pattern] of [
 }
 
 const allowedDesktopEndpoints = new Set([
+  "/k/v1/app/form/fields.json",
   "/k/v1/records.json",
   "/k/v1/record.json",
 ]);
@@ -180,6 +181,7 @@ await Promise.all([
     "detail-controller",
     "error-summary",
     "render",
+    "related-app-detection",
     "request-dialog",
     "request-client",
     "terminal-run-loader",

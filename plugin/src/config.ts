@@ -1,5 +1,5 @@
 import {
-  validateAuditAppId,
+  validateAuditAppIdOverride,
   validateLogAppId,
   validateRequestAppId,
   type PluginConfig,
@@ -7,6 +7,7 @@ import {
 
 export {
   validateAuditAppId,
+  validateAuditAppIdOverride,
   validateLogAppId,
   validateRequestAppId,
   type ConfigValidationResult,
@@ -65,7 +66,7 @@ export function installConfigPage(
   logInput.value = savedConfig.logAppId ?? "";
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const result = validateAuditAppId(input.value);
+    const result = validateAuditAppIdOverride(input.value);
     if (!result.valid || result.value === null) {
       error.textContent = result.message;
       return;

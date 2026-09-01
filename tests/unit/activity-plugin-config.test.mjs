@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   installConfigPage,
   validateAuditAppId,
+  validateAuditAppIdOverride,
   validateLogAppId,
   validateRequestAppId,
 } from "../../dist/plugin/config.js";
@@ -18,6 +19,17 @@ test("auditAppId accepts only a positive decimal string without normalization", 
       message: null,
     });
   }
+});
+
+test("auditAppId override accepts empty for automatic detection", () => {
+  for (const valid of [undefined, "", "1", "9007199254740993"])
+    assert.equal(validateAuditAppIdOverride(valid).valid, true, String(valid));
+  for (const invalid of [null, "0", "-1", " 12", "12 ", "abc"])
+    assert.equal(
+      validateAuditAppIdOverride(invalid).valid,
+      false,
+      String(invalid),
+    );
 });
 
 test("requestAppId accepts empty or a positive decimal string", () => {
@@ -99,8 +111,13 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     assert.match(error.textContent, /JOBログアプリID/u);
     logInput.value = "62";
     listeners.get("form:submit")({ preventDefault: () => {} });
+    input.value = "";
+    requestInput.value = "";
+    logInput.value = "";
+    listeners.get("form:submit")({ preventDefault: () => {} });
     assert.deepEqual(saved, [
       { auditAppId: "42", requestAppId: "52", logAppId: "62" },
+      { auditAppId: "", requestAppId: "", logAppId: "" },
     ]);
   } finally {
     globalThis.history = originalHistory;
@@ -126,6 +143,7 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-log-app-id",
     "ksql-flownet-config-error",
     "ksql-flownet-config-cancel",
+    "通常は空欄で関連レコード一覧から自動検出",
   ]) {
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
   }
