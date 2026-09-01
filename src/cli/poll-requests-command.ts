@@ -17,16 +17,23 @@ export async function runPollRequestsCommand(
   args: readonly string[],
   dependencies?: RequestPollerDependencies,
 ): Promise<number> {
-  if (args.length > 0) {
+  const checkOnly = args.length === 1 && args[0] === "--check";
+  if (args.length > 0 && !checkOnly) {
     process.stderr.write(
-      "Invalid poll-requests arguments: no arguments are accepted.\n",
+      "Invalid poll-requests arguments: only --check is accepted.\n",
     );
     return 1;
   }
   try {
-    const summary = await pollRequests(
-      dependencies ?? productionDependencies(),
-    );
+    const resolvedDependencies = dependencies ?? productionDependencies();
+    if (checkOnly) {
+      await resolvedDependencies.store.listRequested();
+      process.stdout.write(
+        `poll-requests check: ok networks=${resolvedDependencies.config.networks.length} request_app=readable\n`,
+      );
+      return 0;
+    }
+    const summary = await pollRequests(resolvedDependencies);
     process.stdout.write(
       `poll-requests: requested=${summary.requested} claimed=${summary.claimed} completed=${summary.completed} invalid=${summary.invalid} stale=${summary.stale} skipped=${summary.skippedMalformed}\n`,
     );

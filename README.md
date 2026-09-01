@@ -31,11 +31,34 @@ npm test
 ksql-flownet --help
 ksql-flownet --version
 ksql-flownet validate path/to/network.yaml
+ksql-flownet poll-requests --check
 ```
 
 `validate` checks the YAML schema, Phase 1 DAG rules, and referenced SQL files
-without changing external state. `plan` is reserved for FN-03 and currently
-fails explicitly as not implemented.
+without changing external state.
+
+`poll-requests` is a one-shot poller for the kintone operation-request app. It
+claims `REQUESTED` records and performs `RERUN`, `STOP`, or `RELEASE`; a
+scheduler such as cron starts it periodically. Configure it through the five
+`KSQL_FLOWNET_REQUEST_*` entries in [`.env.example`](./.env.example) and an
+absolute-path allowlist such as:
+
+```yaml
+networks:
+  - network_id: monthly_jobs
+    definition_path: C:/srv/my-ksql-jobs/networks/monthly.yaml
+```
+
+Before enabling a production schedule, run `poll-requests --check`. This is a
+read-only preflight: it validates every allowlisted network definition and its
+`network_id`, then confirms GET access to the request app. It does not claim or
+update requests and does not start `status`, `run-network`, or `cancel-run`
+children. A nonzero exit must block schedule activation.
+
+Each network node must also satisfy
+`KSQL_FLOWNET_PROFILE + ":" + nodes[].job_id` <= 64 UTF-16 code units. This is
+the measured kSQL-Flow job-lock-key limit. The current `validate` command does
+not detect an overrun; execution fails later with `VALIDATION_ERROR`.
 
 To run `run-network` against a source build of kSQL-Flow on Windows, set the
 executable and its leading CLI-script argument separately. Use the JSON array

@@ -118,6 +118,39 @@ test("不存在/不正definitionとnetwork_id不一致を拒否する", () => {
   );
 });
 
+test("preflightは参照SQLが不在のnetwork定義を拒否する", () => {
+  const directory = mkdtempSync(join(tmpdir(), "flownet-request-network-"));
+  const networkPath = join(directory, "network.yaml");
+  writeFileSync(
+    networkPath,
+    `schema_version: 1
+network_id: missing_sql
+business_key_policy:
+  type: explicit
+network_lock:
+  lease_duration_sec: 3
+  heartbeat_interval_sec: 1
+nodes:
+  - id: one
+    job_id: one
+    sql: missing.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+`,
+    "utf8",
+  );
+  const path = allowlist(
+    `networks:\n  - network_id: missing_sql\n    definition_path: ${JSON.stringify(networkPath)}\n`,
+  );
+  assert.throws(
+    () => loadPollRequestsConfig(path),
+    (error) =>
+      error instanceof PollRequestsConfigError &&
+      error.code === "NETWORK_DEFINITION_INVALID",
+  );
+});
+
 test("allowlist外networkをfail-closedにする", () => {
   const config = loadPollRequestsConfig(valid());
   assert.throws(

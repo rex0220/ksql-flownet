@@ -19,6 +19,7 @@ import {
   resolveOwnerInstanceId,
   runRunNetworkCommand,
 } from "../../dist/cli/run-network-command.js";
+import { runPollRequestsCommand } from "../../dist/cli/poll-requests-command.js";
 import { EnsureRunError } from "../../dist/orchestration/ensure-run.js";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -137,7 +138,9 @@ Commands:
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
-  poll-requests       claim and process app operation requests (one-shot)
+  poll-requests [--check]
+                      claim and process app operation requests (one-shot),
+                      or validate configuration and read access without writes
   resolve-node --run-id <run_id> --node-id <node_id> --to <status>
                --reason-file <path> --evidence-ref <ref>
                --stop-confirmed-by <subject> --stop-evidence-ref <ref>
@@ -305,6 +308,82 @@ test("poll-requests is dispatched as a known one-shot command", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Invalid poll-requests arguments/u);
   assert.doesNotMatch(result.stderr, /unknown command/u);
+});
+
+function pollCheckDependencies(listRequested, childStarted) {
+  const mustNotWrite = async () => {
+    throw new Error("preflight must not write");
+  };
+  const mustNotStartChild = async () => {
+    childStarted.value = true;
+    throw new Error("preflight must not start a child");
+  };
+  return {
+    store: {
+      listRequested,
+      listAccepted: mustNotWrite,
+      rejectInvalid: mustNotWrite,
+      claim: mustNotWrite,
+      heartbeat: mustNotWrite,
+      writeResult: mustNotWrite,
+    },
+    child: {
+      status: mustNotStartChild,
+      runNetwork: mustNotStartChild,
+      cancelRun: mustNotStartChild,
+    },
+    config: {
+      networks: [
+        { networkId: "allowed", definitionPath: "C:\\networks\\allowed.yaml" },
+      ],
+      heartbeatIntervalMs: 60_000,
+      staleAfterMs: 900_000,
+      stalePrecisionAllowanceMs: 60_000,
+    },
+    host: "test-host",
+  };
+}
+
+test("poll-requests --checkは設定済み要求アプリをread-onlyで確認しchildを起動しない", async (context) => {
+  const stdout = [];
+  const childStarted = { value: false };
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  const exitCode = await runPollRequestsCommand(
+    ["--check"],
+    pollCheckDependencies(
+      async () => ({ valid: [], invalid: [], skipped: 0 }),
+      childStarted,
+    ),
+  );
+  assert.equal(exitCode, 0);
+  assert.equal(childStarted.value, false);
+  assert.equal(
+    stdout.join(""),
+    "poll-requests check: ok networks=1 request_app=readable\n",
+  );
+});
+
+test("poll-requests --checkは無効token相当のGET失敗でfail-closedかつchild非起動", async (context) => {
+  const stderr = [];
+  const childStarted = { value: false };
+  context.mock.method(process.stderr, "write", (value) => {
+    stderr.push(String(value));
+    return true;
+  });
+  const exitCode = await runPollRequestsCommand(
+    ["--check"],
+    pollCheckDependencies(async () => {
+      const error = new Error("request failed");
+      error.code = "KINTONE_HTTP_ERROR";
+      throw error;
+    }, childStarted),
+  );
+  assert.equal(exitCode, 1);
+  assert.equal(childStarted.value, false);
+  assert.match(stderr.join(""), /KINTONE_HTTP_ERROR/u);
 });
 
 test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", async (context) => {

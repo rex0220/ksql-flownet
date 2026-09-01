@@ -23,6 +23,14 @@ kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「�
 
 同名の「kSQL-FlowNet 実行管理」または「kSQL-FlowNet 監査履歴」が存在する場合、スクリプトは既存アプリを変更せず中止します。確認ダイアログでキャンセルした場合は、各アプリの管理画面からpreviewの「変更を中止」してください。
 
+### 本番用操作要求アプリの作成gate
+
+1. 本番スペースで`create-flownet-request-app.console.js`を実行し、作成されたフィールド、初期値`REQUESTED`、2一覧を確認してデプロイします。途中で一覧作成が失敗した場合は、表示された状態を確認して`finish-request-app-views.console.js`で一覧だけを再開します。
+2. 要求者のACLはレコード**追加・閲覧のみ**を基本とし、少なくとも`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`を人に編集させない設定を推奨します。既存要求の編集・削除で再要求させず、毎回新規追加させます。
+3. ポーラー専用APIトークンは**レコード閲覧・編集のみ**とし、追加・削除権限を付けません。E2E清掃用tokenとは分離し、token値を文書・Console出力・リポジトリへ残しません。
+4. `01_未処理要求`（REQUESTED/ACCEPTED）と`02_拒否された要求`（REJECTED）を確認します。必要なら「REQUESTEDのまま1時間経過」を条件とするkintoneリマインダーを任意設定します。通知は補助であり、一覧確認を置き換えません。
+5. 本番のアプリID、token、絶対allowlist pathを秘密環境ファイルへ設定し、cronを有効にする前に`ksql-flownet poll-requests --check`を実行します。成功するまで本番スケジュールへ接続しません。
+
 ## 既存アプリのレイアウト幅調整
 
 既存の実行管理アプリには、先に`add-cancel-request-option.console.js`を実行して`CANCEL_REQUEST`選択肢を追加してください。
@@ -49,6 +57,7 @@ kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「�
 
 - kintoneの`DATETIME`は分精度です。秒精度の実行時刻が必要な処理では、Execution ResultやJSONL側の値を使用してください。
 - 一意制約を設定できる文字列フィールドは64文字までです。`record_key`などの一意キーはこの上限内で生成してください。
+- kSQL-Flowのジョブロックキーには実測上限があり、各network定義で`profile名 + ":" + nodes[].job_id`を64 UTF-16単位以内にします。超過は現行`ksql-flownet validate`では検出されず、実行時に`VALIDATION_ERROR`になります。
 - dropdownフィールドのクエリ条件は`in`演算子を使用します。`=`演算子は使用できません。
 
 ## 配布方式の補足(2026-08-31、kSQL-Flow側からの情報)

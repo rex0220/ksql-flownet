@@ -25,7 +25,9 @@ Commands:
                         [--ksql-flow-bin <path>] [--ksql-flow-config <path>]
                         [--ksql-flow-workdir <path>]
                       ensure and execute a Network Run sequentially
-  poll-requests       claim and process app operation requests (one-shot)
+  poll-requests [--check]
+                      claim and process app operation requests (one-shot),
+                      or validate configuration and read access without writes
   resolve-node --run-id <run_id> --node-id <node_id> --to <status>
                --reason-file <path> --evidence-ref <ref>
                --stop-confirmed-by <subject> --stop-evidence-ref <ref>

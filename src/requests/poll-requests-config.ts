@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 import { parseDocument } from "yaml";
 
-import { loadNetworkDefinition } from "../domain/load-network.js";
+import { validateNetworkPath } from "../domain/validate-network-path.js";
 
 export const DEFAULT_REQUEST_HEARTBEAT_INTERVAL_MS = 60_000;
 export const DEFAULT_REQUEST_STALE_AFTER_MS = 15 * 60_000;
@@ -126,8 +126,8 @@ export function loadPollRequestsConfig(
       );
     }
     const definitionPath = resolve(item.definition_path);
-    const loaded = loadNetworkDefinition(definitionPath);
-    if (loaded.definition === undefined) {
+    const loaded = validateNetworkPath(definitionPath);
+    if (loaded.definition === undefined || loaded.errors.length > 0) {
       throw new PollRequestsConfigError(
         "NETWORK_DEFINITION_INVALID",
         `network definition for ${item.network_id} is unavailable or invalid`,
