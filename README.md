@@ -47,7 +47,12 @@ absolute-path allowlist such as:
 networks:
   - network_id: monthly_jobs
     definition_path: C:/srv/my-ksql-jobs/networks/monthly.yaml
+    app_start: false
 ```
+
+`app_start` is fail-closed: omitting it is equivalent to `false`, and only an
+explicit boolean `true` enables START requests for that network. This flag does
+not remove the network from run lookup for `RERUN`, `STOP`, or `RELEASE`.
 
 Before enabling a production schedule, run `poll-requests --check`. This is a
 read-only preflight: it validates every allowlisted network definition and its

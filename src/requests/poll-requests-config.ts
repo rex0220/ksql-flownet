@@ -12,6 +12,7 @@ export const KINTONE_DATETIME_PRECISION_ALLOWANCE_MS = 60_000;
 export interface PollRequestsNetwork {
   readonly networkId: string;
   readonly definitionPath: string;
+  readonly appStart: boolean;
 }
 
 export interface PollRequestsConfig {
@@ -100,12 +101,16 @@ export function loadPollRequestsConfig(
     const item = objectValue(entry);
     if (
       Object.keys(item).some(
-        (key) => key !== "network_id" && key !== "definition_path",
+        (key) =>
+          key !== "network_id" &&
+          key !== "definition_path" &&
+          key !== "app_start",
       ) ||
       typeof item.network_id !== "string" ||
       item.network_id.trim() === "" ||
       typeof item.definition_path !== "string" ||
-      item.definition_path.trim() === ""
+      item.definition_path.trim() === "" ||
+      (item.app_start !== undefined && typeof item.app_start !== "boolean")
     ) {
       throw new PollRequestsConfigError(
         "NETWORK_ENTRY_INVALID",
@@ -139,7 +144,11 @@ export function loadPollRequestsConfig(
         `allowlist network_id does not match definition: ${item.network_id}`,
       );
     }
-    return { networkId: item.network_id, definitionPath };
+    return {
+      networkId: item.network_id,
+      definitionPath,
+      appStart: item.app_start === true,
+    };
   });
 
   const heartbeatIntervalMs = positiveInteger(
@@ -168,6 +177,13 @@ export function definitionPathForNetwork(
   config: PollRequestsConfig,
   networkId: string,
 ): string {
+  return networkForNetworkId(config, networkId).definitionPath;
+}
+
+export function networkForNetworkId(
+  config: PollRequestsConfig,
+  networkId: string,
+): PollRequestsNetwork {
   const match = config.networks.find(
     (network) => network.networkId === networkId,
   );
@@ -177,5 +193,5 @@ export function definitionPathForNetwork(
       `network is not in the allowlist: ${networkId}`,
     );
   }
-  return match.definitionPath;
+  return match;
 }

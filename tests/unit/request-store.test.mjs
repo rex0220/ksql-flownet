@@ -68,6 +68,103 @@ test("要求recordは$id/$revision/作成者/作成日時を含めてparseする
   assert.equal(parsed.creatorCode, "operator@example.test");
   assert.equal(parsed.createdAt, "2026-08-31T01:02:03Z");
   assert.equal(parsed.rerunFromNode, null);
+  assert.equal(parsed.networkId, null);
+  assert.equal(parsed.businessKey, null);
+  assert.equal(parsed.scheduledFor, null);
+});
+
+test("START recordは空run_idと新3欄をM2向けにparseする", () => {
+  const parsed = parseRequestRecord(
+    rawRecord({
+      request_type: "START",
+      run_id: "",
+      network_id: "monthly_jobs",
+      business_key: "monthly_jobs@2026-08-correction-1",
+      scheduled_for: "2026-08-31T15:00:00Z",
+    }),
+  );
+  assert.equal(parsed.requestType, "START");
+  assert.equal(parsed.runId, "");
+  assert.equal(parsed.networkId, "monthly_jobs");
+  assert.equal(parsed.businessKey, "monthly_jobs@2026-08-correction-1");
+  assert.equal(parsed.scheduledFor, "2026-08-31T15:00:00Z");
+});
+
+test("STARTのpolicy依存入力は意味判定せずM2へ渡す", () => {
+  const parsed = parseRequestRecord(
+    rawRecord({
+      request_type: "START",
+      run_id: "unexpected-run-id",
+      network_id: "",
+      business_key: "",
+      scheduled_for: "not-a-timestamp",
+    }),
+  );
+  assert.equal(parsed.runId, "unexpected-run-id");
+  assert.equal(parsed.networkId, null);
+  assert.equal(parsed.businessKey, null);
+  assert.equal(parsed.scheduledFor, "not-a-timestamp");
+});
+
+test("新3欄の型と文字列長をfail-closedにする", () => {
+  for (const record of [
+    rawRecord({ request_type: "START", run_id: "", network_id: 42 }),
+    rawRecord({ request_type: "START", run_id: "", business_key: [] }),
+    rawRecord({ request_type: "START", run_id: "", scheduled_for: {} }),
+    rawRecord({
+      request_type: "START",
+      run_id: "",
+      network_id: "x".repeat(REQUEST_VALUE_LIMITS.networkId + 1),
+    }),
+    rawRecord({
+      request_type: "START",
+      run_id: "",
+      business_key: "😀".repeat(REQUEST_VALUE_LIMITS.businessKey + 1),
+    }),
+  ]) {
+    assert.throws(() => parseRequestRecord(record), RequestValidationError);
+  }
+});
+
+test("既存3種は新欄なしfixtureでもrun_id必須を維持する", () => {
+  for (const requestType of ["RERUN", "STOP", "RELEASE"]) {
+    assert.equal(
+      parseRequestRecord(rawRecord({ request_type: requestType })).requestType,
+      requestType,
+    );
+    assert.throws(
+      () =>
+        parseRequestRecord(
+          rawRecord({ request_type: requestType, run_id: " \t" }),
+        ),
+      RequestValidationError,
+    );
+  }
+});
+
+test("STARTでも機械所有欄の状態規則を維持する", () => {
+  assert.throws(
+    () =>
+      parseRequestRecord(
+        rawRecord({
+          request_type: "START",
+          run_id: "",
+          claimed_host: "unexpected",
+        }),
+      ),
+    RequestValidationError,
+  );
+  assert.throws(
+    () =>
+      parseRequestRecord(
+        rawRecord({
+          request_type: "START",
+          run_id: "",
+          request_state: "DONE",
+        }),
+      ),
+    RequestValidationError,
+  );
 });
 
 test("未知選択肢、空reason、不正field組合せをfail-closedにする", () => {
