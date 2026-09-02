@@ -10,86 +10,149 @@
     </div>
   </header>
   <div class="ksql-flownet-config-content">
-    <p class="ksql-flownet-config-info">
-      入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用します。自動検出先を上書きしたい場合のみアプリIDを入力してください。
-    </p>
     <form id="ksql-flownet-config-form">
-      <div class="ksql-flownet-config-sections">
-        <section class="ksql-flownet-config-section">
-          <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
-          <input
-            id="ksql-flownet-audit-app-id"
-            name="auditAppId"
-            type="text"
-            inputmode="numeric"
-            autocomplete="off"
-          />
-          <p
-            id="ksql-flownet-audit-app-detection"
-            class="ksql-flownet-config-status"
-          ></p>
-          <p
-            id="ksql-flownet-audit-app-preview"
-            class="ksql-flownet-config-preview"
-          ></p>
-        </section>
-        <section class="ksql-flownet-config-section">
-          <label for="ksql-flownet-request-app-id"
-            >操作要求アプリID(任意)</label
-          >
-          <input
-            id="ksql-flownet-request-app-id"
-            name="requestAppId"
-            type="text"
-            inputmode="numeric"
-            autocomplete="off"
-          />
-          <p
-            id="ksql-flownet-request-app-detection"
-            class="ksql-flownet-config-status"
-          ></p>
-          <p
-            id="ksql-flownet-request-app-preview"
-            class="ksql-flownet-config-preview"
-          ></p>
-        </section>
-        <section class="ksql-flownet-config-section">
-          <label for="ksql-flownet-log-app-id">JOBログアプリID(任意)</label>
-          <input
-            id="ksql-flownet-log-app-id"
-            name="logAppId"
-            type="text"
-            inputmode="numeric"
-            autocomplete="off"
-          />
-          <p
-            id="ksql-flownet-log-app-detection"
-            class="ksql-flownet-config-status"
-          ></p>
-          <p
-            id="ksql-flownet-log-app-preview"
-            class="ksql-flownet-config-preview"
-          ></p>
-        </section>
-        <section class="ksql-flownet-config-section">
-          <label for="ksql-flownet-start-allowed-networks"
-            >STARTを許可するネットワーク(CSV・任意)</label
-          >
-          <textarea
-            id="ksql-flownet-start-allowed-networks"
-            name="startAllowedNetworks"
-            maxlength="4000"
-            rows="6"
-            wrap="off"
-            placeholder="月次案件集計(当月分の起動), monthly_deal_summary, 定期
+      <div
+        class="ksql-flownet-config-tabs"
+        role="tablist"
+        aria-label="設定種別"
+      >
+        <button
+          id="ksql-flownet-config-tab-basic"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="ksql-flownet-config-panel-basic"
+        >
+          基本設定
+        </button>
+        <button
+          id="ksql-flownet-config-tab-advanced"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="ksql-flownet-config-panel-advanced"
+        >
+          詳細設定
+        </button>
+      </div>
+      <div
+        id="ksql-flownet-config-panel-basic"
+        class="ksql-flownet-config-panel"
+        role="tabpanel"
+        aria-labelledby="ksql-flownet-config-tab-basic"
+      >
+        <div class="ksql-flownet-config-sections">
+          <section class="ksql-flownet-config-section">
+            <label for="ksql-flownet-start-allowed-networks"
+              >STARTを許可するネットワーク(CSV・任意)</label
+            >
+            <textarea
+              id="ksql-flownet-start-allowed-networks"
+              name="startAllowedNetworks"
+              maxlength="4000"
+              rows="6"
+              wrap="off"
+              placeholder="月次案件集計(当月分の起動), monthly_deal_summary, 定期
 月次案件集計(補正), monthly_deal_summary, 補正, {ネットワークID}@{年}-{月}-correction-1"
-          ></textarea>
-          <p class="ksql-flownet-config-help">
-            VPSのallowlistでapp_start:
-            trueを設定したネットワークを「ネットワーク名, network_id[,
-            入力モード[,
-            business_keyテンプレート]]」のCSV形式で1行ずつ入力します。
-          </p>
+            ></textarea>
+            <p class="ksql-flownet-config-help">
+              VPSのallowlistでapp_start:
+              trueを設定したネットワークを「ネットワーク名, network_id[,
+              入力モード[,
+              business_keyテンプレート]]」のCSV形式で1行ずつ入力します。
+            </p>
+          </section>
+        </div>
+      </div>
+      <div
+        id="ksql-flownet-config-panel-advanced"
+        class="ksql-flownet-config-panel"
+        role="tabpanel"
+        aria-labelledby="ksql-flownet-config-tab-advanced"
+        hidden
+      >
+        <p class="ksql-flownet-config-info">
+          アプリテンプレートから作成した場合、アプリIDは自動検出されるため指定不要です。自動検出が機能しない場合のみ上書きしてください。
+        </p>
+        <div class="ksql-flownet-config-sections">
+          <section class="ksql-flownet-config-section">
+            <label for="ksql-flownet-audit-app-id">監査履歴アプリID</label>
+            <input
+              id="ksql-flownet-audit-app-id"
+              name="auditAppId"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+            <p
+              id="ksql-flownet-audit-app-detection"
+              class="ksql-flownet-config-status"
+            ></p>
+            <p
+              id="ksql-flownet-audit-app-preview"
+              class="ksql-flownet-config-preview"
+            ></p>
+          </section>
+          <section class="ksql-flownet-config-section">
+            <label for="ksql-flownet-request-app-id"
+              >操作要求アプリID(任意)</label
+            >
+            <input
+              id="ksql-flownet-request-app-id"
+              name="requestAppId"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+            <p
+              id="ksql-flownet-request-app-detection"
+              class="ksql-flownet-config-status"
+            ></p>
+            <p
+              id="ksql-flownet-request-app-preview"
+              class="ksql-flownet-config-preview"
+            ></p>
+          </section>
+          <section class="ksql-flownet-config-section">
+            <label for="ksql-flownet-log-app-id">JOBログアプリID(任意)</label>
+            <input
+              id="ksql-flownet-log-app-id"
+              name="logAppId"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+            <p
+              id="ksql-flownet-log-app-detection"
+              class="ksql-flownet-config-status"
+            ></p>
+            <p
+              id="ksql-flownet-log-app-preview"
+              class="ksql-flownet-config-preview"
+            ></p>
+          </section>
+        </div>
+      </div>
+      <p
+        id="ksql-flownet-config-error"
+        class="ksql-flownet-config-callout"
+        role="status"
+        aria-live="polite"
+      ></p>
+      <footer class="ksql-flownet-config-actions">
+        <div class="ksql-flownet-config-actions-left">
+          <label
+            class="ksql-flownet-config-deploy"
+            for="ksql-flownet-deploy-on-save"
+          >
+            <input
+              id="ksql-flownet-deploy-on-save"
+              name="deployOnSave"
+              type="checkbox"
+              checked
+            />
+            <span>保存時に運用環境へ反映(アプリ更新)</span>
+          </label>
           <div class="ksql-flownet-config-backup">
             <span>設定のバックアップ:</span>
             <button
@@ -129,31 +192,13 @@
               hidden
             />
           </div>
-        </section>
-      </div>
-      <p
-        id="ksql-flownet-config-error"
-        class="ksql-flownet-config-callout"
-        role="status"
-        aria-live="polite"
-      ></p>
-      <footer class="ksql-flownet-config-actions">
-        <label
-          class="ksql-flownet-config-deploy"
-          for="ksql-flownet-deploy-on-save"
-        >
-          <input
-            id="ksql-flownet-deploy-on-save"
-            name="deployOnSave"
-            type="checkbox"
-            checked
-          />
-          <span>保存時に運用環境へ反映(アプリ更新)</span>
-        </label>
-        <button id="ksql-flownet-config-cancel" type="button">
-          キャンセル
-        </button>
-        <button class="ksql-flownet-config-save" type="submit">保存</button>
+        </div>
+        <div class="ksql-flownet-config-actions-right">
+          <button id="ksql-flownet-config-cancel" type="button">
+            キャンセル
+          </button>
+          <button class="ksql-flownet-config-save" type="submit">保存</button>
+        </div>
       </footer>
     </form>
   </div>

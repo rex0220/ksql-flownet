@@ -99,6 +99,24 @@ export interface ConfigBackupPayload {
   readonly config: EditablePluginConfig;
 }
 
+type EditableConfigField =
+  | "auditAppId"
+  | "requestAppId"
+  | "logAppId"
+  | "startAllowedNetworks"
+  | "deployOnSave";
+
+type ConfigTab = "basic" | "advanced";
+
+class ConfigValidationError extends Error {
+  constructor(
+    message: string,
+    readonly field: EditableConfigField,
+  ) {
+    super(message);
+  }
+}
+
 const POSITIVE_DECIMAL = /^[1-9][0-9]*$/u;
 const DETECTION_UNAVAILABLE = "自動検出できません(関連レコード一覧が未設定)";
 const PREVIEW_UNAVAILABLE = "アプリを確認できません(IDまたは権限を確認)";
@@ -126,8 +144,11 @@ export function buildPluginConfig(
   return deployOnSave ? { ...values } : { ...values, deployOnSave: "false" };
 }
 
-function validationError(message: string | null): Error {
-  return new Error(message ?? "設定値が不正です。");
+function validationError(
+  field: EditableConfigField,
+  message: string | null,
+): ConfigValidationError {
+  return new ConfigValidationError(message ?? "設定値が不正です。", field);
 }
 
 function validateEditableConfig(
@@ -136,15 +157,16 @@ function validateEditableConfig(
 ): EditablePluginConfig {
   const audit = validateAuditAppIdOverride(values.auditAppId);
   if (!audit.valid || audit.value === null)
-    throw validationError(audit.message);
+    throw validationError("auditAppId", audit.message);
   const request = validateRequestAppId(values.requestAppId);
   if (!request.valid || request.value === null)
-    throw validationError(request.message);
+    throw validationError("requestAppId", request.message);
   const log = validateLogAppId(values.logAppId);
-  if (!log.valid || log.value === null) throw validationError(log.message);
+  if (!log.valid || log.value === null)
+    throw validationError("logAppId", log.message);
   const networks = validateStartAllowedNetworks(values.startAllowedNetworks);
   if (!networks.valid || networks.value === null)
-    throw validationError(networks.message);
+    throw validationError("startAllowedNetworks", networks.message);
 
   let shouldDeploy: boolean;
   if (deployOnSave === undefined || deployOnSave === true) {
@@ -152,7 +174,7 @@ function validateEditableConfig(
   } else if (deployOnSave === false || deployOnSave === "false") {
     shouldDeploy = false;
   } else {
-    throw new Error("保存時のアプリ更新設定が不正です。");
+    throw validationError("deployOnSave", "保存時のアプリ更新設定が不正です。");
   }
   return {
     auditAppId: audit.value,
@@ -413,6 +435,18 @@ export function installConfigPage(
   pluginId: string,
   pageDocument: Document,
 ): void {
+  const basicTab = pageDocument.querySelector<HTMLButtonElement>(
+    "#ksql-flownet-config-tab-basic",
+  );
+  const advancedTab = pageDocument.querySelector<HTMLButtonElement>(
+    "#ksql-flownet-config-tab-advanced",
+  );
+  const basicPanel = pageDocument.querySelector<HTMLElement>(
+    "#ksql-flownet-config-panel-basic",
+  );
+  const advancedPanel = pageDocument.querySelector<HTMLElement>(
+    "#ksql-flownet-config-panel-advanced",
+  );
   const input = pageDocument.querySelector<HTMLInputElement>(
     "#ksql-flownet-audit-app-id",
   );
@@ -465,6 +499,10 @@ export function installConfigPage(
     "#ksql-flownet-config-import-file",
   );
   if (
+    basicTab === null ||
+    advancedTab === null ||
+    basicPanel === null ||
+    advancedPanel === null ||
     input === null ||
     requestInput === null ||
     logInput === null ||
@@ -487,6 +525,24 @@ export function installConfigPage(
       "プラグイン設定画面の要素が不足しています。引数を確認してください。",
     );
   }
+
+  const selectTab = (selected: ConfigTab): void => {
+    const basicSelected = selected === "basic";
+    basicTab.setAttribute("aria-selected", String(basicSelected));
+    advancedTab.setAttribute("aria-selected", String(!basicSelected));
+    basicPanel.hidden = !basicSelected;
+    advancedPanel.hidden = basicSelected;
+  };
+  const tabByField: Readonly<Record<EditableConfigField, ConfigTab>> = {
+    auditAppId: "advanced",
+    requestAppId: "advanced",
+    logAppId: "advanced",
+    startAllowedNetworks: "basic",
+    deployOnSave: "basic",
+  };
+  basicTab.addEventListener("click", () => selectTab("basic"));
+  advancedTab.addEventListener("click", () => selectTab("advanced"));
+  selectTab("basic");
 
   const savedConfig = kintoneApi.plugin.app.getConfig(pluginId);
   input.value = savedConfig.auditAppId ?? "";
@@ -609,6 +665,9 @@ export function installConfigPage(
     try {
       editableConfig = readFormConfig();
     } catch (cause) {
+      if (cause instanceof ConfigValidationError) {
+        selectTab(tabByField[cause.field]);
+      }
       showCallout(
         error,
         "error",

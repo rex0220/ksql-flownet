@@ -34,6 +34,18 @@ function statusElement() {
   return { textContent: "", className: "" };
 }
 
+function addConfigTabs(elements) {
+  const basicTab = inputElement();
+  const advancedTab = inputElement();
+  const basicPanel = { hidden: false };
+  const advancedPanel = { hidden: true };
+  elements.set("#ksql-flownet-config-tab-basic", basicTab);
+  elements.set("#ksql-flownet-config-tab-advanced", advancedTab);
+  elements.set("#ksql-flownet-config-panel-basic", basicPanel);
+  elements.set("#ksql-flownet-config-panel-advanced", advancedPanel);
+  return { basicTab, advancedTab, basicPanel, advancedPanel };
+}
+
 test("auditAppId accepts only a positive decimal string without normalization", () => {
   for (const invalid of [undefined, "", "0", "-1", "1.5", " 12", "12 ", "abc"])
     assert.equal(validateAuditAppId(invalid).valid, false, String(invalid));
@@ -146,12 +158,7 @@ test("START許可ネットワーク一覧はCSV4列までと旧1列を正規化�
     ).message,
     /プレースホルダ/u,
   );
-  for (const oldPlaceholder of [
-    "{network_id}",
-    "{yyyy}",
-    "{MM}",
-    "{dd}",
-  ]) {
+  for (const oldPlaceholder of ["{network_id}", "{yyyy}", "{MM}", "{dd}"]) {
     assert.equal(
       validateStartAllowedNetworks(
         `表示名, network_id, 補正, ${oldPlaceholder}`,
@@ -271,6 +278,7 @@ test("不正JSON・検証エラーのインポートはフォーム状態を変�
     ["#ksql-flownet-config-upload", inputElement()],
     ["#ksql-flownet-config-import-file", importFile],
   ]);
+  addConfigTabs(elements);
   const originalFileReader = globalThis.FileReader;
   globalThis.FileReader = class {
     listeners = new Map();
@@ -409,6 +417,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     ["#ksql-flownet-config-upload", inputElement()],
     ["#ksql-flownet-config-import-file", inputElement()],
   ]);
+  const tabs = addConfigTabs(elements);
   const saved = [];
   const originalHistory = globalThis.history;
   globalThis.history = { back: () => {} };
@@ -444,10 +453,21 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     assert.equal(logInput.value, "61");
     assert.equal(startAllowedNetworks.value, "monthly\nadhoc");
     assert.equal(deployOnSave.checked, false, "前回OFFならOFFで復元する");
+    assert.equal(tabs.basicPanel.hidden, false, "基本設定を初期表示する");
+    assert.equal(tabs.advancedPanel.hidden, true, "詳細設定は初期非表示にする");
+    tabs.advancedTab.dispatch("click");
+    assert.equal(tabs.basicPanel.hidden, true, "基本設定を非表示に切り替える");
+    assert.equal(tabs.advancedPanel.hidden, false, "詳細設定を表示する");
+    tabs.basicTab.dispatch("click");
     input.value = " 42 ";
     listeners.get("form:submit")({ preventDefault: () => {} });
     assert.equal(saved.length, 0);
     assert.match(error.textContent, /正の10進整数/u);
+    assert.equal(
+      tabs.advancedPanel.hidden,
+      false,
+      "詳細設定の検証エラー時は詳細タブへ自動切替する",
+    );
     input.value = "42";
     requestInput.value = " 52 ";
     listeners.get("form:submit")({ preventDefault: () => {} });
@@ -459,10 +479,16 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     assert.equal(saved.length, 0);
     assert.match(error.textContent, /JOBログアプリID/u);
     logInput.value = "62";
+    tabs.advancedTab.dispatch("click");
     startAllowedNetworks.value = "x".repeat(129);
     listeners.get("form:submit")({ preventDefault: () => {} });
     assert.equal(saved.length, 0);
     assert.match(error.textContent, /1行128文字以内/u);
+    assert.equal(
+      tabs.basicPanel.hidden,
+      false,
+      "基本設定の検証エラー時は基本タブへ自動切替する",
+    );
     startAllowedNetworks.value = " monthly \nmonthly\n adhoc ";
     listeners.get("form:submit")({ preventDefault: () => {} });
     await flushAsync();
@@ -524,6 +550,7 @@ test("config GETは自アプリの関連先検出とアプリ名確認だけに�
     ["#ksql-flownet-config-upload", inputElement()],
     ["#ksql-flownet-config-import-file", inputElement()],
   ]);
+  addConfigTabs(elements);
   const calls = [];
   const api = async (url, method, body) => {
     calls.push({ url, method, body });
@@ -653,6 +680,10 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-config-title",
     "ksql-flownet-config-info",
     "ksql-flownet-config-form",
+    "ksql-flownet-config-tab-basic",
+    "ksql-flownet-config-tab-advanced",
+    "ksql-flownet-config-panel-basic",
+    "ksql-flownet-config-panel-advanced",
     "ksql-flownet-config-sections",
     "ksql-flownet-config-section",
     "ksql-flownet-audit-app-id",
@@ -673,7 +704,7 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-config-import-file",
     "ksql-flownet-config-cancel",
     "保存時に運用環境へ反映(アプリ更新)",
-    "入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用",
+    "アプリテンプレートから作成した場合、アプリIDは自動検出されるため指定不要です。自動検出が機能しない場合のみ上書きしてください。",
     "STARTを許可するネットワーク(CSV・任意)",
     "月次案件集計(当月分の起動), monthly_deal_summary, 定期",
     "月次案件集計(補正), monthly_deal_summary, 補正, {ネットワークID}@{年}-{月}-correction-1",
@@ -696,6 +727,21 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     4,
     "3つのアプリ項目とSTART許可ネットワーク一覧を個別のセクションカードにする",
   );
+  assert.equal(
+    html.match(/role="tab"/gu)?.length,
+    2,
+    "基本設定と詳細設定の2タブを持つ",
+  );
+  assert.match(
+    html,
+    /id="ksql-flownet-config-tab-basic"[\s\S]*?aria-selected="true"/u,
+    "基本設定タブを初期選択する",
+  );
+  assert.match(
+    html,
+    /id="ksql-flownet-config-panel-advanced"[\s\S]*?hidden/u,
+    "詳細設定パネルを初期非表示にする",
+  );
   assert.ok(
     html.indexOf('id="ksql-flownet-config-cancel"') <
       html.indexOf('class="ksql-flownet-config-save"'),
@@ -709,6 +755,7 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     'class="ksql-flownet-config-deploy"',
     'id="ksql-flownet-config-cancel"',
     'class="ksql-flownet-config-save"',
+    'class="ksql-flownet-config-backup"',
   ]) {
     assert.ok(footer.includes(required), `フッター内に${required}が必要`);
   }
@@ -950,6 +997,7 @@ test("保存時反映ONは保存成功後に画面遷移せず、OFFは設定一
       ["#ksql-flownet-config-upload", inputElement()],
       ["#ksql-flownet-config-import-file", inputElement()],
     ]);
+    addConfigTabs(elements);
     let backCalls = 0;
     const originalHistory = globalThis.history;
     globalThis.history = {
