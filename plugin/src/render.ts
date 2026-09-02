@@ -6,6 +6,7 @@ import type {
 } from "./board-action.js";
 import type { RunActivity } from "./activity-entry.js";
 import type { ErrorSummary, ErrorSummaryItem } from "./error-summary.js";
+import type { PendingStartRequest } from "./request-client.js";
 
 export interface ActionRowViewModel {
   readonly runId: string;
@@ -45,6 +46,7 @@ export interface BoardViewModel {
   readonly attentionRemainingCount: number;
   readonly pendingWarning: string | null;
   readonly pendingStartCount: number | null;
+  readonly pendingStartRequests: readonly PendingStartRequest[] | null;
   readonly requestEnabled: boolean;
   readonly requestAppId: string | null;
   readonly judgedAt: number;
@@ -101,7 +103,7 @@ export function limitDisplayValue(value: string): string {
   return `${characters.slice(0, MAX_DISPLAY_LENGTH).join("")}…`;
 }
 
-/** ISO日時をブラウザローカル時刻(ja-JP、分まで)で表示する。不正値は原文のまま。 */
+/** ISO日時をJST(ja-JP、分まで)で表示する。不正値は原文のまま。 */
 export function formatLocalDateTime(value: string): string {
   const milliseconds = Date.parse(value);
   if (Number.isNaN(milliseconds)) return value;
@@ -111,6 +113,7 @@ export function formatLocalDateTime(value: string): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Tokyo",
   });
 }
 
@@ -325,6 +328,7 @@ function recordCell(
 function tableHeader(
   pageDocument: Document,
   labels: readonly string[],
+  lastIsOperation = true,
 ): HTMLElement {
   const thead = element(pageDocument, "thead");
   const header = element(pageDocument, "tr");
@@ -332,7 +336,7 @@ function tableHeader(
     const className =
       index === 0
         ? "ksql-flownet-record-cell"
-        : index === labels.length - 1
+        : lastIsOperation && index === labels.length - 1
           ? "ksql-flownet-operation-cell"
           : undefined;
     header.append(element(pageDocument, "th", className, label));
@@ -395,6 +399,70 @@ function renderActiveTable(
         row.error ?? [row.evidence, row.actionText].filter(Boolean).join(" / "),
       ),
       actionCell,
+    );
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  return table;
+}
+
+function pendingStartKeyAndSchedule(row: PendingStartRequest): string {
+  return [
+    row.businessKey === null ? null : `業務キー: ${row.businessKey}`,
+    row.scheduledFor === null
+      ? null
+      : `対象日時: ${formatLocalDateTime(row.scheduledFor)}`,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(" / ");
+}
+
+function renderPendingStartTable(
+  pageDocument: Document,
+  rows: readonly PendingStartRequest[],
+  requestAppId: string,
+): HTMLElement {
+  const table = element(
+    pageDocument,
+    "table",
+    "ksql-flownet-table ksql-flownet-start-request-table",
+  );
+  const thead = tableHeader(
+    pageDocument,
+    [
+      "レコード",
+      "状態",
+      "network_id",
+      "業務キー / 対象日時",
+      "要求者 / 作成日時",
+      "理由",
+    ],
+    false,
+  );
+  const tbody = element(pageDocument, "tbody");
+  for (const row of rows) {
+    const tr = element(pageDocument, "tr");
+    const record = element(pageDocument, "td", "ksql-flownet-record-cell");
+    record.append(
+      requestLink(pageDocument, requestAppId, row.id, `#${row.id}`),
+    );
+    tr.append(
+      record,
+      element(pageDocument, "td", "ksql-flownet-cell-nowrap", row.requestState),
+      element(pageDocument, "td", undefined, row.networkId),
+      element(pageDocument, "td", undefined, pendingStartKeyAndSchedule(row)),
+      element(
+        pageDocument,
+        "td",
+        undefined,
+        `${row.creatorName} / ${formatLocalDateTime(row.createdAt)}`,
+      ),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-start-request-reason",
+        row.reason,
+      ),
     );
     tbody.append(tr);
   }
@@ -608,6 +676,7 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
     return {
       ...model,
       pendingStartCount: model.pendingStartCount ?? null,
+      pendingStartRequests: model.pendingStartRequests ?? null,
     };
   }
   const legacy = model as unknown as {
@@ -634,6 +703,7 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
     attentionRemainingCount: 0,
     pendingWarning: null,
     pendingStartCount: null,
+    pendingStartRequests: null,
     requestEnabled: false,
     requestAppId: null,
     judgedAt: legacy.judgedAt ?? 0,
@@ -722,6 +792,31 @@ export function renderBoard(
   toolbarActions.append(reload);
   toolbar.append(toolbarActions);
   board.append(toolbar);
+
+  if (
+    model.requestAppId !== null &&
+    model.pendingStartRequests !== null &&
+    model.pendingStartRequests.length > 0
+  ) {
+    const pendingStart = element(
+      pageDocument,
+      "section",
+      "ksql-flownet-section ksql-flownet-start-request-section",
+    );
+    pendingStart.append(
+      sectionHeader(
+        pageDocument,
+        "処理待ちのSTART要求",
+        model.pendingStartRequests.length,
+      ),
+      renderPendingStartTable(
+        pageDocument,
+        model.pendingStartRequests,
+        model.requestAppId,
+      ),
+    );
+    board.append(pendingStart);
+  }
 
   const active = element(pageDocument, "section", "ksql-flownet-section");
   active.append(

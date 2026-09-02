@@ -43,6 +43,16 @@ const invocationRecord = () => ({
   invocation_id: field("invoke_1"),
   run_id: field("run_1"),
 });
+const pendingStartRecord = (id, state) => ({
+  $id: field(String(id)),
+  request_state: field(state),
+  network_id: field("monthly"),
+  business_key: field(id === 41 ? "monthly@2026-09" : ""),
+  scheduled_for: field(id === 42 ? "2026-09-01T01:23:00Z" : ""),
+  reason: field(`reason_${id}`),
+  作成者: field({ code: "operator@example.test", name: "運用担当" }),
+  作成日時: field("2026-09-01T00:00:00Z"),
+});
 
 test("index/detail guards reject other views and record types", () => {
   assert.equal(
@@ -107,16 +117,8 @@ test("board loads pending START count only when request app is configured and ne
       ) {
         return {
           records: [
-            {
-              $id: field("41"),
-              request_type: field("START"),
-              request_state: field("REQUESTED"),
-            },
-            {
-              $id: field("42"),
-              request_type: field("START"),
-              request_state: field("ACCEPTED"),
-            },
+            pendingStartRecord(41, "REQUESTED"),
+            pendingStartRecord(42, "ACCEPTED"),
           ],
         };
       }
@@ -128,6 +130,16 @@ test("board loads pending START count only when request app is configured and ne
     nowMs: () => NOW,
   });
   assert.equal(model.pendingStartCount, 2);
+  assert.deepEqual(
+    model.pendingStartRequests.map(({ id, requestState }) => ({
+      id,
+      requestState,
+    })),
+    [
+      { id: "41", requestState: "REQUESTED" },
+      { id: "42", requestState: "ACCEPTED" },
+    ],
+  );
   assert.equal(model.pendingWarning, null);
   assert.equal(
     queries.some(({ query }) => query.includes('request_state in ("DONE")')),
@@ -152,6 +164,7 @@ test("board loads pending START count only when request app is configured and ne
     nowMs: () => NOW,
   });
   assert.equal(unset.pendingStartCount, null);
+  assert.equal(unset.pendingStartRequests, null);
   assert.equal(
     unsetQueries.some(({ app }) => app === "300"),
     false,
@@ -176,6 +189,7 @@ test("pending START GET failure warns but leaves START creation enabled", async 
   });
   assert.equal(model.requestEnabled, true);
   assert.equal(model.pendingStartCount, null);
+  assert.equal(model.pendingStartRequests, null);
   assert.match(model.pendingWarning, /件数を取得できません/u);
 });
 

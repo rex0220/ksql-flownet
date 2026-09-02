@@ -5,6 +5,7 @@ import {
   buildCreateRequestBody,
   createRequest,
   guardPendingRequest,
+  loadPendingStartRequests,
   loadPendingRequests,
   PENDING_MAX_FINAL_QUERY_LENGTH,
   RequestPostError,
@@ -15,6 +16,17 @@ const pending = (id, runId, state = "REQUESTED") => ({
   $id: field(String(id)),
   run_id: field(runId),
   request_state: field(state),
+});
+const pendingStart = (id, overrides = {}) => ({
+  $id: field(String(id)),
+  request_state: field("REQUESTED"),
+  network_id: field("monthly"),
+  business_key: field("monthly@2026-09"),
+  scheduled_for: field("2026-09-01T01:23:00Z"),
+  reason: field("operator reason"),
+  作成者: field({ code: "operator@example.test", name: "運用担当" }),
+  作成日時: field("2026-09-01T00:00:00Z"),
+  ...overrides,
 });
 
 test("3 request types use only the fixed human-owned POST fields", () => {
@@ -178,6 +190,60 @@ test("any pending chunk failure discards all partial results and fails open", as
   );
   assert.equal(outside.state, "unavailable");
   assert.equal(outside.byRunId.size, 0);
+});
+
+test("pending START details parse creator/date/nulls while count and oldestId remain compatible", async () => {
+  const gets = [];
+  const result = await loadPendingStartRequests(async (request) => {
+    gets.push(request);
+    return {
+      records: [
+        pendingStart(41),
+        pendingStart(42, {
+          request_state: field("ACCEPTED"),
+          business_key: field(""),
+          scheduled_for: field(""),
+          作成者: field({ code: "second@example.test", name: "第二担当" }),
+          作成日時: field("2026-09-01T02:34:00Z"),
+        }),
+      ],
+    };
+  }, 300);
+  assert.equal(result.state, "ready");
+  assert.equal(result.summary.count, 2, "existing count contract");
+  assert.equal(result.summary.oldestId, "41", "existing oldestId contract");
+  assert.deepEqual(result.summary.requests, [
+    {
+      id: "41",
+      requestState: "REQUESTED",
+      networkId: "monthly",
+      businessKey: "monthly@2026-09",
+      scheduledFor: "2026-09-01T01:23:00Z",
+      reason: "operator reason",
+      creatorName: "運用担当",
+      createdAt: "2026-09-01T00:00:00Z",
+    },
+    {
+      id: "42",
+      requestState: "ACCEPTED",
+      networkId: "monthly",
+      businessKey: null,
+      scheduledFor: null,
+      reason: "operator reason",
+      creatorName: "第二担当",
+      createdAt: "2026-09-01T02:34:00Z",
+    },
+  ]);
+  assert.deepEqual(gets[0].fields, [
+    "$id",
+    "request_state",
+    "network_id",
+    "business_key",
+    "scheduled_for",
+    "reason",
+    "作成者",
+    "作成日時",
+  ]);
 });
 
 function readbackRecord(type = "RERUN") {

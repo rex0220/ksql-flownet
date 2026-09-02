@@ -12,6 +12,7 @@ import {
 } from "./kintone-reader.js";
 import {
   KintoneRecordError,
+  fieldValue,
   nullableText,
   requiredText,
   requireLiteral,
@@ -284,7 +285,16 @@ export function buildCreateRequestBody(
 
 const START_PENDING_BASE_QUERY =
   'request_type in ("START") and request_state in ("REQUESTED", "ACCEPTED")';
-const START_PENDING_FIELDS = ["$id", "request_type", "request_state"] as const;
+const START_PENDING_FIELDS = [
+  "$id",
+  "request_state",
+  "network_id",
+  "business_key",
+  "scheduled_for",
+  "reason",
+  "作成者",
+  "作成日時",
+] as const;
 const START_GUARD_FIELDS = [
   "$id",
   "request_type",
@@ -312,6 +322,18 @@ const RUN_CANDIDATE_FIELDS = [
 export interface PendingStartSummary {
   readonly count: number;
   readonly oldestId: string | null;
+  readonly requests: readonly PendingStartRequest[];
+}
+
+export interface PendingStartRequest {
+  readonly id: string;
+  readonly requestState: "REQUESTED" | "ACCEPTED";
+  readonly networkId: string;
+  readonly businessKey: string | null;
+  readonly scheduledFor: string | null;
+  readonly reason: string;
+  readonly creatorName: string;
+  readonly createdAt: string;
 }
 
 export type PendingStartLoadResult =
@@ -332,9 +354,8 @@ export async function loadPendingStartRequests(
       baseQuery: START_PENDING_BASE_QUERY,
       fields: START_PENDING_FIELDS,
     });
-    const ids = records.map((record) => {
-      requireLiteral(record, "request_type", ["START"] as const);
-      requireLiteral(record, "request_state", [
+    const requests = records.map((record): PendingStartRequest => {
+      const requestState = requireLiteral(record, "request_state", [
         "REQUESTED",
         "ACCEPTED",
       ] as const);
@@ -342,16 +363,39 @@ export async function loadPendingStartRequests(
       if (!/^[1-9][0-9]*$/.test(id)) {
         throw new KintoneRecordError("invalid pending START record ID");
       }
-      return id;
+      const creator = fieldValue(record, "作成者");
+      if (
+        typeof creator !== "object" ||
+        creator === null ||
+        !("name" in creator) ||
+        typeof creator.name !== "string" ||
+        creator.name === ""
+      ) {
+        throw new KintoneRecordError("invalid pending START creator");
+      }
+      return {
+        id,
+        requestState,
+        networkId: requiredText(record, "network_id"),
+        businessKey: nullableText(record, "business_key"),
+        scheduledFor: nullableText(record, "scheduled_for"),
+        reason: requiredText(record, "reason"),
+        creatorName: creator.name,
+        createdAt: requiredText(record, "作成日時"),
+      };
     });
     return {
       state: "ready",
-      summary: { count: ids.length, oldestId: ids[0] ?? null },
+      summary: {
+        count: requests.length,
+        oldestId: requests[0]?.id ?? null,
+        requests,
+      },
     };
   } catch {
     return {
       state: "unavailable",
-      summary: { count: 0, oldestId: null },
+      summary: { count: 0, oldestId: null, requests: [] },
       warning:
         "処理待ちのSTART要求件数を取得できませんでした。新規実行は利用できます。",
     };

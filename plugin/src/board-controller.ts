@@ -29,6 +29,7 @@ import { requiredText, type KintoneRecord } from "./kintone-record.js";
 import {
   loadPendingRequests,
   loadPendingStartRequests,
+  type PendingStartRequest,
 } from "./request-client.js";
 import { loadTerminalRuns } from "./terminal-run-loader.js";
 import {
@@ -419,6 +420,7 @@ export async function loadBoard(
     requestConfig.value !== "";
   let pendingWarning: string | null = null;
   let pendingStartCount: number | null = null;
+  let pendingStartRequests: readonly PendingStartRequest[] | null = null;
   let active = activeSection;
   let terminal = attention.section;
   if (requestEnabled) {
@@ -450,6 +452,7 @@ export async function loadBoard(
     const startPending = await startPendingPromise;
     if (startPending.state === "ready") {
       pendingStartCount = startPending.summary.count;
+      pendingStartRequests = startPending.summary.requests;
     } else {
       pendingWarning =
         pendingWarning === null
@@ -463,6 +466,7 @@ export async function loadBoard(
     attentionRemainingCount: attention.remaining,
     pendingWarning,
     pendingStartCount,
+    pendingStartRequests,
     requestEnabled,
     requestAppId: requestEnabled ? requestConfig.value : null,
     judgedAt: nowMs,

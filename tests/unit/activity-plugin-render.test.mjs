@@ -167,6 +167,7 @@ test("configured board header renders START button and pending link; unset board
       requestEnabled: true,
       requestAppId: "300",
       pendingStartCount: 2,
+      pendingStartRequests: [],
     },
     { onReload: () => {}, onStart: () => (starts += 1) },
   );
@@ -185,6 +186,7 @@ test("configured board header renders START button and pending link; unset board
       requestEnabled: false,
       requestAppId: null,
       pendingStartCount: null,
+      pendingStartRequests: null,
     },
     { onReload: () => {}, onStart: () => (starts += 1) },
   );
@@ -194,6 +196,96 @@ test("configured board header renders START button and pending link; unset board
       node.textContent.startsWith("処理待ちのSTART要求"),
     ),
     false,
+  );
+});
+
+test("pending START section hides when empty and renders multiple safe linked detail rows in JST", () => {
+  const document = new FakeDocument();
+  const root = new FakeElement("div", document);
+  const base = {
+    activeSection: { state: "ready", rows: [], error: null },
+    attentionSection: { state: "ready", rows: [], error: null },
+    attentionRemainingCount: 0,
+    pendingWarning: null,
+    pendingStartCount: 0,
+    requestEnabled: true,
+    requestAppId: "300",
+    judgedAt: Date.parse("2026-09-02T00:00:00Z"),
+    state: "ready",
+    rows: [],
+    error: null,
+  };
+  renderBoard(
+    root,
+    { ...base, pendingStartRequests: [] },
+    { onReload: () => {} },
+  );
+  assert.equal(
+    allNodes(root).some(
+      (node) => node.className === "ksql-flownet-start-request-section",
+    ),
+    false,
+  );
+
+  const attack = '<img src=x onerror="alert(1)">';
+  renderBoard(
+    root,
+    {
+      ...base,
+      pendingStartCount: 2,
+      pendingStartRequests: [
+        {
+          id: "41",
+          requestState: "REQUESTED",
+          networkId: "monthly",
+          businessKey: "monthly@2026-09",
+          scheduledFor: "2026-09-01T01:23:00Z",
+          reason: `長い理由 ${"理由".repeat(100)}`,
+          creatorName: "運用担当",
+          createdAt: "2026-09-01T00:00:00Z",
+        },
+        {
+          id: "42",
+          requestState: "ACCEPTED",
+          networkId: attack,
+          businessKey: null,
+          scheduledFor: null,
+          reason: attack,
+          creatorName: attack,
+          createdAt: "2026-09-01T02:34:00Z",
+        },
+      ],
+    },
+    { onReload: () => {} },
+  );
+  const text = allText(root);
+  assert.match(text, /処理待ちのSTART要求/u);
+  assert.match(text, /REQUESTED/u);
+  assert.match(text, /ACCEPTED/u);
+  assert.match(text, /業務キー: monthly@2026-09/u);
+  assert.match(text, /対象日時: 2026\/09\/01 10:23/u);
+  assert.match(text, /運用担当 \/ 2026\/09\/01 09:00/u);
+  const recordLinks = allNodes(root).filter(
+    (node) =>
+      node.tagName === "a" &&
+      /^\/k\/300\/show#record=/u.test(node.attributes.get("href") ?? ""),
+  );
+  assert.deepEqual(
+    recordLinks.map((node) => [node.textContent, node.attributes.get("href")]),
+    [
+      ["#41", "/k/300/show#record=41"],
+      ["#42", "/k/300/show#record=42"],
+    ],
+  );
+  assert.equal(
+    allNodes(root).filter((node) => node.tagName === "img").length,
+    0,
+    "untrusted values must only reach textContent",
+  );
+  assert.ok(
+    allNodes(root).some(
+      (node) => node.className === "ksql-flownet-start-request-reason",
+    ),
   );
 });
 

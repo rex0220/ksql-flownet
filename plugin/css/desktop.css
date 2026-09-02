@@ -135,6 +135,11 @@
   background: #f6fbfe;
 }
 
+.ksql-flownet-start-request-reason {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .ksql-flownet-record-cell {
   width: 7em;
   min-width: 7em;
