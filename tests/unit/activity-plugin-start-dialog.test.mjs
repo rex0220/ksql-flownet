@@ -180,6 +180,11 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
       allNodes(document.body).indexOf(mode),
     "network_id欄を入力モードより前に置く",
   );
+  assert.ok(
+    allNodes(document.body).indexOf(named(document.body, "scheduled_for")) <
+      allNodes(document.body).indexOf(named(document.body, "business_key")),
+    "対象期間→business_key自動セットが上から下へ読めるよう対象期間を先に置く",
+  );
   assert.deepEqual(
     mode.children.map((option) => option.textContent),
     [

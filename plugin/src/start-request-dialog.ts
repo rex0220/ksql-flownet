@@ -295,13 +295,15 @@ export function openStartRequestDialog(
     dialogNode(pageDocument, "p", undefined, "参考候補(過去実績)を読込中…"),
   );
   const error = dialogNode(pageDocument, "p", "ksql-flownet-error-detail");
+  // 対象期間→business_key自動セットの流れが上から下へ読めるよう、
+  // 対象期間をbusiness_keyの上に置く(2026-09-02実機フィードバック)。
   form.append(
     networkLabel,
     modeLabel,
     modeDescription,
+    scheduled.label,
     business.label,
     businessHelp,
-    scheduled.label,
     reasonLabel,
     dialogNode(
       pageDocument,
