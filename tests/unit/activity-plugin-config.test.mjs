@@ -71,20 +71,44 @@ test("logAppId accepts empty or a positive decimal string", () => {
     assert.equal(validateLogAppId(invalid).valid, false, String(invalid));
 });
 
-test("START許可ネットワーク一覧はCSV2列と旧1列を正規化しnetwork_idの先勝ちで重複除去する", () => {
+test("START許可ネットワーク一覧はCSV4列までと旧1列を正規化しnetwork_idの先勝ちで重複除去する", () => {
   assert.deepEqual(
     validateStartAllowedNetworks(
-      " 月次案件集計 , monthly \r\n\nadhoc\r別名, monthly\n 随時 , adhoc ",
+      " 月次案件集計 , monthly , 定期 \r\n\nadhoc\r別名, monthly, 補正, ignored\n 随時 , adhoc, 任意キー, adhoc-fixed ",
     ),
     {
       valid: true,
-      value: "月次案件集計, monthly\nadhoc",
+      value: "月次案件集計, monthly, 定期\nadhoc",
       message: null,
     },
   );
-  assert.deepEqual(parseStartAllowedNetworks("月次案件集計, monthly\nadhoc"), [
-    { label: "月次案件集計", networkId: "monthly" },
-    { label: "adhoc", networkId: "adhoc" },
+  assert.deepEqual(
+    parseStartAllowedNetworks(
+      "月次案件集計, monthly, 定期\n月次案件集計(補正), correction, 補正, {ネットワークID}@{年}-{月}-correction-1\n随時, adhoc_explicit, 任意キー, adhoc-fixed\nadhoc",
+    ),
+    [
+      {
+        label: "月次案件集計",
+        networkId: "monthly",
+        mode: "scheduled",
+      },
+      {
+        label: "月次案件集計(補正)",
+        networkId: "correction",
+        mode: "correction",
+        businessKeyTemplate: "{ネットワークID}@{年}-{月}-correction-1",
+      },
+      {
+        label: "随時",
+        networkId: "adhoc_explicit",
+        mode: "explicit",
+        businessKeyTemplate: "adhoc-fixed",
+      },
+      { label: "adhoc", networkId: "adhoc" },
+    ],
+  );
+  assert.deepEqual(parseStartAllowedNetworks("表示名, legacy_network"), [
+    { label: "表示名", networkId: "legacy_network" },
   ]);
   assert.deepEqual(validateStartAllowedNetworks(""), {
     valid: true,
@@ -100,8 +124,44 @@ test("START許可ネットワーク一覧はCSV2列と旧1列を正規化しnetw
     /全体で4000文字以内/u,
   );
   assert.equal(
-    validateStartAllowedNetworks("表示名, network_id, extra").message,
-    "各行は「ネットワーク名, network_id」の2列で入力してください。",
+    validateStartAllowedNetworks("表示名, network_id, 補正, key, extra")
+      .message,
+    "各行は「ネットワーク名, network_id, 入力モード, business_keyテンプレート」の4列以内で入力してください。",
+  );
+  assert.equal(
+    validateStartAllowedNetworks("表示名, network_id, invalid").message,
+    "入力モードは 定期/補正/任意キー のいずれかで指定してください",
+  );
+  assert.equal(
+    validateStartAllowedNetworks("表示名, network_id, explicit").message,
+    "入力モードは 定期/補正/任意キー のいずれかで指定してください",
+  );
+  assert.equal(
+    validateStartAllowedNetworks("表示名, network_id, 定期, key").message,
+    "定期モードにbusiness_keyテンプレートは指定できません",
+  );
+  assert.match(
+    validateStartAllowedNetworks(
+      "表示名, network_id, 補正, {ネットワークID}@{month}",
+    ).message,
+    /プレースホルダ/u,
+  );
+  for (const oldPlaceholder of [
+    "{network_id}",
+    "{yyyy}",
+    "{MM}",
+    "{dd}",
+  ]) {
+    assert.equal(
+      validateStartAllowedNetworks(
+        `表示名, network_id, 補正, ${oldPlaceholder}`,
+      ).message,
+      "business_keyテンプレートのプレースホルダは {ネットワークID}/{年}/{月}/{日} のみ使用できます。",
+    );
+  }
+  assert.match(
+    validateStartAllowedNetworks("表示名, network_id, , fixed").message,
+    /入力モード/u,
   );
   for (const value of [", monthly", "月次案件集計,", ","]) {
     assert.match(
@@ -117,7 +177,7 @@ test("ダウンロードpayloadはメタ情報と検証・正規化済みのconf
     requestAppId: "51",
     logAppId: "61",
     startAllowedNetworks:
-      " 月次案件集計 , monthly \r\n月次案件集計(重複), monthly\n adhoc ",
+      " 月次案件集計(補正) , monthly, 補正, {ネットワークID}@{年}-{月}-correction-1 \r\n月次案件集計(重複), monthly\n adhoc ",
     deployOnSave: false,
   });
   const backup = buildConfigBackup(
@@ -142,11 +202,13 @@ test("ダウンロードpayloadはメタ情報と検証・正規化済みのconf
         auditAppId: "41",
         requestAppId: "51",
         logAppId: "61",
-        startAllowedNetworks: "月次案件集計, monthly\nadhoc",
+        startAllowedNetworks:
+          "月次案件集計(補正), monthly, 補正, {ネットワークID}@{年}-{月}-correction-1\nadhoc",
         deployOnSave: false,
       },
     },
   });
+  assert.deepEqual(applyImported(backup.payload), config);
 });
 
 test("インポートはメタ付き・素の設定を検証し、未知キーを無視する", () => {
@@ -154,7 +216,8 @@ test("インポートはメタ付き・素の設定を検証し、未知キー�
     auditAppId: "41",
     requestAppId: "51",
     logAppId: "61",
-    startAllowedNetworks: "月次案件集計, monthly\nadhoc",
+    startAllowedNetworks:
+      "月次案件集計(補正), monthly, 補正, {ネットワークID}@{年}-{月}-correction-1\nadhoc",
     deployOnSave: false,
   };
   assert.deepEqual(
@@ -162,7 +225,8 @@ test("インポートはメタ付き・素の設定を検証し、未知キー�
       date: "2026-09-02 14:05:06",
       config: {
         ...expected,
-        startAllowedNetworks: " 月次案件集計 , monthly \n別名, monthly\nadhoc ",
+        startAllowedNetworks:
+          " 月次案件集計(補正) , monthly, 補正, {ネットワークID}@{年}-{月}-correction-1 \n別名, monthly\nadhoc ",
         futureSetting: "ignored",
       },
     }),
@@ -611,7 +675,8 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "保存時に運用環境へ反映(アプリ更新)",
     "入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用",
     "STARTを許可するネットワーク(CSV・任意)",
-    "例: 月次案件集計, monthly_deal_summary",
+    "月次案件集計(当月分の起動), monthly_deal_summary, 定期",
+    "月次案件集計(補正), monthly_deal_summary, 補正, {ネットワークID}@{年}-{月}-correction-1",
     "ネットワーク名,",
     "設定のバックアップ（ダウンロード／アップロード）",
     "反映するには「保存」してください",

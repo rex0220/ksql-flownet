@@ -80,12 +80,14 @@
             name="startAllowedNetworks"
             maxlength="4000"
             rows="6"
-            placeholder="例: 月次案件集計, monthly_deal_summary"
+            placeholder="月次案件集計(当月分の起動), monthly_deal_summary, 定期
+月次案件集計(補正), monthly_deal_summary, 補正, {ネットワークID}@{年}-{月}-correction-1"
           ></textarea>
           <p class="ksql-flownet-config-help">
             VPSのallowlistでapp_start:
-            trueを設定したネットワークを「ネットワーク名,
-            network_id」のCSV形式で1行ずつ入力します。
+            trueを設定したネットワークを「ネットワーク名, network_id[,
+            入力モード[,
+            business_keyテンプレート]]」のCSV形式で1行ずつ入力します。
           </p>
         </section>
       </div>

@@ -175,6 +175,14 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   assert.ok(footer);
   assert.equal(named(document.body, "network_id").tagName, "input");
   assert.equal(named(document.body, "network_id_other"), undefined);
+  assert.deepEqual(
+    mode.children.map((option) => option.textContent),
+    [
+      "定期キー(対象期間のみ)",
+      "補正(補正キー+対象期間)",
+      "任意キー(業務キーのみ)",
+    ],
+  );
   assert.equal(
     modeDescription.textContent,
     "まだ実行していない月(期間)の分を起動します。業務キーは対象期間から自動で決まります。",
@@ -276,6 +284,76 @@ test("設定一覧は表示名とnetwork_idを分け、補助表示したnetwork
   await tick();
   await tick();
   assert.equal(postedNetworkId, "monthly");
+});
+
+test("設定一覧のモードとbusiness_keyテンプレートを自動設定し手編集を保護する", () => {
+  const document = new FakeDocument();
+  openStartRequestDialog(
+    options(document, {
+      allowedNetworks: [
+        {
+          label: "月次案件集計(補正)",
+          networkId: "monthly_deal_summary",
+          mode: "correction",
+          businessKeyTemplate: "{ネットワークID}@{年}-{月}-correction-1",
+        },
+        {
+          label: "日付付き任意キー",
+          networkId: "dated_adhoc",
+          mode: "explicit",
+          businessKeyTemplate: "{ネットワークID}@{年}-{月}-{日}",
+        },
+        {
+          label: "固定任意キー",
+          networkId: "fixed_adhoc",
+          mode: "explicit",
+          businessKeyTemplate: "{ネットワークID}-fixed",
+        },
+      ],
+    }),
+  );
+  const network = named(document.body, "network_id");
+  const mode = named(document.body, "mode");
+  const scheduled = named(document.body, "scheduled_for");
+  const business = named(document.body, "business_key");
+
+  network.value = "monthly_deal_summary";
+  network.trigger("change");
+  assert.equal(mode.value, "correction");
+  assert.equal(business.disabled, false);
+  assert.equal(business.value, "", "対象期間未入力なら日付を展開しない");
+
+  scheduled.value = "2026-08-15T09:30";
+  scheduled.trigger("input");
+  assert.equal(business.value, "monthly_deal_summary@2026-08-correction-1");
+
+  business.value = "operator-edited-key";
+  business.trigger("input");
+  scheduled.value = "2026-09-15T09:30";
+  scheduled.trigger("change");
+  assert.equal(business.value, "operator-edited-key");
+
+  network.value = "monthly_deal_summary";
+  network.trigger("change");
+  assert.equal(
+    business.value,
+    "monthly_deal_summary@2026-09-correction-1",
+    "エントリ選び直しで手編集フラグをリセットする",
+  );
+
+  network.value = "dated_adhoc";
+  network.trigger("change");
+  assert.equal(mode.value, "explicit");
+  assert.equal(scheduled.disabled, true);
+  assert.equal(
+    business.value,
+    "",
+    "explicitでは残存対象期間を使って日付テンプレートを展開しない",
+  );
+
+  network.value = "fixed_adhoc";
+  network.trigger("change");
+  assert.equal(business.value, "fixed_adhoc-fixed");
 });
 
 test("datetime-local paste sets a parsed JST minute and leaves invalid paste alone", async () => {

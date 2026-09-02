@@ -14,7 +14,7 @@ export type StartInputMode = (typeof START_INPUT_MODES)[number];
 export const START_MODE_LABELS: Readonly<Record<StartInputMode, string>> = {
   scheduled: "定期キー(対象期間のみ)",
   correction: "補正(補正キー+対象期間)",
-  explicit: "explicit(業務キーのみ)",
+  explicit: "任意キー(業務キーのみ)",
 };
 
 export interface StartFormInput {

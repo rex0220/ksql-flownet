@@ -34,6 +34,7 @@ export interface StartRequestDialogOptions {
 }
 
 const OTHER_NETWORK_VALUE = "__ksql_flownet_other_network__";
+const DATE_TEMPLATE_PLACEHOLDER = /\{(?:年|月|日)\}/u;
 
 const MODE_DESCRIPTIONS: Readonly<Record<StartInputMode, string>> = {
   scheduled:
@@ -250,6 +251,10 @@ export function openStartRequestDialog(
     REQUEST_VALUE_LIMITS.businessKey,
   );
   business.input.className = "ksql-flownet-start-business-key";
+  let businessKeyManuallyEdited = false;
+  business.input.addEventListener("input", () => {
+    businessKeyManuallyEdited = true;
+  });
   const businessHelp = dialogNode(
     pageDocument,
     "p",
@@ -268,6 +273,7 @@ export function openStartRequestDialog(
     if (parsed === null) return;
     event.preventDefault();
     scheduled.input.value = parsed;
+    applyBusinessKeyTemplate();
   });
   const reasonLabel = dialogNode(
     pageDocument,
@@ -338,11 +344,44 @@ export function openStartRequestDialog(
           ? "例: adhoc-ticket-123"
           : "";
   };
-  mode.addEventListener("change", applyMode);
+  mode.addEventListener("change", () => {
+    applyMode();
+    applyBusinessKeyTemplate();
+  });
   applyMode();
+
+  const selectedAllowedNetwork = (): StartAllowedNetwork | undefined =>
+    allowedNetworks.find(
+      (network) => network.networkId === networkSelect?.value,
+    );
+
+  function applyBusinessKeyTemplate(): void {
+    if (businessKeyManuallyEdited) return;
+    const selected = selectedAllowedNetwork();
+    const template = selected?.businessKeyTemplate;
+    if (template === undefined) return;
+
+    const hasDatePlaceholder = DATE_TEMPLATE_PLACEHOLDER.test(template);
+    if (hasDatePlaceholder && mode.value === "explicit") {
+      business.input.value = "";
+      return;
+    }
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})T/u.exec(scheduled.input.value);
+    if (hasDatePlaceholder && dateMatch === null) {
+      business.input.value = "";
+      return;
+    }
+    business.input.value = template
+      .replaceAll("{ネットワークID}", selected.networkId)
+      .replaceAll("{年}", dateMatch?.[1] ?? "")
+      .replaceAll("{月}", dateMatch?.[2] ?? "")
+      .replaceAll("{日}", dateMatch?.[3] ?? "");
+  }
 
   const applyNetworkSelection = (): void => {
     if (networkSelect === null) return;
+    businessKeyManuallyEdited = false;
+    business.input.value = "";
     const isOther = networkSelect.value === OTHER_NETWORK_VALUE;
     networkInput.hidden = !isOther;
     networkInput.disabled = !isOther;
@@ -358,9 +397,16 @@ export function openStartRequestDialog(
     networkIdHelp.textContent = showNetworkId
       ? `network_id: ${selected.networkId}`
       : "";
+    if (selected?.mode !== undefined) {
+      mode.value = selected.mode;
+      applyMode();
+    }
+    applyBusinessKeyTemplate();
     if (isOther) networkInput.focus();
   };
   networkSelect?.addEventListener("change", applyNetworkSelection);
+  scheduled.input.addEventListener("input", applyBusinessKeyTemplate);
+  scheduled.input.addEventListener("change", applyBusinessKeyTemplate);
 
   const selectedNetworkId = (): string =>
     networkSelect === null || networkSelect.value === OTHER_NETWORK_VALUE
