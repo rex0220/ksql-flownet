@@ -798,7 +798,7 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-config-upload",
     "ksql-flownet-config-import-file",
     "ksql-flownet-config-cancel",
-    "保存時に運用環境へ反映(アプリ更新)",
+    "保存時に運用環境へ反映",
     "アプリテンプレートから作成した場合、アプリIDは自動検出されるため指定不要です。自動検出が機能しない場合のみ上書きしてください。",
     "STARTを許可するネットワーク(CSV・任意)",
     "月次案件集計(当月分の起動), monthly_deal_summary, 定期",
@@ -1017,7 +1017,8 @@ test("deploy OFFならsetConfigだけを行い、deploy endpointを呼ばない"
   });
   assert.deepEqual(outcome, {
     ok: true,
-    message: "保存しました。アプリ更新で反映されます",
+    message:
+      "保存しました。運用環境へ反映するには、アプリ設定画面から「アプリを更新」してください",
   });
   assert.deepEqual(calls, [{ setConfig: savedConfig }]);
 });

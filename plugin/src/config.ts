@@ -127,7 +127,8 @@ const DEPLOY_ENDPOINT = "/k/v1/preview/app/deploy.json";
 const SET_CONFIG_TIMEOUT_MS = 4_000;
 const POLL_INTERVAL_MS = 1_000;
 const POLL_ATTEMPTS = 30;
-const SAVE_ONLY_MESSAGE = "保存しました。アプリ更新で反映されます";
+const SAVE_ONLY_MESSAGE =
+  "保存しました。運用環境へ反映するには、アプリ設定画面から「アプリを更新」してください";
 const DEPLOY_SUCCESS_MESSAGE = "保存し、運用環境へ反映しました";
 const MANUAL_DEPLOY_MESSAGE =
   "設定は保存済みです。アプリ設定から手動でアプリ更新してください。";
