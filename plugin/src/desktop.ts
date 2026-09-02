@@ -4,8 +4,10 @@ import {
   type ActivityLoadDependencies,
 } from "./board-controller.js";
 import {
+  flattenStartAllowedNetworks,
   parseStartAllowedNetworks,
   type StartAllowedNetwork,
+  type StartAllowedNetworkGroup,
   validateAuditAppId,
 } from "./config-validation.js";
 import { loadDetail } from "./detail-controller.js";
@@ -132,6 +134,7 @@ interface RuntimeDependencies {
   readonly load: ActivityLoadDependencies;
   readonly postRecord: PostRecord;
   readonly startAllowedNetworks: readonly StartAllowedNetwork[];
+  readonly startAllowedNetworkGroups: readonly StartAllowedNetworkGroup[];
 }
 
 export async function loadRuntimeDependencies(
@@ -153,6 +156,9 @@ export async function loadRuntimeDependencies(
     // 自動検出の権限/API失敗はfail-open。保存済み設定だけで従来どおり動作する。
   }
   const appIds = resolveRelatedAppIds(config, detected);
+  const parsedStartAllowedNetworks = parseStartAllowedNetworks(
+    config.startAllowedNetworks,
+  );
   return {
     load: {
       fetchRecords: createKintoneFetchRecords(api),
@@ -162,9 +168,10 @@ export async function loadRuntimeDependencies(
       logAppId: appIds.logAppId,
     },
     postRecord: createKintonePostRecord(api),
-    startAllowedNetworks: parseStartAllowedNetworks(
-      config.startAllowedNetworks,
+    startAllowedNetworks: flattenStartAllowedNetworks(
+      parsedStartAllowedNetworks,
     ),
+    startAllowedNetworkGroups: parsedStartAllowedNetworks.groups,
   };
 }
 
@@ -250,6 +257,7 @@ export function installDesktop(
                   stateAppId: dependencies.load.stateAppId,
                   requestAppId: model.requestAppId,
                   allowedNetworks: dependencies.startAllowedNetworks,
+                  allowedNetworkGroups: dependencies.startAllowedNetworkGroups,
                   onCreated: () => reload(),
                 });
               },

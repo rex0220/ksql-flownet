@@ -50,9 +50,10 @@
               id="ksql-flownet-start-allowed-networks"
               name="startAllowedNetworks"
               maxlength="4000"
-              rows="6"
+              rows="14"
               wrap="off"
-              placeholder="月次案件集計(当月分の起動), monthly_deal_summary, 定期
+              placeholder="---マスタ
+月次案件集計(当月分の起動), monthly_deal_summary, 定期
 月次案件集計(補正), monthly_deal_summary, 補正, {ネットワークID}@{年}-{月}-correction-1"
             ></textarea>
             <p class="ksql-flownet-config-help">
@@ -60,6 +61,7 @@
               trueを設定したネットワークを「ネットワーク名, network_id[,
               入力モード[,
               business_keyテンプレート]]」のCSV形式で1行ずつ入力します。
+              「---マスタ」のような行を入れると、選択肢をグループ分けできます。
             </p>
           </section>
         </div>

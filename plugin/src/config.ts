@@ -12,6 +12,7 @@ import {
 } from "./related-app-detection.js";
 
 export {
+  flattenStartAllowedNetworks,
   parseStartAllowedNetworks,
   validateAuditAppId,
   validateAuditAppIdOverride,
@@ -20,7 +21,9 @@ export {
   validateStartAllowedNetworks,
   type ConfigValidationResult,
   type PluginConfig,
+  type ParsedStartAllowedNetworks,
   type StartAllowedNetwork,
+  type StartAllowedNetworkGroup,
 } from "./config-validation.js";
 
 interface ConfigKintone {

@@ -5,6 +5,7 @@ import {
   applyImported,
   buildConfigBackup,
   buildPluginConfig,
+  flattenStartAllowedNetworks,
   installConfigPage,
   parseStartAllowedNetworks,
   saveConfigAndDeploy,
@@ -94,34 +95,48 @@ test("START許可ネットワーク一覧はCSV4列までと旧1列を正規化�
       message: null,
     },
   );
-  assert.deepEqual(
-    parseStartAllowedNetworks(
-      "月次案件集計, monthly, 定期\n月次案件集計(補正), correction, 補正, {ネットワークID}@{年}-{月}-correction-1\n随時, adhoc_explicit, 任意キー, adhoc-fixed\nadhoc",
-    ),
-    [
-      {
-        label: "月次案件集計",
-        networkId: "monthly",
-        mode: "scheduled",
-      },
-      {
-        label: "月次案件集計(補正)",
-        networkId: "correction",
-        mode: "correction",
-        businessKeyTemplate: "{ネットワークID}@{年}-{月}-correction-1",
-      },
-      {
-        label: "随時",
-        networkId: "adhoc_explicit",
-        mode: "explicit",
-        businessKeyTemplate: "adhoc-fixed",
-      },
-      { label: "adhoc", networkId: "adhoc" },
-    ],
+  const parsed = parseStartAllowedNetworks(
+    "月次案件集計, monthly, 定期\n月次案件集計(補正), correction, 補正, {ネットワークID}@{年}-{月}-correction-1\n随時, adhoc_explicit, 任意キー, adhoc-fixed\nadhoc",
   );
-  assert.deepEqual(parseStartAllowedNetworks("表示名, legacy_network"), [
-    { label: "表示名", networkId: "legacy_network" },
-  ]);
+  assert.deepEqual(parsed, {
+    groups: [
+      {
+        label: null,
+        entries: [
+          {
+            label: "月次案件集計",
+            networkId: "monthly",
+            mode: "scheduled",
+          },
+          {
+            label: "月次案件集計(補正)",
+            networkId: "correction",
+            mode: "correction",
+            businessKeyTemplate: "{ネットワークID}@{年}-{月}-correction-1",
+          },
+          {
+            label: "随時",
+            networkId: "adhoc_explicit",
+            mode: "explicit",
+            businessKeyTemplate: "adhoc-fixed",
+          },
+          { label: "adhoc", networkId: "adhoc" },
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(
+    flattenStartAllowedNetworks(parsed),
+    parsed.groups[0].entries,
+  );
+  assert.deepEqual(parseStartAllowedNetworks("表示名, legacy_network"), {
+    groups: [
+      {
+        label: null,
+        entries: [{ label: "表示名", networkId: "legacy_network" }],
+      },
+    ],
+  });
   assert.deepEqual(validateStartAllowedNetworks(""), {
     valid: true,
     value: "",
@@ -176,6 +191,86 @@ test("START許可ネットワーク一覧はCSV4列までと旧1列を正規化�
       /ネットワーク名とnetwork_idは空にせず/u,
     );
   }
+});
+
+test("区切り行をラベル付き・空ラベルのグループとしてパースし、重複は全グループで先勝ちにする", () => {
+  const source = [
+    "先頭, before, 定期",
+    "---マスタ",
+    "顧客, customer, 任意キー, {ネットワークID}-fixed",
+    "----取引先,カンマも区切りラベル",
+    "重複, before, 補正",
+    "取引先, vendor, 補正, {ネットワークID}@{年}-{月}",
+    "---",
+    "自由, adhoc",
+  ].join("\n");
+  assert.deepEqual(validateStartAllowedNetworks(source), {
+    valid: true,
+    value: source.replace("\n重複, before, 補正", ""),
+    message: null,
+  });
+  assert.deepEqual(parseStartAllowedNetworks(source), {
+    groups: [
+      {
+        label: null,
+        entries: [{ label: "先頭", networkId: "before", mode: "scheduled" }],
+      },
+      {
+        label: "マスタ",
+        entries: [
+          {
+            label: "顧客",
+            networkId: "customer",
+            mode: "explicit",
+            businessKeyTemplate: "{ネットワークID}-fixed",
+          },
+        ],
+      },
+      {
+        label: "取引先,カンマも区切りラベル",
+        entries: [
+          {
+            label: "取引先",
+            networkId: "vendor",
+            mode: "correction",
+            businessKeyTemplate: "{ネットワークID}@{年}-{月}",
+          },
+        ],
+      },
+      {
+        label: "",
+        entries: [{ label: "自由", networkId: "adhoc" }],
+      },
+    ],
+  });
+  assert.match(
+    validateStartAllowedNetworks(`---${"x".repeat(126)}`).message,
+    /1行128文字以内/u,
+  );
+});
+
+test("区切り行を含む正規化済みCSVはバックアップ適用後も変わらない", () => {
+  const startAllowedNetworks =
+    "先頭, before\n---マスタ\n顧客, customer, 定期\n---\n自由, adhoc";
+  const config = applyImported({
+    auditAppId: "41",
+    requestAppId: "51",
+    logAppId: "61",
+    startAllowedNetworks,
+  });
+  const backup = buildConfigBackup(config, {
+    pluginId: "plugin-id",
+    appId: 101,
+    appName: "Run状況",
+  });
+  assert.equal(
+    backup.payload.config.startAllowedNetworks,
+    startAllowedNetworks,
+  );
+  assert.equal(
+    applyImported(backup.payload).startAllowedNetworks,
+    startAllowedNetworks,
+  );
 });
 
 test("ダウンロードpayloadはメタ情報と検証・正規化済みのconfig全欄を持つ", () => {
@@ -722,6 +817,11 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     /<textarea[^>]*id="ksql-flownet-start-allowed-networks"[^>]*wrap="off"[^>]*>/su,
     "START許可ネットワークCSV欄は折り返さない",
   );
+  assert.match(
+    html,
+    /<textarea[^>]*id="ksql-flownet-start-allowed-networks"[^>]*rows="14"[^>]*>/su,
+    "START許可ネットワークCSV欄は基本設定タブの縦幅を広く使う",
+  );
   assert.equal(
     html.match(/class="ksql-flownet-config-section"/gu)?.length,
     4,
@@ -780,6 +880,11 @@ test("config.cssはrequest dialogと同じロゴ・ヘッダー・カード・�
   ]) {
     assert.ok(css.includes(required), `config.cssに${required}が必要`);
   }
+  assert.match(
+    css,
+    /\.ksql-flownet-config-section\s*>\s*textarea\s*\{[^}]*min-height:\s*300px;[^}]*resize:\s*vertical;/su,
+    "CSV欄は300px以上を確保し縦リサイズを維持する",
+  );
 });
 
 test("deployOnSaveはOFF時だけfalse文字列を保存し、ON時はキーを省略する", () => {

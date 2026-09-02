@@ -28,6 +28,15 @@ export interface StartAllowedNetwork {
   readonly businessKeyTemplate?: string;
 }
 
+export interface StartAllowedNetworkGroup {
+  readonly label: string | null;
+  readonly entries: readonly StartAllowedNetwork[];
+}
+
+export interface ParsedStartAllowedNetworks {
+  readonly groups: readonly StartAllowedNetworkGroup[];
+}
+
 const START_MODE_BY_CSV_VALUE = {
   定期: "scheduled",
   補正: "correction",
@@ -67,12 +76,16 @@ export function validateStartAllowedNetworks(
   for (const sourceLine of value.split(/\r?\n|\r/u)) {
     const line = sourceLine.trim();
     if (line === "") continue;
-    if (Array.from(line).length > START_ALLOWED_NETWORK_LINE_LIMIT) {
+    if (Array.from(sourceLine).length > START_ALLOWED_NETWORK_LINE_LIMIT) {
       return {
         valid: false,
         value: null,
         message: `START許可ネットワーク一覧は1行${START_ALLOWED_NETWORK_LINE_LIMIT}文字以内にしてください。`,
       };
+    }
+    if (/^-{3,}/u.test(line)) {
+      normalized.push(sourceLine);
+      continue;
     }
     const columns = line.split(",");
     if (columns.length > 4) {
@@ -150,14 +163,30 @@ export function validateStartAllowedNetworks(
 
 export function parseStartAllowedNetworks(
   value: unknown,
-): readonly StartAllowedNetwork[] {
+): ParsedStartAllowedNetworks {
   const result = validateStartAllowedNetworks(value);
-  if (!result.valid || result.value === null || result.value === "") return [];
-  return result.value.split("\n").map((line) => {
+  if (!result.valid || result.value === null || result.value === "") {
+    return { groups: [] };
+  }
+  const groups: Array<{
+    label: string | null;
+    entries: StartAllowedNetwork[];
+  }> = [];
+  let currentGroup: { label: string | null; entries: StartAllowedNetwork[] } = {
+    label: null,
+    entries: [],
+  };
+  for (const line of result.value.split("\n")) {
+    const separator = /^-{3,}(.*)$/u.exec(line.trim());
+    if (separator !== null) {
+      if (currentGroup.entries.length > 0) groups.push(currentGroup);
+      currentGroup = { label: separator[1]?.trim() ?? "", entries: [] };
+      continue;
+    }
     const [first, second, third, fourth] = line.split(",");
     const label = first?.trim() ?? "";
     const csvMode = third?.trim() ?? "";
-    return {
+    currentGroup.entries.push({
       label,
       networkId: second?.trim() ?? label,
       ...(csvMode === ""
@@ -170,8 +199,16 @@ export function parseStartAllowedNetworks(
       ...(fourth === undefined || fourth.trim() === ""
         ? {}
         : { businessKeyTemplate: fourth.trim() }),
-    };
-  });
+    });
+  }
+  if (currentGroup.entries.length > 0) groups.push(currentGroup);
+  return { groups };
+}
+
+export function flattenStartAllowedNetworks(
+  parsed: ParsedStartAllowedNetworks,
+): readonly StartAllowedNetwork[] {
+  return parsed.groups.flatMap((group) => group.entries);
 }
 
 export function validateAuditAppId(value: unknown): ConfigValidationResult {

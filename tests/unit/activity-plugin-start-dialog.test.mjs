@@ -366,6 +366,75 @@ test("設定一覧のモードとbusiness_keyテンプレートを自動設定�
   assert.equal(business.value, "fixed_adhoc-fixed");
 });
 
+test("区切りグループをoptgroupで表示し、グループを跨いだ選択でも自動設定する", () => {
+  const document = new FakeDocument();
+  openStartRequestDialog(
+    options(document, {
+      allowedNetworkGroups: [
+        {
+          label: null,
+          entries: [{ label: "先頭", networkId: "before" }],
+        },
+        {
+          label: "マスタ",
+          entries: [
+            {
+              label: "顧客補正",
+              networkId: "customer",
+              mode: "correction",
+              businessKeyTemplate: "{ネットワークID}@{年}-{月}",
+            },
+          ],
+        },
+        {
+          label: "",
+          entries: [
+            {
+              label: "自由処理",
+              networkId: "adhoc",
+              mode: "explicit",
+              businessKeyTemplate: "{ネットワークID}-fixed",
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  const network = named(document.body, "network_id");
+  assert.deepEqual(
+    network.children.map((child) => child.tagName),
+    ["option", "option", "optgroup", "option", "option"],
+  );
+  const optgroup = network.children[2];
+  assert.equal(optgroup.attributes.get("label"), "マスタ");
+  assert.deepEqual(
+    optgroup.children.map((option) => [
+      option.textContent,
+      option.attributes.get("value"),
+    ]),
+    [["顧客補正", "customer"]],
+  );
+  assert.deepEqual(
+    [network.children[0].textContent, network.children.at(-1).textContent],
+    ["選択してください", "その他(自由入力)"],
+  );
+
+  const mode = named(document.body, "mode");
+  const scheduled = named(document.body, "scheduled_for");
+  const business = named(document.body, "business_key");
+  network.value = "customer";
+  network.trigger("change");
+  scheduled.value = "2026-09-15T09:30";
+  scheduled.trigger("input");
+  assert.equal(mode.value, "correction");
+  assert.equal(business.value, "customer@2026-09");
+
+  network.value = "adhoc";
+  network.trigger("change");
+  assert.equal(mode.value, "explicit");
+  assert.equal(business.value, "adhoc-fixed");
+});
+
 test("datetime-local paste sets a parsed JST minute and leaves invalid paste alone", async () => {
   const document = new FakeDocument();
   openStartRequestDialog(options(document));

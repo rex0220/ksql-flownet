@@ -72,6 +72,8 @@ test("form fields GETが403でもfail-openで保存済み設定だけを使う",
             auditAppId: "211",
             requestAppId: "311",
             logAppId: "411",
+            startAllowedNetworks:
+              "先頭, before\n---マスタ\n顧客, customer, 定期",
           }),
         },
       },
@@ -89,6 +91,20 @@ test("form fields GETが403でもfail-openで保存済み設定だけを使う",
   assert.equal(dependencies.load.auditAppId, "211");
   assert.equal(dependencies.load.requestAppId, "311");
   assert.equal(dependencies.load.logAppId, "411");
+  assert.deepEqual(dependencies.startAllowedNetworks, [
+    { label: "先頭", networkId: "before" },
+    { label: "顧客", networkId: "customer", mode: "scheduled" },
+  ]);
+  assert.deepEqual(dependencies.startAllowedNetworkGroups, [
+    {
+      label: null,
+      entries: [{ label: "先頭", networkId: "before" }],
+    },
+    {
+      label: "マスタ",
+      entries: [{ label: "顧客", networkId: "customer", mode: "scheduled" }],
+    },
+  ]);
 });
 
 test("設定も検出も無い項目は空欄のまま従来のfail-closedへ渡す", () => {

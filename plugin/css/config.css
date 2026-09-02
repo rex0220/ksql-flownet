@@ -141,7 +141,7 @@
   box-sizing: border-box;
   grid-column: 1 / -1;
   width: 100%;
-  min-height: 112px;
+  min-height: 300px;
   padding: 8px;
   overflow-x: auto;
   font-family:

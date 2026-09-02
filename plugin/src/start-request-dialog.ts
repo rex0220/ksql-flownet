@@ -20,7 +20,10 @@ import {
   type StartCandidate,
   type StartInputMode,
 } from "./start-request.js";
-import type { StartAllowedNetwork } from "./config-validation.js";
+import type {
+  StartAllowedNetwork,
+  StartAllowedNetworkGroup,
+} from "./config-validation.js";
 
 export interface StartRequestDialogOptions {
   readonly pageDocument: Document;
@@ -30,6 +33,7 @@ export interface StartRequestDialogOptions {
   readonly stateAppId: number | string;
   readonly requestAppId: string;
   readonly allowedNetworks?: readonly StartAllowedNetwork[];
+  readonly allowedNetworkGroups?: readonly StartAllowedNetworkGroup[];
   readonly onCreated: (record: RequestRecord) => void;
 }
 
@@ -205,7 +209,14 @@ export function openStartRequestDialog(
     undefined,
     "network_id(必須 — サーバー側で許可されたもののみ起動します)",
   );
-  const allowedNetworks = options.allowedNetworks ?? [];
+  const allowedNetworkGroups =
+    options.allowedNetworkGroups ??
+    (options.allowedNetworks === undefined
+      ? []
+      : [{ label: null, entries: options.allowedNetworks }]);
+  const allowedNetworks = allowedNetworkGroups.flatMap(
+    (group) => group.entries,
+  );
   const networkSelect =
     allowedNetworks.length > 0 ? pageDocument.createElement("select") : null;
   const networkInput = pageDocument.createElement("input");
@@ -228,11 +239,19 @@ export function openStartRequestDialog(
     prompt.setAttribute("value", "");
     prompt.textContent = "選択してください";
     networkSelect.append(prompt);
-    for (const network of allowedNetworks) {
-      const option = pageDocument.createElement("option");
-      option.setAttribute("value", network.networkId);
-      option.textContent = network.label;
-      networkSelect.append(option);
+    for (const group of allowedNetworkGroups) {
+      const parent =
+        group.label === null || group.label === ""
+          ? networkSelect
+          : pageDocument.createElement("optgroup");
+      if (parent !== networkSelect) parent.setAttribute("label", group.label);
+      for (const network of group.entries) {
+        const option = pageDocument.createElement("option");
+        option.setAttribute("value", network.networkId);
+        option.textContent = network.label;
+        parent.append(option);
+      }
+      if (parent !== networkSelect) networkSelect.append(parent);
     }
     const other = pageDocument.createElement("option");
     other.setAttribute("value", OTHER_NETWORK_VALUE);
