@@ -195,12 +195,47 @@ export function graphIdentity(graph) {
   };
 }
 
+// ensureRunはMAX_ACTIVE_RUNS等の裁定より前にNETWORK_LOCKレコードを作成し、
+// 解放はtombstone(LOCKDONE)のUPDATE方式でレコードが残る(2026-09-02実測 —
+// P2-11以前からの基盤挙動)。受入4の「状態不変」はRun/Invocation/Node stateの
+// 不変を意味するため、stateアプリはNETWORK_LOCKのみ増分・改版を許容し、
+// それ以外のrecord_typeと監査アプリは完全一致で検証する。
 export async function persistenceSnapshot(settings) {
-  return snapshotPersistenceRevisions(settings);
+  const snapshot = { audit: (await snapshotPersistenceRevisions(settings)).audit };
+  const records = await getAllPersistenceRecords(settings, "state");
+  snapshot.state = Object.fromEntries(
+    records.map((record) => [
+      field(record, "$id"),
+      {
+        revision: field(record, "$revision"),
+        type: field(record, "record_type"),
+      },
+    ]),
+  );
+  return snapshot;
 }
 
 export async function assertPersistenceUnchanged(settings, before) {
-  assert.deepEqual(await snapshotPersistenceRevisions(settings), before);
+  const after = await persistenceSnapshot(settings);
+  assert.deepEqual(after.audit, before.audit, "監査アプリは完全不変であること");
+  for (const [id, entry] of Object.entries(before.state)) {
+    const current = after.state[id];
+    assert.ok(current, `既存stateレコード#${id}が消えています`);
+    if (entry.type === "NETWORK_LOCK") continue;
+    assert.deepEqual(
+      current,
+      entry,
+      `stateレコード#${id}(${entry.type})が変更されています`,
+    );
+  }
+  for (const [id, entry] of Object.entries(after.state)) {
+    if (Object.hasOwn(before.state, id)) continue;
+    assert.equal(
+      entry.type,
+      "NETWORK_LOCK",
+      `NETWORK_LOCK以外のstateレコード#${id}(${entry.type})が増えています`,
+    );
+  }
 }
 
 export async function refreshRequest(settings, request) {

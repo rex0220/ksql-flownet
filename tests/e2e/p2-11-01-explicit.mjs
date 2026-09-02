@@ -28,7 +28,8 @@ await runP211(
       );
       const completed = await pollAndWait(settings, allowlist.path, created);
       assert.equal(completed.request.requestState, "DONE");
-      assert.equal(completed.request.resultCode, "SUCCESS");
+      // DONEのresult_codeはInvocation result codeの転記(G-04/G-07)。成功はOK。
+      assert.equal(completed.request.resultCode, "OK");
       const correlation = await assertStartCorrelation(
         settings,
         completed.request,

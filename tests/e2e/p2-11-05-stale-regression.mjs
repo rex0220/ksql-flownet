@@ -17,7 +17,9 @@ import {
   graphIdentity,
   pollAndWait,
   prepareP211Network,
+  readTargetPeriodAggregate,
   runP211,
+  setScheduledAggregateExpectation,
 } from "./p2-11-support.mjs";
 
 await runP211(
@@ -108,7 +110,17 @@ await runP211(
         rerunBefore.invocations.length + 1,
       );
 
-      const cronScheduledFor = "2026-09-15T00:00:00.000Z";
+      // scheduled fixtureのASSERTは期待値プレースホルダの置換が前提。
+      // cron回帰の目的は--scheduled-for --resume経路の確認で対象月は無関係の
+      // ため、案件データが存在する8月断面を使う。
+      const cronScheduledFor = "2026-08-15T00:00:00.000Z";
+      await setScheduledAggregateExpectation(
+        cronFixture,
+        await readTargetPeriodAggregate(settings, {
+          fromDate: "2026-08-01",
+          toDate: "2026-09-01",
+        }),
+      );
       const cron = await runFlowNetCommand(settings, [
         "run-network",
         cronFixture.networkPath,
@@ -120,7 +132,7 @@ await runP211(
       assert.equal(cron.exitCode, 0, cron.stderr || cron.stdout);
       const cronGraph = await loadRunGraph(
         settings,
-        `${cronFixture.networkId}@2026-09`,
+        `${cronFixture.networkId}@2026-08`,
       );
       assert.equal(cronGraph.run.status, "SUCCESS");
       assert.equal(
