@@ -259,7 +259,7 @@ test("pending START section hides when empty and renders multiple safe linked de
     { onReload: () => {} },
   );
   const text = allText(root);
-  assert.match(text, /処理待ちのSTART要求/u);
+  assert.match(text, /START要求/u);
   assert.match(text, /REQUESTED/u);
   assert.match(text, /ACCEPTED/u);
   assert.match(text, /業務キー: monthly@2026-09/u);
@@ -286,6 +286,137 @@ test("pending START section hides when empty and renders multiple safe linked de
     allNodes(root).some(
       (node) => node.className === "ksql-flownet-start-request-reason",
     ),
+  );
+});
+
+test("START request history renders terminal results and tones below pending rows", () => {
+  const document = new FakeDocument();
+  const root = new FakeElement("div", document);
+  renderBoard(
+    root,
+    {
+      activeSection: { state: "ready", rows: [], error: null },
+      attentionSection: { state: "ready", rows: [], error: null },
+      attentionRemainingCount: 0,
+      pendingWarning: null,
+      pendingStartCount: 1,
+      pendingStartRequests: [
+        {
+          id: "60",
+          requestState: "REQUESTED",
+          networkId: "monthly",
+          businessKey: null,
+          scheduledFor: null,
+          reason: "pending",
+          creatorName: "担当",
+          createdAt: "2026-09-01T00:00:00Z",
+        },
+      ],
+      terminalStartRequests: [
+        {
+          id: "59",
+          requestState: "DONE",
+          networkId: "monthly",
+          businessKey: "monthly@2026-09",
+          scheduledFor: null,
+          reason: "done",
+          creatorName: "担当",
+          createdAt: "2026-09-01T00:00:00Z",
+          resultCode: "OK",
+          resultMessage: null,
+        },
+        {
+          id: "58",
+          requestState: "REJECTED",
+          networkId: "blocked",
+          businessKey: null,
+          scheduledFor: null,
+          reason: "rejected",
+          creatorName: "担当",
+          createdAt: "2026-09-01T00:00:00Z",
+          resultCode: "NETWORK_NOT_ALLOWED",
+          resultMessage: "許可対象外です",
+        },
+      ],
+      recentTerminalRuns: [],
+      stateAppId: "100",
+      requestEnabled: true,
+      requestAppId: "300",
+      judgedAt: 1,
+      state: "ready",
+      rows: [],
+      error: null,
+    },
+    { onReload: () => {} },
+  );
+  const text = allText(root);
+  assert.match(text, /START要求/u);
+  assert.match(text, /OK/u);
+  assert.match(text, /NETWORK_NOT_ALLOWED \/ 許可対象外です/u);
+  const statuses = allNodes(root).filter((node) =>
+    node.className.startsWith("ksql-flownet-status "),
+  );
+  assert.deepEqual(
+    statuses.map(({ textContent, className }) => [textContent, className]),
+    [
+      ["DONE", "ksql-flownet-status ksql-flownet-status--done"],
+      ["REJECTED", "ksql-flownet-status ksql-flownet-status--rejected"],
+    ],
+  );
+});
+
+test("recent terminal Run section renders links, JST and SUCCESS tone, and hides at zero", () => {
+  const document = new FakeDocument();
+  const root = new FakeElement("div", document);
+  const base = {
+    activeSection: { state: "ready", rows: [], error: null },
+    attentionSection: { state: "ready", rows: [], error: null },
+    attentionRemainingCount: 0,
+    pendingWarning: null,
+    pendingStartCount: null,
+    pendingStartRequests: null,
+    terminalStartRequests: null,
+    stateAppId: "100",
+    requestEnabled: false,
+    requestAppId: null,
+    judgedAt: 1,
+    state: "ready",
+    rows: [],
+    error: null,
+  };
+  renderBoard(
+    root,
+    { ...base, recentTerminalRuns: [] },
+    { onReload: () => {} },
+  );
+  assert.equal(findText(root, "最近の終了Run（直近10件）"), undefined);
+
+  renderBoard(
+    root,
+    {
+      ...base,
+      recentTerminalRuns: [
+        {
+          recordId: "70",
+          status: "SUCCESS",
+          networkId: "monthly",
+          businessKey: "monthly@2026-09",
+          asOf: "2026-09-01T01:23:00Z",
+          updatedAt: "2026-09-01T02:34:00Z",
+        },
+      ],
+    },
+    { onReload: () => {} },
+  );
+  assert.ok(findText(root, "最近の終了Run（直近10件）"));
+  assert.match(allText(root), /2026\/09\/01 10:23/u);
+  assert.match(allText(root), /2026\/09\/01 11:34/u);
+  const link = findText(root, "#70");
+  assert.equal(link.attributes.get("href"), "/k/100/show#record=70");
+  assert.equal(link.attributes.get("target"), "_blank");
+  assert.equal(
+    findText(root, "SUCCESS").className,
+    "ksql-flownet-status ksql-flownet-status--success",
   );
 });
 
@@ -611,10 +742,10 @@ test("レコード/要求リンクは別タブで開き、エラー概要の同�
   const targetCount = (
     source.match(/setAttribute\("target", "_blank"\)/gu) ?? []
   ).length;
-  assert.equal(targetCount, 2, "レコード番号と要求処理待ちの両リンクに_blank");
+  assert.equal(targetCount, 3, "Run・要求・最近の終了Runリンクに_blank");
   assert.equal(
     (source.match(/noopener noreferrer/gu) ?? []).length,
-    2,
+    3,
     "rel=noopener noreferrer必須",
   );
   const { formatErrorSummaryLine } =

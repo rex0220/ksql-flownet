@@ -7,6 +7,7 @@ import {
   guardPendingRequest,
   loadPendingStartRequests,
   loadPendingRequests,
+  loadTerminalStartRequests,
   PENDING_MAX_FINAL_QUERY_LENGTH,
   RequestPostError,
 } from "../../dist/plugin/request-client.js";
@@ -244,6 +245,56 @@ test("pending START details parse creator/date/nulls while count and oldestId re
     "作成者",
     "作成日時",
   ]);
+});
+
+test("terminal START GET is limited newest-first and parses result fields", async () => {
+  const gets = [];
+  const result = await loadTerminalStartRequests(async (request) => {
+    gets.push(request);
+    return {
+      records: [
+        pendingStart(52, {
+          request_state: field("REJECTED"),
+          result_code: field("NETWORK_NOT_ALLOWED"),
+          result_message: field("許可対象外です"),
+        }),
+        pendingStart(51, {
+          request_state: field("DONE"),
+          result_code: field("OK"),
+          result_message: field(""),
+        }),
+      ],
+    };
+  }, 300);
+  assert.equal(result.state, "ready");
+  assert.match(
+    gets[0].query,
+    /request_state in \("DONE", "REJECTED"\) order by \$id desc limit 10$/u,
+  );
+  assert.ok(gets[0].fields.includes("result_code"));
+  assert.ok(gets[0].fields.includes("result_message"));
+  assert.deepEqual(
+    result.requests.map(({ id, requestState, resultCode, resultMessage }) => ({
+      id,
+      requestState,
+      resultCode,
+      resultMessage,
+    })),
+    [
+      {
+        id: "52",
+        requestState: "REJECTED",
+        resultCode: "NETWORK_NOT_ALLOWED",
+        resultMessage: "許可対象外です",
+      },
+      {
+        id: "51",
+        requestState: "DONE",
+        resultCode: "OK",
+        resultMessage: null,
+      },
+    ],
+  );
 });
 
 function readbackRecord(type = "RERUN") {

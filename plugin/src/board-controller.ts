@@ -29,9 +29,15 @@ import { requiredText, type KintoneRecord } from "./kintone-record.js";
 import {
   loadPendingRequests,
   loadPendingStartRequests,
+  loadTerminalStartRequests,
   type PendingStartRequest,
+  type TerminalStartRequest,
 } from "./request-client.js";
-import { loadTerminalRuns } from "./terminal-run-loader.js";
+import {
+  loadRecentTerminalRuns,
+  loadTerminalRuns,
+  type RecentTerminalRun,
+} from "./terminal-run-loader.js";
 import {
   ACTION_TEXT,
   type ActivityRowViewModel,
@@ -409,9 +415,17 @@ export async function loadBoard(
   dependencies: ActivityLoadDependencies,
 ): Promise<BoardViewModel> {
   const nowMs = (dependencies.nowMs ?? Date.now)();
-  const [activeSection, attention] = await Promise.all([
+  const [activeSection, attention, recentTerminalResult] = await Promise.all([
     loadActiveSection(dependencies, nowMs),
     loadAttentionSection(dependencies),
+    loadRecentTerminalRuns(dependencies.fetchRecords, dependencies.stateAppId)
+      .then((runs) => ({ state: "ready" as const, runs }))
+      .catch(() => ({
+        state: "unavailable" as const,
+        runs: [] as readonly RecentTerminalRun[],
+        warning:
+          "最近の終了Runを取得できませんでした。閲覧権限を確認してください。",
+      })),
   ]);
   const requestConfig = validateRequestAppId(dependencies.requestAppId ?? "");
   const requestEnabled =
@@ -421,10 +435,15 @@ export async function loadBoard(
   let pendingWarning: string | null = null;
   let pendingStartCount: number | null = null;
   let pendingStartRequests: readonly PendingStartRequest[] | null = null;
+  let terminalStartRequests: readonly TerminalStartRequest[] | null = null;
   let active = activeSection;
   let terminal = attention.section;
   if (requestEnabled) {
     const startPendingPromise = loadPendingStartRequests(
+      dependencies.fetchRecords,
+      requestConfig.value,
+    );
+    const startTerminalPromise = loadTerminalStartRequests(
       dependencies.fetchRecords,
       requestConfig.value,
     );
@@ -459,6 +478,21 @@ export async function loadBoard(
           ? startPending.warning
           : `${pendingWarning} ${startPending.warning}`;
     }
+    const startTerminal = await startTerminalPromise;
+    if (startTerminal.state === "ready") {
+      terminalStartRequests = startTerminal.requests;
+    } else {
+      pendingWarning =
+        pendingWarning === null
+          ? startTerminal.warning
+          : `${pendingWarning} ${startTerminal.warning}`;
+    }
+  }
+  if (recentTerminalResult.state === "unavailable") {
+    pendingWarning =
+      pendingWarning === null
+        ? recentTerminalResult.warning
+        : `${pendingWarning} ${recentTerminalResult.warning}`;
   }
   return {
     activeSection: active,
@@ -467,6 +501,10 @@ export async function loadBoard(
     pendingWarning,
     pendingStartCount,
     pendingStartRequests,
+    terminalStartRequests,
+    recentTerminalRuns:
+      recentTerminalResult.state === "ready" ? recentTerminalResult.runs : null,
+    stateAppId: String(dependencies.stateAppId),
     requestEnabled,
     requestAppId: requestEnabled ? requestConfig.value : null,
     judgedAt: nowMs,

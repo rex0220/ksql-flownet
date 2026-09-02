@@ -295,6 +295,20 @@ const START_PENDING_FIELDS = [
   "作成者",
   "作成日時",
 ] as const;
+export const START_TERMINAL_QUERY =
+  'request_type in ("START") and request_state in ("DONE", "REJECTED") order by $id desc limit 10';
+export const START_TERMINAL_FIELDS = [
+  "$id",
+  "request_state",
+  "network_id",
+  "business_key",
+  "scheduled_for",
+  "reason",
+  "作成者",
+  "作成日時",
+  "result_code",
+  "result_message",
+] as const;
 const START_GUARD_FIELDS = [
   "$id",
   "request_type",
@@ -336,6 +350,44 @@ export interface PendingStartRequest {
   readonly createdAt: string;
 }
 
+export interface TerminalStartRequest {
+  readonly id: string;
+  readonly requestState: "DONE" | "REJECTED";
+  readonly networkId: string;
+  readonly businessKey: string | null;
+  readonly scheduledFor: string | null;
+  readonly reason: string;
+  readonly creatorName: string;
+  readonly createdAt: string;
+  readonly resultCode: string;
+  readonly resultMessage: string | null;
+}
+
+export type TerminalStartLoadResult =
+  | {
+      readonly state: "ready";
+      readonly requests: readonly TerminalStartRequest[];
+    }
+  | {
+      readonly state: "unavailable";
+      readonly requests: readonly TerminalStartRequest[];
+      readonly warning: string;
+    };
+
+function parseCreatorName(record: KintoneRecord, context: string): string {
+  const creator = fieldValue(record, "作成者");
+  if (
+    typeof creator !== "object" ||
+    creator === null ||
+    !("name" in creator) ||
+    typeof creator.name !== "string" ||
+    creator.name === ""
+  ) {
+    throw new KintoneRecordError(`invalid ${context} creator`);
+  }
+  return creator.name;
+}
+
 export type PendingStartLoadResult =
   | { readonly state: "ready"; readonly summary: PendingStartSummary }
   | {
@@ -363,16 +415,6 @@ export async function loadPendingStartRequests(
       if (!/^[1-9][0-9]*$/.test(id)) {
         throw new KintoneRecordError("invalid pending START record ID");
       }
-      const creator = fieldValue(record, "作成者");
-      if (
-        typeof creator !== "object" ||
-        creator === null ||
-        !("name" in creator) ||
-        typeof creator.name !== "string" ||
-        creator.name === ""
-      ) {
-        throw new KintoneRecordError("invalid pending START creator");
-      }
       return {
         id,
         requestState,
@@ -380,7 +422,7 @@ export async function loadPendingStartRequests(
         businessKey: nullableText(record, "business_key"),
         scheduledFor: nullableText(record, "scheduled_for"),
         reason: requiredText(record, "reason"),
-        creatorName: creator.name,
+        creatorName: parseCreatorName(record, "pending START"),
         createdAt: requiredText(record, "作成日時"),
       };
     });
@@ -398,6 +440,53 @@ export async function loadPendingStartRequests(
       summary: { count: 0, oldestId: null, requests: [] },
       warning:
         "処理待ちのSTART要求件数を取得できませんでした。新規実行は利用できます。",
+    };
+  }
+}
+
+export async function loadTerminalStartRequests(
+  fetchRecords: FetchRecords,
+  requestAppId: number | string,
+): Promise<TerminalStartLoadResult> {
+  try {
+    const response = await fetchRecords({
+      app: requestAppId,
+      query: START_TERMINAL_QUERY,
+      fields: START_TERMINAL_FIELDS,
+    });
+    if (response.records.length > 10) {
+      throw new KintoneRecordError("terminal START response exceeds limit 10");
+    }
+    return {
+      state: "ready",
+      requests: response.records.map((record): TerminalStartRequest => {
+        const id = requiredText(record, "$id");
+        if (!/^[1-9][0-9]*$/.test(id)) {
+          throw new KintoneRecordError("invalid terminal START record ID");
+        }
+        return {
+          id,
+          requestState: requireLiteral(record, "request_state", [
+            "DONE",
+            "REJECTED",
+          ] as const),
+          networkId: requiredText(record, "network_id"),
+          businessKey: nullableText(record, "business_key"),
+          scheduledFor: nullableText(record, "scheduled_for"),
+          reason: requiredText(record, "reason"),
+          creatorName: parseCreatorName(record, "terminal START"),
+          createdAt: requiredText(record, "作成日時"),
+          resultCode: requiredText(record, "result_code"),
+          resultMessage: nullableText(record, "result_message"),
+        };
+      }),
+    };
+  } catch {
+    return {
+      state: "unavailable",
+      requests: [],
+      warning:
+        "最近の終了START要求を取得できませんでした。閲覧権限を確認してください。",
     };
   }
 }

@@ -140,6 +140,15 @@
   overflow-wrap: anywhere;
 }
 
+.ksql-flownet-start-request-result {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ksql-flownet-start-request-terminal-row--first td {
+  border-top: 2px solid #cfd7da;
+}
+
 .ksql-flownet-record-cell {
   width: 7em;
   min-width: 7em;
@@ -183,6 +192,27 @@
 
 .ksql-flownet-badge--interrupted,
 .ksql-flownet-error {
+  color: #7f1d1d;
+  background: #fecaca;
+}
+
+.ksql-flownet-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.ksql-flownet-status--success,
+.ksql-flownet-status--done {
+  color: #14532d;
+  background: #bbf7d0;
+}
+
+.ksql-flownet-status--rejected {
   color: #7f1d1d;
   background: #fecaca;
 }
