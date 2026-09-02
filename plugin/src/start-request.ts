@@ -95,12 +95,13 @@ export function normalizeJstDatetimeLocal(value: string): string {
   ) {
     throw new KintoneRecordError("対象期間に実在する日時を入力してください。");
   }
-  // kintoneのDATETIMEはGETで秒精度"…T15:00:00Z"を返し、クエリも同形式を
-  // 期待する。ミリ秒付きだとガードの文字列一致とクエリの両方が壊れるため、
-  // POST・クエリ・比較のすべてで正準の秒精度へ落とす。
-  return new Date(wallClock.getTime() - 9 * 60 * 60 * 1_000)
-    .toISOString()
-    .replace(/\.\d{3}Z$/, "Z");
+  // kintoneのDATETIMEは分精度(秒なし)で、APIは"…T15:00:00Z"形式(秒は常に
+  // 00)を返す。秒・ミリ秒が残るとPOST値と保存値が食い違い、重複ガードの
+  // 一致とクエリの両方が壊れるため、kintoneの保存挙動と同じく分へ切り捨てた
+  // 正準形式でPOST・クエリ・比較のすべてを揃える。
+  const utc = new Date(wallClock.getTime() - 9 * 60 * 60 * 1_000);
+  utc.setUTCSeconds(0, 0);
+  return utc.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 /**

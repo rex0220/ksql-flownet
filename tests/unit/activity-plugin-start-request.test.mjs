@@ -199,9 +199,14 @@ test("candidate groups deduplicate, page to the 500 cap, note only at cap, and f
   assert.equal(loaded.runHistory.note, null);
 });
 
-test("normalizeJstDatetimeLocal emits kintone-canonical second precision", () => {
+test("normalizeJstDatetimeLocal emits kintone-canonical minute precision", () => {
   assert.equal(
     normalizeJstDatetimeLocal("2026-09-01T00:00"),
+    "2026-08-31T15:00:00Z",
+  );
+  // kintoneのDATETIMEは分精度: 秒入り入力は保存挙動と同じく分へ切り捨てる
+  assert.equal(
+    normalizeJstDatetimeLocal("2026-09-01T00:00:45"),
     "2026-08-31T15:00:00Z",
   );
   assert.doesNotMatch(normalizeJstDatetimeLocal("2026-09-01T00:00"), /\.\d{3}Z/u);
