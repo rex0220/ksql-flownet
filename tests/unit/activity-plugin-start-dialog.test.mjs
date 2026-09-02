@@ -43,8 +43,8 @@ class FakeElement {
       );
     }
   }
-  trigger(name) {
-    this.listeners.get(name)?.({ preventDefault() {} });
+  trigger(name, event = { preventDefault() {} }) {
+    this.listeners.get(name)?.(event);
   }
 }
 
@@ -156,6 +156,22 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   const mode = named(document.body, "mode");
   const business = named(document.body, "business_key");
   const scheduled = named(document.body, "scheduled_for");
+  const dialog = allNodes(document.body).find((node) =>
+    node.className.split(" ").includes("ksql-flownet-start-dialog"),
+  );
+  const scroll = allNodes(document.body).find((node) =>
+    node.className.split(" ").includes("ksql-flownet-start-dialog-scroll"),
+  );
+  const footer = allNodes(document.body).find((node) =>
+    node.className.split(" ").includes("ksql-flownet-start-dialog-footer"),
+  );
+  assert.ok(dialog);
+  assert.ok(scroll);
+  assert.ok(footer);
+  assert.equal(
+    named(document.body, "business_key").className,
+    "ksql-flownet-start-business-key",
+  );
   assert.equal(business.disabled, true);
   assert.equal(scheduled.required, true);
   mode.value = "correction";
@@ -166,6 +182,31 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   mode.trigger("change");
   assert.equal(business.required, true);
   assert.equal(scheduled.disabled, true);
+});
+
+test("datetime-local paste sets a parsed JST minute and leaves invalid paste alone", async () => {
+  const document = new FakeDocument();
+  openStartRequestDialog(options(document));
+  const scheduled = named(document.body, "scheduled_for");
+  let prevented = false;
+  scheduled.trigger("paste", {
+    clipboardData: { getData: () => "2026-08-15T00:30:59Z" },
+    preventDefault: () => {
+      prevented = true;
+    },
+  });
+  assert.equal(scheduled.value, "2026-08-15T09:30");
+  assert.equal(prevented, true);
+
+  prevented = false;
+  scheduled.trigger("paste", {
+    clipboardData: { getData: () => "invalid" },
+    preventDefault: () => {
+      prevented = true;
+    },
+  });
+  assert.equal(scheduled.value, "2026-08-15T09:30");
+  assert.equal(prevented, false);
 });
 
 test("submit locks double click, posts once, and shows success link then reloads once", async () => {

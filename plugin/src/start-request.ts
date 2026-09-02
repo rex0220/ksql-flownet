@@ -66,6 +66,75 @@ function assertText(value: string, field: string, maximum: number): string {
   return trimmed;
 }
 
+/**
+ * 貼り付けられた日時をJSTのdatetime-local値へ正規化する。
+ * タイムゾーンなしはJSTの壁時計として扱い、Z/オフセット付きはJSTへ換算する。
+ */
+export function parsePastedJstDatetime(text: string): string | null {
+  const match =
+    /^(\d{4})([-/])(\d{2})\2(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:(Z)|([+-])(\d{2}):(\d{2}))?$/iu.exec(
+      text.trim(),
+    );
+  if (match === null) return null;
+  const [
+    ,
+    yearText,
+    ,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+    utcDesignator,
+    offsetSign,
+    offsetHourText,
+    offsetMinuteText,
+  ] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText ?? "0");
+  const wallClock = new Date(0);
+  wallClock.setUTCFullYear(year, month - 1, day);
+  wallClock.setUTCHours(hour, minute, second, 0);
+  if (
+    wallClock.getUTCFullYear() !== year ||
+    wallClock.getUTCMonth() !== month - 1 ||
+    wallClock.getUTCDate() !== day ||
+    wallClock.getUTCHours() !== hour ||
+    wallClock.getUTCMinutes() !== minute ||
+    wallClock.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+
+  let jstWallClock = wallClock;
+  if (utcDesignator !== undefined || offsetSign !== undefined) {
+    const offsetHour = Number(offsetHourText ?? "0");
+    const offsetMinute = Number(offsetMinuteText ?? "0");
+    if (offsetHour > 23 || offsetMinute > 59) return null;
+    const offsetMinutes =
+      offsetSign === "-"
+        ? -(offsetHour * 60 + offsetMinute)
+        : offsetHour * 60 + offsetMinute;
+    jstWallClock = new Date(
+      wallClock.getTime() - offsetMinutes * 60_000 + 9 * 60 * 60_000,
+    );
+  }
+  const jstYear = jstWallClock.getUTCFullYear();
+  if (jstYear < 0 || jstYear > 9999) return null;
+  return `${String(jstYear).padStart(4, "0")}-${String(
+    jstWallClock.getUTCMonth() + 1,
+  ).padStart(2, "0")}-${String(jstWallClock.getUTCDate()).padStart(
+    2,
+    "0",
+  )}T${String(jstWallClock.getUTCHours()).padStart(2, "0")}:${String(
+    jstWallClock.getUTCMinutes(),
+  ).padStart(2, "0")}`;
+}
+
 /** datetime-localを日本標準時(+09:00)として解釈し、kintone保存値と同じUTC ISOへする。 */
 export function normalizeJstDatetimeLocal(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(

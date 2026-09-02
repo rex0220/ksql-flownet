@@ -12,6 +12,7 @@ import {
 import { addRequestLink, dialogNode, requestUrl } from "./request-dialog.js";
 import {
   normalizeStartFormInput,
+  parsePastedJstDatetime,
   START_INPUT_MODES,
   START_MODE_LABELS,
   startCandidateDisplay,
@@ -104,7 +105,11 @@ export function openStartRequestDialog(
     "ksql-flownet-dialog-overlay",
   );
   overlay.id = "ksql-flownet-start-request-dialog";
-  const dialog = dialogNode(pageDocument, "section", "ksql-flownet-dialog");
+  const dialog = dialogNode(
+    pageDocument,
+    "section",
+    "ksql-flownet-dialog ksql-flownet-start-dialog",
+  );
   dialog.setAttribute("role", "dialog");
   dialog.setAttribute("aria-modal", "true");
   dialog.setAttribute("aria-labelledby", "ksql-flownet-start-dialog-title");
@@ -139,12 +144,12 @@ export function openStartRequestDialog(
   const content = dialogNode(
     pageDocument,
     "div",
-    "ksql-flownet-dialog-content",
+    "ksql-flownet-dialog-content ksql-flownet-start-dialog-scroll",
   );
   const footer = dialogNode(
     pageDocument,
     "footer",
-    "ksql-flownet-dialog-footer",
+    "ksql-flownet-dialog-footer ksql-flownet-start-dialog-footer",
   );
   const close = dialogNode(
     pageDocument,
@@ -189,12 +194,20 @@ export function openStartRequestDialog(
     "text",
     REQUEST_VALUE_LIMITS.businessKey,
   );
+  business.input.className = "ksql-flownet-start-business-key";
   const scheduled = labeledInput(
     pageDocument,
     "対象期間(定期キー/補正で必須・日本時間)",
     "scheduled_for",
     "datetime-local",
   );
+  scheduled.input.addEventListener("paste", (event) => {
+    const pasted = event.clipboardData?.getData("text/plain") ?? "";
+    const parsed = parsePastedJstDatetime(pasted);
+    if (parsed === null) return;
+    event.preventDefault();
+    scheduled.input.value = parsed;
+  });
   const reasonLabel = dialogNode(
     pageDocument,
     "label",

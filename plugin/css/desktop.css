@@ -355,6 +355,23 @@
   box-shadow: 0 12px 36px rgb(0 0 0 / 30%);
 }
 
+.ksql-flownet-start-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(96vw, 780px);
+  max-height: min(90vh, 900px);
+  overflow: hidden;
+}
+
+.ksql-flownet-start-dialog-scroll {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ksql-flownet-start-dialog-footer {
+  flex: 0 0 auto;
+}
+
 .ksql-flownet-dialog-header {
   display: flex;
   gap: 10px;
@@ -452,6 +469,10 @@
 
 .ksql-flownet-start-form {
   gap: 14px;
+}
+
+.ksql-flownet-start-business-key {
+  width: 100%;
 }
 
 .ksql-flownet-start-candidate-groups {

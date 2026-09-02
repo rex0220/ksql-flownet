@@ -10,9 +10,43 @@ import {
   matchesStartGuard,
   normalizeJstDatetimeLocal,
   normalizeStartFormInput,
+  parsePastedJstDatetime,
   START_CANDIDATE_LIMIT,
   startGuardKey,
 } from "../../dist/plugin/start-request.js";
+
+test("parsePastedJstDatetime accepts local variants and converts zoned ISO to JST", () => {
+  for (const value of [
+    "2026-08-15 09:00",
+    "2026/08/15 09:00",
+    "2026-08-15T09:00",
+    "2026-08-15 09:00:59",
+    " 2026-08-15T09:00:59.999 ",
+  ]) {
+    assert.equal(parsePastedJstDatetime(value), "2026-08-15T09:00");
+  }
+  assert.equal(
+    parsePastedJstDatetime("2026-08-15T00:30:45Z"),
+    "2026-08-15T09:30",
+  );
+  assert.equal(
+    parsePastedJstDatetime("2026-08-15T09:30:45+09:00"),
+    "2026-08-15T09:30",
+  );
+  assert.equal(
+    parsePastedJstDatetime("2026-08-15T10:30:45+10:00"),
+    "2026-08-15T09:30",
+  );
+  for (const value of [
+    "",
+    "not-a-date",
+    "2026-02-30 09:00",
+    "2026-08-15 24:00",
+    "2026-08-15",
+  ]) {
+    assert.equal(parsePastedJstDatetime(value), null);
+  }
+});
 
 const field = (value) => ({ value });
 const startRecord = (id, overrides = {}) => ({
