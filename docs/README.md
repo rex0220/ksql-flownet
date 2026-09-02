@@ -74,6 +74,18 @@
 
     起票の一気通貫、LOCK_CONFLICT後の回収・再要求、UNKNOWN裁定、2セクション/pending表示の実機結果を記録する。
 
+18. [P2-11 不定期START要求仕様](./p2-11-adhoc-start-spec.md)
+
+    アプリからの新規Run起動(START)。三重ゲート・キー規則(correction=補正キー+対象期間)・fail-closed受理表・ボード新規実行UIの正。FROZEN v6。
+
+19. [P2-11 実装計画](./p2-11-implementation-plan.md)
+
+    M1〜M4の作業分割・CLI後方互換拡張2点・15行matrix試験・P-01〜P-06。実装時の補足契約。
+
+20. [P2-11 実機受入記録](./test-results/p2-11-20260902/README.md)
+
+    E2E5シナリオ+P2-01回帰、correction as-of断面検証、ボードUI受入(起票〜重複ガード〜終端表示)、kintone実測(非unique文字列の`=`トークン一致・DATETIME分精度)を記録する。
+
 ## 責務境界
 
 | コンポーネント | 主な責務 |
