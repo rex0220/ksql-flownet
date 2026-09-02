@@ -25,7 +25,12 @@ import {
 
 const [mode, argument] = process.argv.slice(2);
 const base = requireM5Environment();
-const settings = requireP201Environment(base);
+// 子プロセスのKSQL_FLOW_WORKDIRに必要(p2-09-driverと同じ轍: workdir未設定だと
+// run-network childが"KSQL_FLOW_WORKDIR is required"で落ち、RUN_NETWORK_FAILEDになる)
+const settings = requireP201Environment({
+  ...base,
+  workdir: join(base.workdirBase, "p2-11-ui-driver"),
+});
 const log = globalThis.console.log;
 
 if (mode === "prepare") {
