@@ -1,7 +1,7 @@
 # P2-11: 不定期ジョブのアプリ起動(START要求) 仕様書
 
-- 文書状態: **DRAFT v4(FROZEN候補)**(Phase 2作業単位。凍結仕様の変更なし — 操作要求モデル(P2-01)とボードプラグイン(P2-08/09)の拡張。ポーラーが`run-network`の**新規起動**を仲介する)
-- 起案日: 2026-09-01 / 改訂: 外部レビュー第1巡(Gemini 4点)・第2巡(ChatGPT 5+6点)・第3巡([Claude第1回](./p2-11-spec-review.md))・第4巡(Gemini承認+3、ChatGPT 9.4+4、[Claude第2回](./p2-11-spec-review-2.md) N-1/N-2ほか)を反映(§9に判断記録)
+- 文書状態: **DRAFT v5(FROZEN候補)**(Phase 2作業単位。凍結仕様の変更なし — 操作要求モデル(P2-01)とボードプラグイン(P2-08/09)の拡張。ポーラーが`run-network`の**新規起動**を仲介する)
+- 起案日: 2026-09-01 / 改訂: 外部レビュー第1巡(Gemini 4点)・第2巡(ChatGPT 5+6点)・第3巡([Claude第1回](./p2-11-spec-review.md))・第4巡(Gemini承認+3、ChatGPT 9.4+4、[Claude第2回](./p2-11-spec-review-2.md) N-1/N-2ほか)・第5巡(ユーザー指摘: 処理前取消)を反映(§9に判断記録)
 - 正本参照: [p2-01-app-rerun-spec.md](./p2-01-app-rerun-spec.md)(要求モデル・状態機械・受理の正)、[p2-09-board-request-spec.md](./p2-09-board-request-spec.md)(起票UIの正)、[job-network-phase1-spec.md](./job-network-phase1-spec.md) §2.1・§4.3・§7.2・§9
 - **方針変更の明示**: P2-08実装計画§9のcorrection Runアプリ化非対象を撤回する(改訂点D-1)
 
@@ -80,7 +80,8 @@
 | 任意 | 両方欠落 | — | REJECTED / KEY_POLICY_MISMATCH |
 
 - 既存欄(`run_id`)はSTARTでは空必須(§4表`RUN_ID_NOT_ALLOWED`)
-- 既存のRERUN/STOP/RELEASE・状態機械・G-05〜G-08は変更しない
+- **`cancel_requested`(チェックボックス — 第5巡)**: 全request_type共通の**処理前取消**欄。人は直接編集せず**ボードの「取消」ボタン(§5)経由**で設定する運用。取消者の真正性はkintone更新者フィールドで担保
+- 既存のRERUN/STOP/RELEASE・状態機械・G-05〜G-08の**変更は取消の追加のみ**: 状態機械へ終端`CANCELLED`を1つ追加(`REQUESTED→CANCELLED` — ポーラーがclaim時に`cancel_requested`を検知した場合のみ遷移。**ACCEPTED以降の取消は無効**=処理続行、Run化後の停止は既存STOPで)。テンプレートのrequest_stateドロップダウンへ`CANCELLED`追加
 
 ## 4. 受理範囲(fail-closed)と三重ゲート
 
@@ -95,6 +96,7 @@
 | allowlistにない/`app_start: true`でない | REJECTED / NETWORK_NOT_ALLOWED(**内部detailで`NOT_IN_ALLOWLIST`/`APP_START_DISABLED`を区別**して結果メッセージへ — 第4巡ChatGPT-3、M4の設定ミス追跡用。利用者向け文言は同一) |
 | 全実行対象ノードが明示的に`idempotent: true`でない | REJECTED / NETWORK_NOT_IDEMPOTENT(**実機再現不能のため単体のみで担保と明記** — 第4巡N-5、P2-09受入13と同型) |
 | `run_id`が記入されている | REJECTED / RUN_ID_NOT_ALLOWED |
+| **claim時に`cancel_requested`がチェック済み**(全request_type共通) | **`CANCELLED`終端**(実行せず。文言「起票者の取消により実行しませんでした」。ACCEPTED以降のチェックは無視され処理続行) |
 | キー規則違反(§3表) | REJECTED / KEY_POLICY_MISMATCH または AS_OF_UNDEFINED |
 | `scheduled_for`正規化不能 | REJECTED / INVALID_TIMESTAMP_FORMAT |
 | 同一`profile+network_id+業務キー`のRunが完了(SUCCESS) | `DONE / NOOP_ALREADY_SUCCESS`+固定文言(既存Run #\<id\>=NOOP JSONのrun_id。スキップ明示+補正キー案内) |
@@ -115,6 +117,7 @@
 - 入力モード切替: 「定期キー(対象期間のみ)」/「補正(補正キー+対象期間)」/「explicit(業務キーのみ)」— §3キー規則をUIで誘導(判定はポーラーが正)。`scheduled_for`はdatetime-local(+09:00既定)
 - **STARTの重複ガードは新規実装**(P2-09のrun_id集合GETは流用不可): `request_type=START ∧ network_id等値 ∧ (business_key等値 ∨ scheduled_for等値) ∧ state in (REQUESTED, ACCEPTED)`の等値GET。**比較はkintone保存値(UTC正規化済み)で行う**(第4巡ChatGPT-4)。クライアント側でも完全一致の二重フィルタ(第4巡Gemini-2)。見逃してもI-02が正。**処理待ちSTARTはヘッダーへ「処理待ちのSTART要求 N件」**(要求一覧リンク)で表示。fail-open・GET 403はP2-09 §3共通2/3を継承
 - 起票後は要求リンク+「Runが作成されるとボードに現れます」
+- **「取消」ボタン(第5巡)**: pending表示箇所(行の「要求処理待ち #id」・ヘッダーの処理待ちSTART一覧)へ取消ボタンを置き、確認ダイアログ→**要求アプリへのPUT(`cancel_requested`欄のみ)**で設定。**G-09境界の変更**: 要求アプリへの書込みは「単票POST+`cancel_requested`欄のみの単票PUT」となる(PUT bodyが取消欄のみであることを単体で固定)。**権限線の変更**: 一次対応者へ要求アプリの**編集権限**が必要になる(従来の「人は追加のみ」を「追加+取消(ボタン経由)。他欄の直接編集は禁止」へ改訂 — 機械欄の誤編集は既存のfail-closedパーサ(個別REJECTED)が防波堤)。claim済み要求への取消PUTは無害(ポーラーが無視)
 
 ## 6. 受入基準(実機E2E)
 
@@ -125,7 +128,8 @@
 5. 第2段: ダイアログから受入1相当が完結。入力モード切替・参考候補・処理待ちSTART表示。未設定時ボタン非表示
 6. 既存機能(RERUN/STOP/RELEASE・定期cron)に回帰がない。**`app_start: false`のnetworkでRERUNが従来どおり動く**(N-6)
 7. 文書整合(§7 M0改訂リスト: D-1〜D-3・P2-01受理表・templates/README・一次対応1ページ)
-8. 障害注入 — claim後クラッシュ: stale回収は`REJECTED / STALE`終端(自動再claim・再実行なし)、二重Run不作成、人の再要求が`NOOP_ALREADY_SUCCESS`/既存案内へ収束。一次対応1ページへ「STARTがSTALEになったらボードに新Runが出ていないか確認してから再起票」
+8. **処理前取消**: 起票→ボードの取消ボタン→確認→ポーラーが`CANCELLED`終端(Run未作成・FlowNet状態不変)。claim後(ACCEPTED)の取消チェックは無視され処理続行。PUTが`cancel_requested`欄のみであること(単体)。全request_typeで有効
+9. 障害注入 — claim後クラッシュ: stale回収は`REJECTED / STALE`終端(自動再claim・再実行なし)、二重Run不作成、人の再要求が`NOOP_ALREADY_SUCCESS`/既存案内へ収束。一次対応1ページへ「STARTがSTALEになったらボードに新Runが出ていないか確認してから再起票」
 
 **M2単体の受理判定matrix(全行必須)**:
 
@@ -156,7 +160,7 @@
 | M0 | 仕様確定+**コード確認3点**(§2: --business-key/--scheduled-for併用可否・重複案内JSONのrun_id) | Codexレビュー→改訂点確定: D-1(P2-08計画§9撤回追記)/D-2(P2-01 G-03へSTART分岐)/D-3(P2-09 §3へヘッダーボタン・STARTガード追記)/P2-01受理表/templates/README(三重ゲート)。チェック項目「仕様条件追加=受入同時追加」 |
 | M1 | 要求モデル・テンプレート・allowlist拡張 | START種別+3欄追補、request-model検証(キー規則・run_id空)、allowlist`app_start`(既定false・後方互換) |
 | M2 | ポーラー+CLI表示境界 | START処理(直接解決→三重ゲート→キー規則→正規化→resumeなしNEW→G-07分類)。`blocked_run_ids`のJSON追加(M0確認で要否確定)。単体=§6 matrix全行+argvにresumeなし固定+blocked_run_ids欠落時の安全取り出し |
-| M3 | 実機受入(第1段) | スパイク環境で受入1〜4・6・8(**受入2bのas-of断面検証を含む**) |
+| M3 | 実機受入(第1段) | スパイク環境で受入1〜4・6・8・9(**受入2bのas-of断面検証を含む**) |
 | M4 | ボードUI(第2段)+文書 | 新規実行ボタン・入力モード切替ダイアログ・処理待ちSTART表示・受入5・7、本番適用(allowlistへ`app_start: true`明示) |
 
 規模: **M**。実装はCodex、レビュー・実機受入はClaude Code。
@@ -185,3 +189,10 @@
 | ChatGPT 3 | NETWORK_NOT_ALLOWEDの内部detail区別 | **採用** — NOT_IN_ALLOWLIST/APP_START_DISABLED(§4/matrix) |
 | ChatGPT 4 | UI重複ガードはkintone保存値で等値判定 | **採用**(§5)+I-02の二段構え明記 |
 | Gemini 1〜3 | 日付のみ入力の拒否徹底/等値検索のクライアント二重チェック/blocked_run_ids安全取り出し | **採用**(§4/§5/§2) |
+
+**第5巡(2026-09-02 ユーザー指摘)**:
+
+| 指摘 | 採否・判断 |
+| --- | --- |
+| 起票後〜claim前(最大5分)の取消手段がない | **採用** — `cancel_requested`欄+状態機械へ`CANCELLED`終端を追加(claim時検知のみ・ACCEPTED以降は無効)。全request_type共通の汎用改善 |
+| 取消は人の直接編集ではなくボタン+プラグイン設定で | **採用** — ボードのpending表示へ取消ボタン(確認ダイアログ→取消欄のみのPUT)。G-09を「POST+取消欄のみPUT」へ改訂、一次対応者へ要求アプリ編集権限を付与(直接編集禁止の運用規律+fail-closedパーサが防波堤、取消者はkintone更新者で真正性担保) |
