@@ -108,6 +108,26 @@ test("desktopバンドルへ設定画面コードを混入させない(2026-09-0
       `desktop.jsに設定画面コードを含めない: ${forbidden}`,
     );
   }
+  const metadata = JSON.parse(
+    readFileSync(
+      new globalThis.URL(
+        "../../plugin/dist/desktop-meta.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const inputs = Object.keys(metadata.inputs);
+  assert.equal(
+    inputs.some((path) => /[\\/]config\.ts$/u.test(path)),
+    false,
+    "副作用を持つconfig.tsをdesktop dependency graphへ含めない",
+  );
+  assert.equal(
+    inputs.some((path) => /[\\/]config-validation\.ts$/u.test(path)),
+    true,
+    "desktopは副作用のない設定値parserだけを共有する",
+  );
 });
 
 test("runtime adapters allow only form fields GET, records GET, and single-record POST", async () => {

@@ -3,7 +3,10 @@ import {
   loadBoard,
   type ActivityLoadDependencies,
 } from "./board-controller.js";
-import { validateAuditAppId } from "./config-validation.js";
+import {
+  parseStartAllowedNetworks,
+  validateAuditAppId,
+} from "./config-validation.js";
 import { loadDetail } from "./detail-controller.js";
 import type {
   FetchRecords,
@@ -127,6 +130,7 @@ export function createKintonePostRecord(api: KintoneRecordPostApi): PostRecord {
 interface RuntimeDependencies {
   readonly load: ActivityLoadDependencies;
   readonly postRecord: PostRecord;
+  readonly startAllowedNetworks: readonly string[];
 }
 
 export async function loadRuntimeDependencies(
@@ -157,6 +161,9 @@ export async function loadRuntimeDependencies(
       logAppId: appIds.logAppId,
     },
     postRecord: createKintonePostRecord(api),
+    startAllowedNetworks: parseStartAllowedNetworks(
+      config.startAllowedNetworks,
+    ),
   };
 }
 
@@ -241,6 +248,7 @@ export function installDesktop(
                   postRecord: dependencies.postRecord,
                   stateAppId: dependencies.load.stateAppId,
                   requestAppId: model.requestAppId,
+                  allowedNetworkIds: dependencies.startAllowedNetworks,
                   onCreated: () => reload(),
                 });
               },

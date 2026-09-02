@@ -71,6 +71,21 @@
             class="ksql-flownet-config-preview"
           ></p>
         </section>
+        <section class="ksql-flownet-config-section">
+          <label for="ksql-flownet-start-allowed-networks"
+            >STARTを許可するネットワーク(改行区切り・任意)</label
+          >
+          <textarea
+            id="ksql-flownet-start-allowed-networks"
+            name="startAllowedNetworks"
+            maxlength="4000"
+            rows="6"
+          ></textarea>
+          <p class="ksql-flownet-config-help">
+            VPSのallowlistでapp_start:
+            trueを設定したnetwork_idを1行ずつ入力します。
+          </p>
+        </section>
       </div>
       <p
         id="ksql-flownet-config-error"

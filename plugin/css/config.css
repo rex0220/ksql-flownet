@@ -102,6 +102,22 @@
   background: #fff;
 }
 
+.ksql-flownet-config-section > textarea {
+  box-sizing: border-box;
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 112px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.ksql-flownet-config-help {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: #596970;
+  font-size: 12px;
+}
+
 .ksql-flownet-config-status,
 .ksql-flownet-config-preview {
   grid-column: 2;
@@ -215,6 +231,7 @@
 }
 
 .ksql-flownet-config-section > input:focus-visible,
+.ksql-flownet-config-section > textarea:focus-visible,
 .ksql-flownet-config-deploy input:focus-visible,
 .ksql-flownet-config-actions button:focus-visible {
   outline: 3px solid #2563eb;

@@ -2,6 +2,7 @@ import {
   validateAuditAppIdOverride,
   validateLogAppId,
   validateRequestAppId,
+  validateStartAllowedNetworks,
   type PluginConfig,
 } from "./config-validation.js";
 import {
@@ -15,6 +16,7 @@ export {
   validateAuditAppIdOverride,
   validateLogAppId,
   validateRequestAppId,
+  validateStartAllowedNetworks,
   type ConfigValidationResult,
   type PluginConfig,
 } from "./config-validation.js";
@@ -94,10 +96,13 @@ const wait: Wait = (milliseconds) =>
   new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
 
 export function buildPluginConfig(
-  appIds: Pick<PluginConfig, "auditAppId" | "requestAppId" | "logAppId">,
+  values: Pick<
+    PluginConfig,
+    "auditAppId" | "requestAppId" | "logAppId" | "startAllowedNetworks"
+  >,
   deployOnSave: boolean,
 ): PluginConfig {
-  return deployOnSave ? { ...appIds } : { ...appIds, deployOnSave: "false" };
+  return deployOnSave ? { ...values } : { ...values, deployOnSave: "false" };
 }
 
 function setConfigAsync(
@@ -314,6 +319,9 @@ export function installConfigPage(
   const logInput = pageDocument.querySelector<HTMLInputElement>(
     "#ksql-flownet-log-app-id",
   );
+  const startAllowedNetworks = pageDocument.querySelector<HTMLTextAreaElement>(
+    "#ksql-flownet-start-allowed-networks",
+  );
   const auditDetection = pageDocument.querySelector<HTMLElement>(
     "#ksql-flownet-audit-app-detection",
   );
@@ -348,6 +356,7 @@ export function installConfigPage(
     input === null ||
     requestInput === null ||
     logInput === null ||
+    startAllowedNetworks === null ||
     auditDetection === null ||
     auditPreview === null ||
     requestDetection === null ||
@@ -368,6 +377,7 @@ export function installConfigPage(
   input.value = savedConfig.auditAppId ?? "";
   requestInput.value = savedConfig.requestAppId ?? "";
   logInput.value = savedConfig.logAppId ?? "";
+  startAllowedNetworks.value = savedConfig.startAllowedNetworks ?? "";
   deployOnSave.checked = savedConfig.deployOnSave !== "false";
   const fields = {
     auditAppId: {
@@ -414,12 +424,24 @@ export function installConfigPage(
       showCallout(error, "error", logResult.message ?? "設定値が不正です。");
       return;
     }
+    const networksResult = validateStartAllowedNetworks(
+      startAllowedNetworks.value,
+    );
+    if (!networksResult.valid || networksResult.value === null) {
+      showCallout(
+        error,
+        "error",
+        networksResult.message ?? "設定値が不正です。",
+      );
+      return;
+    }
     const shouldDeploy = deployOnSave.checked;
     const config = buildPluginConfig(
       {
         auditAppId: result.value,
         requestAppId: requestResult.value,
         logAppId: logResult.value,
+        startAllowedNetworks: networksResult.value,
       },
       shouldDeploy,
     );

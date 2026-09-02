@@ -145,6 +145,8 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
     "Run実績",
     "実際に起動可能かはサーバー側設定で判定されます。",
     "最大5分ほどで処理を開始します",
+    "network_id(必須 — サーバー側で許可されたもののみ起動します)",
+    "同じ名前は再実行できません。完了済みと同名はスキップ、未完了と同名は拒否されます(リランはボードのリラン要求で)。",
     '<img src=x onerror="attack"> / key',
   ]) {
     assert.match(text, new RegExp(expected.replace(/[()]/gu, "\\$&"), "u"));
@@ -156,6 +158,9 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   const mode = named(document.body, "mode");
   const business = named(document.body, "business_key");
   const scheduled = named(document.body, "scheduled_for");
+  const modeDescription = allNodes(document.body).find((node) =>
+    node.className.split(" ").includes("ksql-flownet-start-mode-description"),
+  );
   const dialog = allNodes(document.body).find((node) =>
     node.className.split(" ").includes("ksql-flownet-start-dialog"),
   );
@@ -168,6 +173,12 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   assert.ok(dialog);
   assert.ok(scroll);
   assert.ok(footer);
+  assert.equal(named(document.body, "network_id").tagName, "input");
+  assert.equal(named(document.body, "network_id_other"), undefined);
+  assert.equal(
+    modeDescription.textContent,
+    "まだ実行していない月(期間)の分を起動します。業務キーは対象期間から自動で決まります。",
+  );
   assert.equal(
     named(document.body, "business_key").className,
     "ksql-flownet-start-business-key",
@@ -176,12 +187,78 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   assert.equal(scheduled.required, true);
   mode.value = "correction";
   mode.trigger("change");
+  assert.equal(
+    modeDescription.textContent,
+    "完了済みの期間をやり直します。同じ名前は二度実行できないため、新しい補正キーと集計の対象期間の両方を指定します。",
+  );
+  assert.equal(
+    business.placeholder,
+    "例: monthly_deal_summary@2026-08-correction-1(2回目は-2)",
+  );
   assert.equal(business.required, true);
   assert.equal(scheduled.required, true);
   mode.value = "explicit";
   mode.trigger("change");
+  assert.equal(
+    modeDescription.textContent,
+    "定期でないネットワーク用。業務キーは意味のある一意な名前を付けます。",
+  );
+  assert.equal(business.placeholder, "例: adhoc-ticket-123");
   assert.equal(business.required, true);
   assert.equal(scheduled.disabled, true);
+});
+
+test("設定一覧があればnetwork_id selectとその他入力を切替え、選択値をPOSTする", async () => {
+  const document = new FakeDocument();
+  let postedNetworkId = null;
+  openStartRequestDialog(
+    options(document, {
+      allowedNetworkIds: ["monthly", "adhoc", '<img src=x onerror="attack">'],
+      postRecord: async (body) => {
+        postedNetworkId = body.record.network_id.value;
+        return { id: "88", revision: "1" };
+      },
+    }),
+  );
+  await tick();
+  const networkSelect = named(document.body, "network_id");
+  const otherInput = named(document.body, "network_id_other");
+  assert.equal(networkSelect.tagName, "select");
+  assert.deepEqual(
+    networkSelect.children.map((option) => option.textContent),
+    [
+      "選択してください",
+      "monthly",
+      "adhoc",
+      '<img src=x onerror="attack">',
+      "その他(自由入力)",
+    ],
+  );
+  assert.equal(
+    allNodes(document.body).some((node) => node.tagName === "img"),
+    false,
+  );
+  assert.equal(otherInput.hidden, true);
+  assert.equal(otherInput.disabled, true);
+
+  const otherValue = networkSelect.children.at(-1).attributes.get("value");
+  networkSelect.value = otherValue;
+  networkSelect.trigger("change");
+  assert.equal(otherInput.hidden, false);
+  assert.equal(otherInput.disabled, false);
+  assert.equal(otherInput.required, true);
+
+  networkSelect.value = "monthly";
+  networkSelect.trigger("change");
+  assert.equal(otherInput.hidden, true);
+  named(document.body, "scheduled_for").value = "2026-09-01T00:00";
+  named(document.body, "reason").value = "monthly start";
+  allNodes(document.body)
+    .find((node) => node.tagName === "form")
+    .trigger("submit");
+  await tick();
+  await tick();
+  assert.equal(postedNetworkId, "monthly");
 });
 
 test("datetime-local paste sets a parsed JST minute and leaves invalid paste alone", async () => {

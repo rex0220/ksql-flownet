@@ -9,6 +9,7 @@ import {
   validateAuditAppIdOverride,
   validateLogAppId,
   validateRequestAppId,
+  validateStartAllowedNetworks,
 } from "../../dist/plugin/config.js";
 
 const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
@@ -67,11 +68,32 @@ test("logAppId accepts empty or a positive decimal string", () => {
     assert.equal(validateLogAppId(invalid).valid, false, String(invalid));
 });
 
+test("START許可ネットワーク一覧はtrim・空行除去・入力順の重複除去を行い上限を検証する", () => {
+  assert.deepEqual(
+    validateStartAllowedNetworks(" monthly \r\n\nadhoc\rmonthly\n  adhoc  "),
+    { valid: true, value: "monthly\nadhoc", message: null },
+  );
+  assert.deepEqual(validateStartAllowedNetworks(""), {
+    valid: true,
+    value: "",
+    message: null,
+  });
+  assert.match(
+    validateStartAllowedNetworks("x".repeat(129)).message,
+    /1行128文字以内/u,
+  );
+  assert.match(
+    validateStartAllowedNetworks("x".repeat(4_001)).message,
+    /全体で4000文字以内/u,
+  );
+});
+
 test("config page rejects invalid saves and preserves the valid decimal string", async () => {
   const listeners = new Map();
   const input = inputElement();
   const requestInput = inputElement();
   const logInput = inputElement();
+  const startAllowedNetworks = inputElement();
   const auditDetection = statusElement();
   const auditPreview = statusElement();
   const requestDetection = statusElement();
@@ -92,6 +114,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     ["#ksql-flownet-audit-app-id", input],
     ["#ksql-flownet-request-app-id", requestInput],
     ["#ksql-flownet-log-app-id", logInput],
+    ["#ksql-flownet-start-allowed-networks", startAllowedNetworks],
     ["#ksql-flownet-audit-app-detection", auditDetection],
     ["#ksql-flownet-audit-app-preview", auditPreview],
     ["#ksql-flownet-request-app-detection", requestDetection],
@@ -119,6 +142,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
               auditAppId: "41",
               requestAppId: "51",
               logAppId: "61",
+              startAllowedNetworks: "monthly\nadhoc",
               deployOnSave: "false",
             }),
             setConfig: (config, callback) => {
@@ -135,6 +159,7 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     assert.equal(input.value, "41");
     assert.equal(requestInput.value, "51");
     assert.equal(logInput.value, "61");
+    assert.equal(startAllowedNetworks.value, "monthly\nadhoc");
     assert.equal(deployOnSave.checked, false, "前回OFFならOFFで復元する");
     input.value = " 42 ";
     listeners.get("form:submit")({ preventDefault: () => {} });
@@ -151,6 +176,11 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     assert.equal(saved.length, 0);
     assert.match(error.textContent, /JOBログアプリID/u);
     logInput.value = "62";
+    startAllowedNetworks.value = "x".repeat(129);
+    listeners.get("form:submit")({ preventDefault: () => {} });
+    assert.equal(saved.length, 0);
+    assert.match(error.textContent, /1行128文字以内/u);
+    startAllowedNetworks.value = " monthly \nmonthly\n adhoc ";
     listeners.get("form:submit")({ preventDefault: () => {} });
     await flushAsync();
     input.value = "";
@@ -163,12 +193,14 @@ test("config page rejects invalid saves and preserves the valid decimal string",
         auditAppId: "42",
         requestAppId: "52",
         logAppId: "62",
+        startAllowedNetworks: "monthly\nadhoc",
         deployOnSave: "false",
       },
       {
         auditAppId: "",
         requestAppId: "",
         logAppId: "",
+        startAllowedNetworks: "monthly\nadhoc",
         deployOnSave: "false",
       },
     ]);
@@ -182,6 +214,7 @@ test("config GETは自アプリの関連先検出とアプリ名確認だけに�
   const auditInput = inputElement();
   const requestInput = inputElement();
   const logInput = inputElement();
+  const startAllowedNetworks = inputElement();
   const auditDetection = statusElement();
   const auditPreview = statusElement();
   const requestDetection = statusElement();
@@ -193,6 +226,7 @@ test("config GETは自アプリの関連先検出とアプリ名確認だけに�
     ["#ksql-flownet-audit-app-id", auditInput],
     ["#ksql-flownet-request-app-id", requestInput],
     ["#ksql-flownet-log-app-id", logInput],
+    ["#ksql-flownet-start-allowed-networks", startAllowedNetworks],
     ["#ksql-flownet-audit-app-detection", auditDetection],
     ["#ksql-flownet-audit-app-preview", auditPreview],
     ["#ksql-flownet-request-app-detection", requestDetection],
@@ -338,6 +372,7 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-audit-app-id",
     "ksql-flownet-request-app-id",
     "ksql-flownet-log-app-id",
+    "ksql-flownet-start-allowed-networks",
     "ksql-flownet-audit-app-detection",
     "ksql-flownet-audit-app-preview",
     "ksql-flownet-request-app-detection",
@@ -349,13 +384,14 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-config-cancel",
     "保存時に運用環境へ反映(アプリ更新)",
     "入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用",
+    "STARTを許可するネットワーク(改行区切り・任意)",
   ]) {
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
   }
   assert.equal(
     html.match(/class="ksql-flownet-config-section"/gu)?.length,
-    3,
-    "3つのアプリ項目を個別のセクションカードにする",
+    4,
+    "3つのアプリ項目とSTART許可ネットワーク一覧を個別のセクションカードにする",
   );
   assert.ok(
     html.indexOf('id="ksql-flownet-config-cancel"') <
@@ -395,6 +431,7 @@ test("deployOnSaveはOFF時だけfalse文字列を保存し、ON時はキーを�
     auditAppId: "41",
     requestAppId: "51",
     logAppId: "61",
+    startAllowedNetworks: "monthly\nadhoc",
   };
   assert.deepEqual(buildPluginConfig(appIds, true), appIds);
   assert.deepEqual(buildPluginConfig(appIds, false), {
