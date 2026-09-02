@@ -1,9 +1,9 @@
 # P2-11: 不定期ジョブのアプリ起動(START要求) 仕様書
 
-- 文書状態: **DRAFT v6(FROZEN候補 — 凍結ゲートF-01の確認のみ残)**(Phase 2作業単位。凍結仕様の変更なし — 操作要求モデル(P2-01)とボードプラグイン(P2-08/09)の拡張。ポーラーが`run-network`の**新規起動**を仲介する)
+- 文書状態: **FROZEN(v6 — 2026-09-02 M0コード確認4点完了・F-01再判定済み)**(Phase 2作業単位。凍結仕様の変更なし — 操作要求モデル(P2-01)とボードプラグイン(P2-08/09)の拡張。ポーラーが`run-network`の**新規起動**を仲介する)
 - 起案日: 2026-09-01 / 改訂: 外部レビュー第1巡(Gemini 4点)・第2巡(ChatGPT 5+6点)・第3巡([Claude第1回](./p2-11-spec-review.md))・第4巡(Gemini承認+3、ChatGPT 9.4+4、[Claude第2回](./p2-11-spec-review-2.md) N-1/N-2ほか)・第5巡(ユーザー指摘: 処理前取消)・第6巡(Gemini承認+3、ChatGPT 9.6+5、[Claude第3回](./p2-11-spec-review-3.md) X-1〜X-7)を反映 — **第5巡の処理前取消はX-1採用によりP2-12へ切り出し**(§9に判断記録)
 - 正本参照: [p2-01-app-rerun-spec.md](./p2-01-app-rerun-spec.md)(要求モデル・状態機械・受理の正)、[p2-09-board-request-spec.md](./p2-09-board-request-spec.md)(起票UIの正)、[job-network-phase1-spec.md](./job-network-phase1-spec.md) §2.1・§4.3・§7.2・§9
-- **方針変更の明示**: P2-08実装計画§9のcorrection Runアプリ化非対象を撤回する(改訂点D-1)
+- **方針変更の明示**: P2-01実装計画§9のcorrection Runアプリ化非対象を撤回する(改訂点D-1 — 2026-09-02反映済み。旧記述の「P2-08計画§9」は誤記)
 
 ## 1. 目的と操作モデルの意味論
 
@@ -47,6 +47,8 @@
 - outcome写像: NEW作成→`DONE` / 完了済みNO-OP→`DONE / NOOP_ALREADY_SUCCESS` / 未完了案内・検証拒否(Invocation作成前)→`REJECTED`
 
 **M0で前倒しするコード確認(第4巡Claude — 仕様が依存する3点)**: ①`scheduled_period` networkへ`--business-key`単独/`--scheduled-for`併用が現行CLIで受理されるか ②両フラグ同時指定の挙動(correction経路の成立条件) ③重複案内経路のJSONにrun_idが載るか(→`blocked_run_ids`作業の要否確定) ④**NOOP経路のJSONに`run_id`が載るか**(第6巡X-7 — G-04は「NO-OPはinvocation_id=null」としか定めておらず、§4固定文言の`既存Run #<id>`が依存する)。①②の確認内容には「`--business-key`が業務キーとして採用され、as-ofが`--scheduled-for`から取られる」ことを含む(第6巡Gemini-1)。**凍結ゲートF-01: correctionコマンド契約(②)が実装上成立すると確認できるまでFROZENへ遷移しない**(第6巡ChatGPT — 不成立の場合はCLI後方互換拡張をM2へ計上して再判定)
+
+**M0コード確認の結果(2026-09-02実施 — F-01再判定済み)**: ①`--business-key`単独は現行CLIが**受理**(business-key.ts:249-262 — キー=指定値、as_of=nullで起動時刻断面になるためN-1の危険は実在。ポーラー側AS_OF_UNDEFINED拒否が必要かつ正、CLI変更不要) ②両フラグ併用は**BUSINESS_KEY_INPUT_CONFLICTで拒否**(business-key.ts:240-248) — ただしensure-run.ts:504の`as_of: input.scheduledFor ?? null`は既に汎用のため、**M2のCLI後方互換拡張1点(scheduled_periodで両指定時: business_keyを採用、scheduled_forはタイムスタンプ検証のうえas-ofのみに使用)でcorrection契約は成立** — F-01はこの拡張のM2計上をもって解消 ③重複案内経路のJSONは`run_id: null`・blockedByは非JSON時のstderrのみ(run-network-command.ts:152-172) — **blocked_run_ids追加は必要(M2確定)** ④NOOP経路のJSONに`run_id`**あり**(run-network-command.ts:113-120) — 契約成立・作業不要
 
 **profile前提(E-1)**: 単一profile運用(ポーラー環境変数由来)を前提とし、要求レコードにprofile欄を持たない。複数profile化は本仕様の再審議事項。
 
@@ -154,9 +156,9 @@
 
 | # | 作業 | 内容 |
 | --- | --- | --- |
-| M0 | 仕様確定+**コード確認3点**(§2: --business-key/--scheduled-for併用可否・重複案内JSONのrun_id) | Codexレビュー→改訂点確定: D-1(P2-08計画§9撤回追記)/D-2(P2-01 G-03へSTART分岐)/D-3(P2-09 §3へヘッダーボタン・STARTガード追記)/P2-01受理表/templates/README(三重ゲート)。チェック項目「仕様条件追加=受入同時追加」 |
+| M0 | 仕様確定+**コード確認4点**(§2に結果記載 — F-01解消済み) | Codexレビュー→改訂点確定: D-1(P2-01計画§9撤回追記 — 反映済み)/D-2(P2-01 G-03へSTART分岐)/D-3(P2-09 §3へヘッダーボタン・STARTガード追記)/P2-01受理表/templates/README(三重ゲート)。チェック項目「仕様条件追加=受入同時追加」 |
 | M1 | 要求モデル・テンプレート・allowlist拡張 | START種別+3欄追補、request-model検証(キー規則・run_id空)、allowlist`app_start`(既定false・後方互換) |
-| M2 | ポーラー+CLI表示境界 | START処理(直接解決→三重ゲート→キー規則→正規化→resumeなしNEW→G-07分類)。`blocked_run_ids`のJSON追加(M0確認で要否確定)。単体=§6 matrix全行+argvにresumeなし固定+blocked_run_ids欠落時の安全取り出し |
+| M2 | ポーラー+CLI表示境界 | START処理(直接解決→三重ゲート→キー規則→正規化→resumeなしNEW→G-07分類)。**CLI後方互換拡張: scheduled_periodの両フラグ併用受理**(business-key.tsのBUSINESS_KEY_INPUT_CONFLICT撤廃、両指定時はbusiness_key採用+scheduled_forはas-ofのみ — F-01解消の実装、M0確認②で確定)。`blocked_run_ids`のJSON追加(M0確認③で必要と確定)。単体=§6 matrix全行+argvにresumeなし固定+blocked_run_ids欠落時の安全取り出し |
 | M3 | 実機受入(第1段) | スパイク環境で受入1〜4・6・8(**受入2bのas-of断面検証を含む**) |
 | M4 | ボードUI(第2段)+文書 | 新規実行ボタン・入力モード切替ダイアログ・処理待ちSTART表示・受入5・7、本番適用(allowlistへ`app_start: true`明示) |
 

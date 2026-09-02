@@ -354,6 +354,6 @@ P2-01は、次の3点をDRAFT仕様へ反映してから実装に進めば、Flo
 
 - `src/orchestration/ensure-run.ts`、`src/orchestration/sequential-scheduler.ts`、Network lock、Node lock、永続化schemaの変更
 - 実行中SQLのkill（STOPは凍結仕様どおり次ノード境界）
-- UNKNOWN解決、非冪等ノードの承認、correction Run作成のアプリ化
+- UNKNOWN解決、非冪等ノードの承認、~~correction Run作成のアプリ化~~(**2026-09-02改訂D-1**: correction Runを含む新規STARTのアプリ化は[P2-11](./p2-11-adhoc-start-spec.md)で正式採用し、本項の非対象指定を撤回。冪等networkかつallowlist `app_start: true`明示のみが対象)
 - 通知連携、常駐daemon、分散worker/lease一般化
 - token値、接続秘密、実app IDのリポジトリ記載

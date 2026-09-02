@@ -27,6 +27,8 @@ kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「�
 
 操作要求アプリには`request_type`、`run_id`、`rerun_from_node`、`reason`、`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`を作成します。`request_state`の初期値は`REQUESTED`です。一覧は`01_未処理要求`（`REQUESTED`/`ACCEPTED`）と`02_拒否された要求`（`REJECTED`）の2件です。
 
+[P2-11](../docs/p2-11-adhoc-start-spec.md)（START要求）の実装時に、`request_type`へ`START`が追加され、`network_id`・`business_key`・`scheduled_for`の3フィールドが追補されます（M1で本スクリプトへ反映）。STARTの起動可否は**三重ゲート**（①操作要求アプリのレコード追加権限 × ②VPS上のallowlistで対象networkに`app_start: true`を明示 × ③network定義の全実行対象ノードが明示的に`idempotent: true`）で決まり、アプリ側の設定だけでは起動できません。
+
 同名の「kSQL-FlowNet 実行管理」または「kSQL-FlowNet 監査履歴」が存在する場合、スクリプトは既存アプリを変更せず中止します。確認ダイアログでキャンセルした場合は、各アプリの管理画面からpreviewの「変更を中止」してください。
 
 ### 本番用操作要求アプリの作成gate
