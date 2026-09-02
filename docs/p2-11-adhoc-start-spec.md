@@ -1,0 +1,91 @@
+# P2-11: 不定期ジョブのアプリ起動(START要求) 仕様書
+
+- 文書状態: **DRAFT**(Phase 2作業単位。凍結仕様の変更なし — 操作要求モデル(P2-01)とボードプラグイン(P2-08/09)の拡張。ポーラーが`run-network`の**新規起動**を仲介する)
+- 起案日: 2026-09-01
+- 正本参照: [p2-01-app-rerun-spec.md](./p2-01-app-rerun-spec.md)(要求モデル・状態機械・受理の正)、[p2-09-board-request-spec.md](./p2-09-board-request-spec.md)(起票UI・出し分け・重複ガードの正)、[job-network-phase1-spec.md](./job-network-phase1-spec.md) §2.1(業務単位と起動単位の分離 — 補正キー`…-correction-1`の想定形)・§4.3(business_key_policy)・§7(ensure-runの重複裁定)
+- **方針変更の明示**: P2-08実装計画§9はcorrection Run作成のアプリ化を非対象としていた。本仕様はこれを撤回し、**冪等networkに限定した新規起動**をアプリへ開放する(非冪等・承認系はCLI専権のまま)
+
+## 1. 目的と非目的
+
+**目的**: 定期cron以外のタイミングで必要になるジョブ(締めのやり直し・補正Run・臨時集計・データ修正バッチ)を、**kintoneの操作要求アプリから起動**できるようにする。現状「新規Runの起動」はSSH+CLIのみで、一次対応の画面完結線(発見→起票→追跡)に唯一残った穴を塞ぐ。
+
+**非目的**: 非冪等ノードを含むnetworkの起動(`--approved-by`を要する操作はCLI専権)。即時実行(ポーラー経由の非同期のまま)。cron定期起動の置き換え(定期は引き続きVPS cron)。業務アプリ個別の起動ボタン(操作要求アプリへ集約)。
+
+## 2. 方式: `START`要求種別の追加
+
+```
+人: 操作要求アプリへ START レコード追加(network_id・業務キー or 対象期間・理由)
+      ↓ (ポーラー 5分cron)
+ポーラー: allowlistでnetwork_id→定義パス解決 → run-network <定義パス> --json を新規起動
+      ↓
+実行管理/監査: 通常Runとして記録(requested_by = app-request:<record_id>:<作成者> 相関)
+```
+
+**FlowNet本体は無改修**。既存の安全装置がそのまま最終裁定になる:
+
+1. **重複起動防止**: 同じ`profile + network_id + 業務キー`のRunはensure-runの重複禁止INSERTが拒否(§2.1)。二度押し・再読込後の再押下は既存Run案内/NO-OPへ倒れる — 業務キーの意味論が「いつの分の処理か」を担う
+2. **allowlist限定**: 起動可能なnetworkはポーラーallowlist掲載分のみ(P2-01 G-03と同一機構)。**allowlist掲載=アプリからの起動を許可するリリース判断**、という運用線を文書化する
+3. **CLI検証が正**: capabilities・validate・max_active_runs・bundle等の既存検証を全て通る。ポーラーの事前チェックは一次審査(親切な拒否理由)のみ
+
+## 3. 要求レコードの拡張
+
+操作要求アプリへ追加(テンプレート追補):
+
+| フィールド | 型 | 書き手 | 内容 |
+| --- | --- | --- | --- |
+| `request_type` | 既存ドロップダウンへ**`START`**を追加 | 人 | — |
+| `network_id` | 文字列1行(START時必須) | 人 | 起動対象。allowlist照合(0件=REJECTED / NETWORK_NOT_ALLOWED) |
+| `business_key` | 文字列1行(条件付き必須) | 人 | `business_key_policy: explicit`のnetwork用。例: `monthly_deal_summary@2026-08-correction-1` |
+| `scheduled_for` | 文字列1行(条件付き必須) | 人 | `scheduled_period`のnetwork用。ISO日時(例: `2026-08-01T00:00:00+09:00`)→`--scheduled-for`へ |
+
+- `business_key`/`scheduled_for`はnetworkのpolicyに応じて**どちらか一方**(両方・不足はREJECTED。policyはallowlist解決後の定義から判定)
+- 既存欄(`run_id`)はSTARTでは**空必須**(誤用防止)。`reason`必須は従来どおり
+- 既存のRERUN/STOP/RELEASE要求・状態機械・claim/heartbeat/stale・結果書き戻し(G-05〜G-08)は変更しない
+
+## 4. 受理範囲(fail-closed・初期は狭く)
+
+| 条件 | 判定 |
+| --- | --- |
+| network_idがallowlistにない | REJECTED / NETWORK_NOT_ALLOWED |
+| **networkに`idempotent: false`のノードが1つでもある** | REJECTED / NETWORK_NOT_IDEMPOTENT(定義から判定。非冪等の起動はCLI専権) |
+| policyと入力キーの不整合(explicitなのにscheduled_for等) | REJECTED / KEY_POLICY_MISMATCH |
+| 同一`network_id+業務キー`のRunが既に存在 | CLIの重複裁定へ委ねる(完了済み→NO-OPはDONE/NOOP、未完了→resume案内のREJECTED+既存run_id表示) |
+| 実行結果 | G-07踏襲: Invocation作成後はaggregateに関わらずDONE+結果記録、作成前拒否はREJECTED |
+
+## 5. UI(2段階)
+
+**第1段(本仕様のM1〜M3)**: 操作要求アプリへ直接レコード追加。`network_id`は手入力(検証はポーラー)。一次対応1ページへ入力例を記載
+
+**第2段(M4、同一仕様内)**: ボードヘッダーへ**「新規実行」ボタン**(要求アプリ設定時のみ表示)→ダイアログ:
+- network_id: **実行管理アプリの過去Run実績から候補を自動収集**(`NETWORK_RUN`のnetwork_id distinct — プラグインはVPS上のallowlistを読めないため)+自由入力欄。候補外はポーラーが正
+- policy判定は画面では行わず、`business_key` / `scheduled_for`の**両欄を出して片方入力**(注記付き。取り違えはREJECTED理由で気づける)
+- 理由必須・確認ステップ・成功表示・重複ガード(同一network_id+キーの処理待ちSTART要求)はP2-09の意匠・共通仕様(§3)を踏襲
+- 起票後は要求リンク+「Runが作成されるとボードに現れます」の案内
+
+## 6. 受入基準(実機E2E)
+
+1. START要求(explicit network+業務キー)→ポーラー→新規Run作成→完走→要求`DONE`、監査の`requested_by`相関、ボードに出現→完走で消える(一気通貫)
+2. `scheduled_period` networkへ`scheduled_for`指定のSTART→business keyが期間から正しく導出され完走
+3. 同一キーで再START→完了済みはNO-OP扱いの`DONE/NOOP`(新Runを作らない)。未完了Runがある場合はREJECTED+既存run_id案内
+4. 拒否系: allowlist外 / 非冪等network / policy不整合 / run_id記入済みSTART — いずれもREJECTED+理由、FlowNet状態不変
+5. 第2段: ボードの新規実行ダイアログから受入1相当が完結。network候補に過去実績が出る。要求アプリ未設定時はボタン非表示
+6. 既存のRERUN/STOP/RELEASE・定期cron・ポーラーの他要求処理に回帰がない(既存単体全合格+実機スモーク)
+7. 文書整合: 一次対応1ページ(起動手順・「反映まで最大5分」)、templates/README(START欄追補・allowlist掲載=リリース判断の運用線)、P2-01仕様の受理範囲表へSTART行追記
+
+## 7. 作業分割(想定)
+
+| # | 作業 | 内容 |
+| --- | --- | --- |
+| M0 | 仕様確定 | 本DRAFTのレビュー(Codex)→P2-01仕様・テンプレートREADMEの改訂点確定。**チェック項目: 仕様条件追加=受入同時追加**(P2-09の教訓) |
+| M1 | 要求モデル・テンプレート | START種別+3欄の追補スクリプト、request-modelのSTART検証(run_id空必須・キー排他) |
+| M2 | ポーラー | START処理(allowlist解決→policy判定→run-network NEW起動→G-07分類)。単体(受理matrix・重複・拒否系) |
+| M3 | 実機受入(第1段) | スパイク環境で受入1〜4・6 |
+| M4 | ボードUI(第2段)+文書 | 新規実行ボタン・ダイアログ(P2-09意匠)・network候補収集、受入5・7、本番適用 |
+
+規模: **M**。実装はCodex、レビュー・実機受入はClaude Code(確立済み分担)。
+
+## 8. 留意点
+
+- **即時性は最大5分**(ポーラー周期)。不足なら周期短縮を運用判断(cron行の変更のみ)で対応可
+- 業務キーは人が意味のある値を付ける(重複禁止が「同じ処理を二度走らせない」保険として機能する条件)。第2段ダイアログに命名例を表示
+- allowlistへ載せる=アプリから誰でも(操作要求アプリの追加権限者が)起動できる、という権限線。掲載の追加はVPS上のファイル編集(二次対応者作業)
