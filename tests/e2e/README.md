@@ -223,6 +223,34 @@ node tests\e2e\p2-01-06-get-failclosed.mjs
 
 `resume_allowed=false`、ARCHIVED、UNKNOWN、不正フィールド、allowlistの曖昧/不一致、結果PUT競合、出力上限、一時reasonファイル削除など、実機固有でない§2.4境界は`tests/unit/poll-requests*.test.mjs`、`request-store.test.mjs`、`flownet-child-client.test.mjs`で判定します。静的・単体合格を上記実機受入の代用にはしません。
 
+## P2-11 START要求E2E
+
+P2-11はP2-01と同じE2E専用操作要求アプリ・環境変数・本番ID拒否・token分離を使用します。先に`templates/add-start-fields.console.js`をE2E要求アプリへ適用し、`START`、`network_id`、`business_key`、`scheduled_for`、任意化された`run_id`、対象2一覧を確認してください。実行中に使うallowlistはスクリプトが一時生成し、START対象だけへ`app_start: true`を明示します。
+
+fixtureは次の2件です。全Nodeが`idempotent: true`で、顧客管理・案件管理は参照だけを行います。JOBログアプリは既存どおり書込み結果の照合だけに使用し、E2Eから削除しません。非冪等networkは計画どおり単体S03だけで担保します。
+
+| fixture                       | policy                                 | 用途                                          |
+| ----------------------------- | -------------------------------------- | --------------------------------------------- |
+| `network-p211-explicit.yaml`  | `explicit`                             | 明示キーSTART、重複、拒否、STALE、RERUN回帰   |
+| `network-p211-scheduled.yaml` | `scheduled_period`（Asia/Tokyo・月次） | 対象月キー導出、correction、`as_of`、cron回帰 |
+
+M3計画§5の順序どおり、拒否によるstate/audit不変を最初に確認してから、正常系・重複・障害回帰を直列実行します。並列実行は禁止です。
+
+```powershell
+. .\tests\e2e\setup-env.ps1
+node tests\e2e\p2-11-04-rejections.mjs
+node tests\e2e\p2-11-01-explicit.mjs
+node tests\e2e\p2-11-02-scheduled.mjs
+node tests\e2e\p2-11-03-duplicates.mjs
+node tests\e2e\p2-11-05-stale-regression.mjs
+```
+
+各シナリオは`KSQL_FLOW_TEST_` scope以外のnetwork/node/job IDと要求cleanupを拒否します。`job_id`はP2-01の短縮`jobScope`を共用し、profileを含む64 UTF-16単位制約内に収めます。要求レコードとFlowNet state/audit fixtureは各シナリオ終了時に必ずcleanupされ、cleanup失敗は不合格です。JOBログは試験証跡として残します。
+
+`p2-11-04-rejections`の不正日時は、kintoneのDATETIME型が不正文字列を保存前に拒否することとstate/audit不変を実測します。ポーラー内部の`INVALID_TIMESTAMP_FORMAT`（日付のみ・offsetなし・実在しない日時）の詳細matrixは単体S11が正です。`p2-11-02-scheduled`は案件管理をGETだけで独立集計し、その件数・売上合計を一時fixtureの`ASSERT`へ埋めます。Runと各JOBログの`as_of`、Attemptの参照件数、書込0件も照合するため、対象期間断面の集計結果を業務アプリへ書き込まず直接確認します。
+
+`p2-11-05-stale-regression`はclaim後にポーラーが失われた永続状態を`ACCEPTED`要求として再現し、STALE回収、自動再claimなし、Run/Invocation不増加、人の再要求がNOOPへ収束することを確認します。同じシナリオで`app_start:false` networkのRERUNと、`run-network --scheduled-for ... --resume`のcron相当経路も確認します。P2-01のSTOP/RELEASE全体の実機証拠は既存`p2-01-04-stop-release.mjs`を引き続き正とします。
+
 ## SQL文法の根拠
 
 - `C:\Users\rex02\Projects\ksql-flow\docs\ksql_flow_spec.md` 3.1〜3.3: dialect 1ヘッダ、`SELECT COUNT(*)`、`ASSERT (<scalar subquery>) <comparison>, 'message'`。

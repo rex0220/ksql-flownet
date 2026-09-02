@@ -1,0 +1,22 @@
+schema_version: 1
+network_id: p211_explicit
+description: P2-11 START explicit policy read-only fixture
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 60
+  heartbeat_interval_sec: 15
+nodes:
+  - id: n1_customers
+    job_id: p211_explicit_customers
+    sql: jobs/success-n1-extract.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n2_deals
+    job_id: p211_explicit_deals
+    sql: jobs/success-n2-aggregate.sql
+    depends_on: [n1_customers]
+    trigger_rule: all_success
+    idempotent: true

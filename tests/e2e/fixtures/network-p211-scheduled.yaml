@@ -1,0 +1,19 @@
+schema_version: 1
+network_id: p211_scheduled
+description: P2-11 START scheduled period read-only fixture
+business_key_policy:
+  type: scheduled_period
+  period: month
+  timezone: Asia/Tokyo
+  format: "{network_id}@{yyyy}-{MM}"
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 60
+  heartbeat_interval_sec: 15
+nodes:
+  - id: n1_period_aggregate
+    job_id: p211_scheduled_aggregate
+    sql: jobs/p211-scheduled-aggregate.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
