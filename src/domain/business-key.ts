@@ -98,6 +98,10 @@ function parseScheduledFor(value: string): Date | undefined {
     : undefined;
 }
 
+export function normalizeScheduledFor(value: string): string | undefined {
+  return parseScheduledFor(value)?.toISOString();
+}
+
 function calendarDateAt(date: Date, timeZone: string): CalendarDate {
   const formatter = new Intl.DateTimeFormat("en-CA-u-ca-gregory-nu-latn", {
     timeZone,
@@ -237,15 +241,6 @@ export function resolveBusinessKey(input: BusinessKeyInput): BusinessKeyResult {
   errors.push(...policyErrors);
   const { businessKey: providedBusinessKey, scheduledFor: scheduledForInput } =
     input;
-  if (scheduledForInput !== undefined && providedBusinessKey !== undefined) {
-    errors.push({
-      code: "BUSINESS_KEY_INPUT_CONFLICT",
-      path: "--scheduled-for/--business-key",
-      message:
-        "--scheduled-for and --business-key must not be specified together when business_key_policy.type is 'scheduled_period'",
-    });
-    return { errors };
-  }
   if (scheduledForInput === undefined) {
     if (providedBusinessKey === undefined) {
       errors.push({
@@ -272,6 +267,13 @@ export function resolveBusinessKey(input: BusinessKeyInput): BusinessKeyResult {
     return { errors };
   }
   if (policyErrors.length > 0) return { errors };
+
+  if (providedBusinessKey !== undefined) {
+    errors.push(...validateBusinessKey(providedBusinessKey, "--business-key"));
+    return errors.length === 0
+      ? { businessKey: providedBusinessKey, errors }
+      : { errors };
+  }
 
   let calendarDate: CalendarDate;
   try {

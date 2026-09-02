@@ -49,6 +49,62 @@ export function classifyRunNetworkResult(input: {
   );
 }
 
+export function classifyStartNetworkResult(input: {
+  readonly output: RunNetworkJsonOutput | null;
+  readonly process: ChildProcessResult;
+}): RequestResult {
+  const output = validRunNetworkOutput(input.output) ? input.output : null;
+  if (output !== null && output.invocation_id !== null) {
+    return classifyRunNetworkResult(input);
+  }
+  if (output?.outcome === "NOOP" && output.run_id !== null) {
+    return {
+      state: "DONE",
+      code: "NOOP_ALREADY_SUCCESS",
+      message: `既存Run #${output.run_id} はSUCCESSのため起動をスキップしました。補正実行は別のbusiness_keyを指定してください。`,
+    };
+  }
+  if (input.process.spawnError !== undefined) {
+    return rejected(
+      "CHILD_SPAWN_FAILED",
+      "run-network child could not be started",
+    );
+  }
+  if (output?.outcome === "REJECTED") {
+    const blockedRunIds = output.blocked_run_ids ?? [];
+    if (output.invocation_result_code === "RUN_ALREADY_EXISTS") {
+      const runId = blockedRunIds[0];
+      return rejected(
+        "RUN_ALREADY_EXISTS",
+        runId === undefined
+          ? "同一業務キーの未完了Runがあります。RERUNを使用してください。"
+          : `同一業務キーの未完了Run #${runId} があります。RERUNを使用してください。`,
+      );
+    }
+    if (output.invocation_result_code === "MAX_ACTIVE_RUNS") {
+      const runId = blockedRunIds[0] ?? "不明";
+      return rejected(
+        "MAX_ACTIVE_RUNS",
+        `未完了Run #${runId}があるため起動できません。失敗Runのやり直しはRERUNを、整理できない場合は二次対応者へ`,
+      );
+    }
+    if (output.invocation_result_code === "LOCK_CONFLICT") {
+      return rejected(
+        "LOCK_CONFLICT",
+        "network実行ロックが競合しました。時間をおいて再起票してください。",
+      );
+    }
+    return rejected(
+      output.invocation_result_code,
+      "run-network rejected the START request before creating an Invocation",
+    );
+  }
+  return rejected(
+    "CHILD_RESULT_INVALID",
+    "run-network did not return a valid machine-readable result",
+  );
+}
+
 export function classifyCancelResult(
   result: ChildProcessResult,
   release: boolean,
@@ -94,6 +150,9 @@ function validRunNetworkOutput(
       (Array.isArray(value.retry_brake_node_ids) &&
         value.retry_brake_node_ids.every(
           (nodeId) => typeof nodeId === "string",
-        )))
+        ))) &&
+    (value.blocked_run_ids === undefined ||
+      (Array.isArray(value.blocked_run_ids) &&
+        value.blocked_run_ids.every((runId) => typeof runId === "string")))
   );
 }

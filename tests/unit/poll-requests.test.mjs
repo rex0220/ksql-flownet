@@ -65,8 +65,8 @@ function status(runValue = run(), overrides = {}) {
 
 const config = {
   networks: [
-    { networkId: "net-a", definitionPath: "C:\\net-a.yaml" },
-    { networkId: "net-b", definitionPath: "C:\\net-b.yaml" },
+    { networkId: "net-a", definitionPath: "C:\\net-a.yaml", appStart: false },
+    { networkId: "net-b", definitionPath: "C:\\net-b.yaml", appStart: false },
   ],
   heartbeatIntervalMs: 100,
   staleAfterMs: 900_000,

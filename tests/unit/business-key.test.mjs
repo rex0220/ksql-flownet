@@ -157,14 +157,31 @@ test("policy-specific required and forbidden inputs fail closed", () => {
     }).businessKey,
     "close@2026-01-correction",
   );
+  const correction = resolveBusinessKey({
+    networkId: "close",
+    policy: scheduled,
+    scheduledFor: "2026-01-01T00:00:00Z",
+    businessKey: "override",
+  });
+  assert.equal(correction.businessKey, "override");
+  assert.deepEqual(correction.errors, []);
+  assert.deepEqual(
+    resolveBusinessKey({
+      networkId: "close",
+      policy: scheduled,
+      scheduledFor: "not-a-timestamp",
+      businessKey: "override",
+    }).errors.map((error) => error.code),
+    ["SCHEDULED_FOR_INVALID"],
+  );
   assert.deepEqual(
     resolveBusinessKey({
       networkId: "close",
       policy: scheduled,
       scheduledFor: "2026-01-01T00:00:00Z",
-      businessKey: "override",
+      businessKey: "bad\nkey",
     }).errors.map((error) => error.code),
-    ["BUSINESS_KEY_INPUT_CONFLICT"],
+    ["BUSINESS_KEY_CONTROL_CHARACTER"],
   );
 
   const explicit = { type: "explicit" };

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { StatusOutput } from "../orchestration/status.js";
 import type { PollRequestsNetwork } from "./poll-requests-config.js";
 import type { RequestRecord } from "./request-model.js";
+import type { StartNetworkInput } from "./start-request.js";
 
 export const DEFAULT_CHILD_OUTPUT_LIMIT = 64 * 1024;
 export const REQUESTED_BY_MAX_LENGTH = 1024;
@@ -27,6 +28,7 @@ export interface RunNetworkJsonOutput {
   readonly aggregate_status: string | null;
   readonly invocation_result_code: string;
   readonly retry_brake_node_ids?: readonly string[];
+  readonly blocked_run_ids?: readonly string[];
 }
 
 export interface FlownetChildClientOptions {
@@ -78,7 +80,7 @@ export class FlownetChildClient {
 
   async status(
     network: PollRequestsNetwork,
-    runId: string,
+    selector: string | { readonly businessKey: string },
   ): Promise<StatusOutput | null> {
     const result = await this.run(
       [
@@ -86,8 +88,9 @@ export class FlownetChildClient {
         network.networkId,
         "--profile",
         this.profile,
-        "--run-id",
-        runId,
+        ...(typeof selector === "string"
+          ? ["--run-id", selector]
+          : ["--business-key", selector.businessKey]),
         "--json",
       ],
       undefined,
@@ -132,6 +135,35 @@ export class FlownetChildClient {
       ...(request.rerunFromNode === null
         ? []
         : ["--rerun-from", request.rerunFromNode]),
+      "--json",
+    ];
+    const processResult = await this.run(args, requestedBy(request));
+    let output: RunNetworkJsonOutput | null = null;
+    try {
+      output = JSON.parse(processResult.stdout) as RunNetworkJsonOutput;
+    } catch {
+      // The classifier treats an absent machine-readable result as a rejection.
+    }
+    return { output, process: processResult };
+  }
+
+  async startNetwork(
+    network: PollRequestsNetwork,
+    request: Pick<RequestRecord, "id" | "creatorCode">,
+    input: StartNetworkInput,
+  ): Promise<{
+    readonly output: RunNetworkJsonOutput | null;
+    readonly process: ChildProcessResult;
+  }> {
+    const args = [
+      "run-network",
+      network.definitionPath,
+      ...(input.businessKey === undefined
+        ? []
+        : ["--business-key", input.businessKey]),
+      ...(input.scheduledFor === undefined
+        ? []
+        : ["--scheduled-for", input.scheduledFor]),
       "--json",
     ];
     const processResult = await this.run(args, requestedBy(request));

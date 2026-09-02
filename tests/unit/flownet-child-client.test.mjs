@@ -12,6 +12,7 @@ import {
 import {
   classifyCancelResult,
   classifyRunNetworkResult,
+  classifyStartNetworkResult,
 } from "../../dist/requests/request-result.js";
 
 function request(overrides = {}) {
@@ -109,6 +110,7 @@ test("status/cancel-run argvを固定しreason一時ファイルをfinallyで必
   });
   const network = { networkId: "net-a", definitionPath: "C:\\net.yaml" };
   await client.status(network, "run-42");
+  await client.status(network, { businessKey: "net@2026-08" });
   await assert.rejects(
     client.cancelRun(request(), true),
     /simulated child failure/,
@@ -124,13 +126,64 @@ test("status/cancel-run argvを固定しreason一時ファイルをfinallyで必
     "run-42",
     "--json",
   ]);
-  assert.deepEqual(calls[1].args.slice(1, -1), [
+  assert.deepEqual(calls[1].args.slice(1), [
+    "status",
+    "net-a",
+    "--profile",
+    "prod",
+    "--business-key",
+    "net@2026-08",
+    "--json",
+  ]);
+  assert.deepEqual(calls[2].args.slice(1, -1), [
     "cancel-run",
     "--run-id",
     "run-42",
     "--release",
     "--reason-file",
   ]);
+});
+
+test("STARTの3入力modeは完全一致argvを使いresume系を一切持たない", async () => {
+  const calls = [];
+  const client = new FlownetChildClient({
+    profile: "prod",
+    cliPath: "C:\\app\\cli.js",
+    async execute(_command, args, options) {
+      calls.push({ args, options });
+      return processResult({
+        stdout: JSON.stringify({
+          outcome: "NEW",
+          run_id: "run-new",
+          invocation_id: "invoke-new",
+          aggregate_status: "SUCCESS",
+          invocation_result_code: "OK",
+          blocked_run_ids: [],
+        }),
+      });
+    },
+  });
+  const network = { networkId: "net-a", definitionPath: "C:\\net.yaml" };
+  const value = request();
+  await client.startNetwork(network, value, { businessKey: "manual" });
+  await client.startNetwork(network, value, {
+    scheduledFor: "2026-08-01T00:00:00.000Z",
+  });
+  await client.startNetwork(network, value, {
+    businessKey: "correction",
+    scheduledFor: "2026-08-01T00:00:00.000Z",
+  });
+  assert.deepEqual(calls.map(({ args }) => args), [
+    ["C:\\app\\cli.js", "run-network", "C:\\net.yaml", "--business-key", "manual", "--json"],
+    ["C:\\app\\cli.js", "run-network", "C:\\net.yaml", "--scheduled-for", "2026-08-01T00:00:00.000Z", "--json"],
+    ["C:\\app\\cli.js", "run-network", "C:\\net.yaml", "--business-key", "correction", "--scheduled-for", "2026-08-01T00:00:00.000Z", "--json"],
+  ]);
+  for (const { args, options } of calls) {
+    assert.equal(args.includes("--resume"), false);
+    assert.equal(args.includes("--resume-run"), false);
+    assert.equal(args.includes("--rerun-from"), false);
+    assert.equal(options.shell, false);
+  }
 });
 
 test("stdout/stderrはbyte上限で切り詰め、shellを使わない", async () => {
@@ -236,4 +289,19 @@ test("NOOPはInvocationなしでもDONEに分類する", () => {
     }).state,
     "DONE",
   );
+});
+
+test("START classifierは旧JSONのblocked_run_ids欠落を安全に扱う", () => {
+  const result = classifyStartNetworkResult({
+    output: {
+      outcome: "REJECTED",
+      run_id: null,
+      invocation_id: null,
+      aggregate_status: null,
+      invocation_result_code: "RUN_ALREADY_EXISTS",
+    },
+    process: processResult({ exitCode: 1 }),
+  });
+  assert.equal(result.code, "RUN_ALREADY_EXISTS");
+  assert.match(result.message, /RERUN/u);
 });
