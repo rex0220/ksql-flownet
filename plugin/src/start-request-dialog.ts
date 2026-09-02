@@ -39,6 +39,14 @@ export interface StartRequestDialogOptions {
 
 const OTHER_NETWORK_VALUE = "__ksql_flownet_other_network__";
 const DATE_TEMPLATE_PLACEHOLDER = /\{(?:年|月|日)\}/u;
+const JST_OFFSET_MILLISECONDS = 9 * 60 * 60 * 1_000;
+
+function todayAtMidnightInJst(): string {
+  const jstDate = new Date(Date.now() + JST_OFFSET_MILLISECONDS)
+    .toISOString()
+    .slice(0, 10);
+  return `${jstDate}T00:00`;
+}
 
 const MODE_DESCRIPTIONS: Readonly<Record<StartInputMode, string>> = {
   scheduled:
@@ -364,12 +372,15 @@ export function openStartRequestDialog(
         : selected === "explicit"
           ? "例: adhoc-ticket-123"
           : "";
+    if (!scheduled.input.disabled && scheduled.input.value === "") {
+      scheduled.input.value = todayAtMidnightInJst();
+      applyBusinessKeyTemplate();
+    }
   };
   mode.addEventListener("change", () => {
     applyMode();
     applyBusinessKeyTemplate();
   });
-  applyMode();
 
   const selectedAllowedNetwork = (): StartAllowedNetwork | undefined =>
     allowedNetworks.find(
@@ -398,6 +409,8 @@ export function openStartRequestDialog(
       .replaceAll("{月}", dateMatch?.[2] ?? "")
       .replaceAll("{日}", dateMatch?.[3] ?? "");
   }
+
+  applyMode();
 
   const applyNetworkSelection = (): void => {
     if (networkSelect === null) return;

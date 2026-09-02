@@ -42,13 +42,29 @@ class FakeElement {
 }
 
 class FakeDocument {
-  constructor() {
+  constructor(sessionStorage) {
     this.createdTags = [];
+    this.defaultView =
+      sessionStorage === undefined ? undefined : { sessionStorage };
   }
 
   createElement(tagName) {
     this.createdTags.push(tagName);
     return new FakeElement(tagName, this);
+  }
+}
+
+class FakeSessionStorage {
+  constructor() {
+    this.values = new Map();
+  }
+
+  getItem(key) {
+    return this.values.get(key) ?? null;
+  }
+
+  setItem(key, value) {
+    this.values.set(key, String(value));
   }
 }
 
@@ -290,7 +306,8 @@ test("pending START section hides when empty and renders multiple safe linked de
 });
 
 test("section headings share the bold title class and START content toggles accessibly", async () => {
-  const document = new FakeDocument();
+  const sessionStorage = new FakeSessionStorage();
+  const document = new FakeDocument(sessionStorage);
   const root = new FakeElement("div", document);
   renderBoard(
     root,
@@ -362,11 +379,61 @@ test("section headings share the bold title class and START content toggles acce
   assert.equal(toggle.attributes.get("aria-expanded"), "false");
   assert.equal(chevron.textContent, "▶");
   assert.equal(findText(toggle, "1件").textContent, "1件");
+  assert.equal(
+    sessionStorage.getItem("ksql-flownet-start-section-collapsed"),
+    "1",
+  );
 
-  toggle.listeners.get("click")();
-  assert.equal(content.hidden, false);
-  assert.equal(toggle.attributes.get("aria-expanded"), "true");
-  assert.equal(chevron.textContent, "▼");
+  renderBoard(
+    root,
+    {
+      activeSection: { state: "ready", rows: [], error: null },
+      attentionSection: { state: "ready", rows: [], error: null },
+      attentionRemainingCount: 0,
+      pendingWarning: null,
+      pendingStartCount: 1,
+      pendingStartRequests: [
+        {
+          id: "42",
+          requestState: "REQUESTED",
+          networkId: "monthly",
+          businessKey: null,
+          scheduledFor: null,
+          reason: "再描画確認",
+          creatorName: "運用担当",
+          createdAt: "2026-09-01T00:00:00Z",
+        },
+      ],
+      terminalStartRequests: [],
+      recentTerminalRuns: [],
+      stateAppId: "100",
+      requestEnabled: true,
+      requestAppId: "300",
+      judgedAt: 1,
+      state: "ready",
+      rows: [],
+      error: null,
+    },
+    { onReload: () => {} },
+  );
+  const restoredToggle = allNodes(root).find(
+    (node) => node.className === "ksql-flownet-section-toggle",
+  );
+  const restoredContent = allNodes(root).find(
+    (node) => node.id === "ksql-flownet-start-request-content",
+  );
+  assert.equal(restoredContent.hidden, true);
+  assert.equal(restoredToggle.attributes.get("aria-expanded"), "false");
+  assert.equal(restoredToggle.children[0].textContent, "▶");
+
+  restoredToggle.listeners.get("click")();
+  assert.equal(restoredContent.hidden, false);
+  assert.equal(restoredToggle.attributes.get("aria-expanded"), "true");
+  assert.equal(restoredToggle.children[0].textContent, "▼");
+  assert.equal(
+    sessionStorage.getItem("ksql-flownet-start-section-collapsed"),
+    "0",
+  );
 
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(
@@ -377,6 +444,61 @@ test("section headings share the bold title class and START content toggles acce
     css,
     /\.ksql-flownet-section-title\s*\{[^}]*color:\s*#24353d;[^}]*font-weight:\s*700;/su,
   );
+});
+
+test("START section stays expanded when sessionStorage throws", () => {
+  const throwingStorage = {
+    getItem() {
+      throw new Error("storage unavailable");
+    },
+    setItem() {
+      throw new Error("storage unavailable");
+    },
+  };
+  const document = new FakeDocument(throwingStorage);
+  const root = new FakeElement("div", document);
+  renderBoard(
+    root,
+    {
+      activeSection: { state: "ready", rows: [], error: null },
+      attentionSection: { state: "ready", rows: [], error: null },
+      attentionRemainingCount: 0,
+      pendingWarning: null,
+      pendingStartCount: 1,
+      pendingStartRequests: [
+        {
+          id: "43",
+          requestState: "REQUESTED",
+          networkId: "monthly",
+          businessKey: null,
+          scheduledFor: null,
+          reason: "例外確認",
+          creatorName: "運用担当",
+          createdAt: "2026-09-01T00:00:00Z",
+        },
+      ],
+      terminalStartRequests: [],
+      recentTerminalRuns: [],
+      stateAppId: "100",
+      requestEnabled: true,
+      requestAppId: "300",
+      judgedAt: 1,
+      state: "ready",
+      rows: [],
+      error: null,
+    },
+    { onReload: () => {} },
+  );
+  const toggle = allNodes(root).find(
+    (node) => node.className === "ksql-flownet-section-toggle",
+  );
+  const content = allNodes(root).find(
+    (node) => node.id === "ksql-flownet-start-request-content",
+  );
+  assert.equal(content.hidden, false);
+  assert.equal(toggle.attributes.get("aria-expanded"), "true");
+  assert.doesNotThrow(() => toggle.listeners.get("click")());
+  assert.equal(content.hidden, true);
 });
 
 test("START request history renders terminal results and tones below pending rows", () => {

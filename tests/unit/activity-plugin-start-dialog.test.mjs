@@ -203,6 +203,10 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   );
   assert.equal(business.disabled, true);
   assert.equal(scheduled.required, true);
+  const openedAtJst = new Date(Date.now() + 9 * 60 * 60 * 1_000)
+    .toISOString()
+    .slice(0, 10);
+  assert.equal(scheduled.value, `${openedAtJst}T00:00`);
   mode.value = "correction";
   mode.trigger("change");
   assert.equal(
@@ -224,6 +228,19 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   assert.equal(business.placeholder, "例: adhoc-ticket-123");
   assert.equal(business.required, true);
   assert.equal(scheduled.disabled, true);
+
+  scheduled.value = "";
+  mode.value = "scheduled";
+  mode.trigger("change");
+  assert.equal(scheduled.value, `${openedAtJst}T00:00`);
+
+  scheduled.value = "2026-10-03T12:34";
+  scheduled.trigger("input");
+  mode.value = "explicit";
+  mode.trigger("change");
+  mode.value = "correction";
+  mode.trigger("change");
+  assert.equal(scheduled.value, "2026-10-03T12:34");
 });
 
 test("設定一覧は表示名とnetwork_idを分け、補助表示したnetwork_idをPOSTする", async () => {
@@ -331,7 +348,11 @@ test("設定一覧のモードとbusiness_keyテンプレートを自動設定�
   network.trigger("change");
   assert.equal(mode.value, "correction");
   assert.equal(business.disabled, false);
-  assert.equal(business.value, "", "対象期間未入力なら日付を展開しない");
+  assert.match(
+    business.value,
+    /^monthly_deal_summary@\d{4}-\d{2}-correction-1$/u,
+    "当日00:00の既定値でも日付テンプレートを展開する",
+  );
 
   scheduled.value = "2026-08-15T09:30";
   scheduled.trigger("input");

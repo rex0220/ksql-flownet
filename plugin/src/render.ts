@@ -821,6 +821,35 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
   } as BoardViewModel;
 }
 
+const START_SECTION_COLLAPSED_STORAGE_KEY =
+  "ksql-flownet-start-section-collapsed";
+
+function readStartSectionCollapsed(pageDocument: Document): boolean {
+  try {
+    return (
+      pageDocument.defaultView?.sessionStorage.getItem(
+        START_SECTION_COLLAPSED_STORAGE_KEY,
+      ) === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function writeStartSectionCollapsed(
+  pageDocument: Document,
+  collapsed: boolean,
+): void {
+  try {
+    pageDocument.defaultView?.sessionStorage.setItem(
+      START_SECTION_COLLAPSED_STORAGE_KEY,
+      collapsed ? "1" : "0",
+    );
+  } catch {
+    // sessionStorageを利用できない環境ではセッション保持を省略する。
+  }
+}
+
 function sectionHeader(
   pageDocument: Document,
   title: string,
@@ -864,11 +893,13 @@ function sectionHeader(
     "▼",
   );
   toggle.type = "button";
-  toggle.setAttribute("aria-expanded", "true");
+  const initiallyCollapsed = readStartSectionCollapsed(pageDocument);
+  toggle.setAttribute("aria-expanded", String(!initiallyCollapsed));
   toggle.setAttribute("aria-controls", collapsibleContent.id);
   chevron.setAttribute("aria-hidden", "true");
-  collapsibleContent.hidden = false;
-  let expanded = true;
+  chevron.textContent = initiallyCollapsed ? "▶" : "▼";
+  collapsibleContent.hidden = initiallyCollapsed;
+  let expanded = !initiallyCollapsed;
   heading.textContent = "";
   toggle.append(chevron, toggleTitle, countBadge);
   heading.append(toggle);
@@ -877,6 +908,7 @@ function sectionHeader(
     collapsibleContent.hidden = !expanded;
     toggle.setAttribute("aria-expanded", String(expanded));
     chevron.textContent = expanded ? "▼" : "▶";
+    writeStartSectionCollapsed(pageDocument, !expanded);
   });
   header.append(heading);
   return header;
