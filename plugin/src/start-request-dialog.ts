@@ -247,6 +247,7 @@ export function openStartRequestDialog(
     prompt.setAttribute("value", "");
     prompt.textContent = "選択してください";
     networkSelect.append(prompt);
+    let entryIndex = 0;
     for (const group of allowedNetworkGroups) {
       const parent =
         group.label === null || group.label === ""
@@ -255,9 +256,10 @@ export function openStartRequestDialog(
       if (parent !== networkSelect) parent.setAttribute("label", group.label);
       for (const network of group.entries) {
         const option = pageDocument.createElement("option");
-        option.setAttribute("value", network.networkId);
+        option.setAttribute("value", String(entryIndex));
         option.textContent = network.label;
         parent.append(option);
+        entryIndex += 1;
       }
       if (parent !== networkSelect) networkSelect.append(parent);
     }
@@ -382,10 +384,11 @@ export function openStartRequestDialog(
     applyBusinessKeyTemplate();
   });
 
-  const selectedAllowedNetwork = (): StartAllowedNetwork | undefined =>
-    allowedNetworks.find(
-      (network) => network.networkId === networkSelect?.value,
-    );
+  const selectedAllowedNetwork = (): StartAllowedNetwork | undefined => {
+    const selectedIndex = networkSelect?.value ?? "";
+    if (!/^\d+$/u.test(selectedIndex)) return undefined;
+    return allowedNetworks[Number(selectedIndex)];
+  };
 
   function applyBusinessKeyTemplate(): void {
     if (businessKeyManuallyEdited) return;
@@ -420,9 +423,7 @@ export function openStartRequestDialog(
     networkInput.hidden = !isOther;
     networkInput.disabled = !isOther;
     networkInput.required = isOther;
-    const selected = allowedNetworks.find(
-      (network) => network.networkId === networkSelect.value,
-    );
+    const selected = selectedAllowedNetwork();
     const showNetworkId =
       !isOther &&
       selected !== undefined &&
@@ -445,7 +446,7 @@ export function openStartRequestDialog(
   const selectedNetworkId = (): string =>
     networkSelect === null || networkSelect.value === OTHER_NETWORK_VALUE
       ? networkInput.value
-      : networkSelect.value;
+      : (selectedAllowedNetwork()?.networkId ?? "");
 
   const chooseCandidate = (candidate: StartCandidate): void => {
     if (networkSelect === null) {
@@ -455,7 +456,11 @@ export function openStartRequestDialog(
         (network) => network.networkId === candidate.networkId,
       )
     ) {
-      networkSelect.value = candidate.networkId;
+      networkSelect.value = String(
+        allowedNetworks.findIndex(
+          (network) => network.networkId === candidate.networkId,
+        ),
+      );
       networkInput.value = "";
       applyNetworkSelection();
     } else {

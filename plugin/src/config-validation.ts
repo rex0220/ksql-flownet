@@ -50,7 +50,7 @@ const BUSINESS_KEY_TEMPLATE_PLACEHOLDERS = new Set([
   "{日}",
 ]);
 
-/** 改行区切りのSTART候補を、network_idの入力順を保った一意な保存文字列へ正規化する。 */
+/** 改行区切りのSTART候補を、正規化行の入力順を保った一意な保存文字列へ正規化する。 */
 export function validateStartAllowedNetworks(
   value: unknown,
 ): ConfigValidationResult {
@@ -71,7 +71,7 @@ export function validateStartAllowedNetworks(
       message: `START許可ネットワーク一覧は全体で${START_ALLOWED_NETWORK_TOTAL_LIMIT}文字以内にしてください。`,
     };
   }
-  const networkIds = new Set<string>();
+  const normalizedEntryKeys = new Set<string>();
   const normalized: string[] = [];
   for (const sourceLine of value.split(/\r?\n|\r/u)) {
     const line = sourceLine.trim();
@@ -149,9 +149,10 @@ export function validateStartAllowedNetworks(
           "business_keyテンプレートのプレースホルダは {ネットワークID}/{年}/{月}/{日} のみ使用できます。",
       };
     }
-    if (networkIds.has(networkId)) continue;
-    networkIds.add(networkId);
     const normalizedColumns = [label, networkId, csvMode, businessKeyTemplate];
+    const normalizedEntryKey = JSON.stringify(normalizedColumns);
+    if (normalizedEntryKeys.has(normalizedEntryKey)) continue;
+    normalizedEntryKeys.add(normalizedEntryKey);
     normalized.push(
       columns.length === 1
         ? networkId

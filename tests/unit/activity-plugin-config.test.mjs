@@ -84,14 +84,15 @@ test("logAppId accepts empty or a positive decimal string", () => {
     assert.equal(validateLogAppId(invalid).valid, false, String(invalid));
 });
 
-test("START許可ネットワーク一覧はCSV4列までと旧1列を正規化しnetwork_idの先勝ちで重複除去する", () => {
+test("START許可ネットワーク一覧はCSV4列までと旧1列を正規化し完全同一行だけ重複除去する", () => {
   assert.deepEqual(
     validateStartAllowedNetworks(
       " 月次案件集計 , monthly , 定期 \r\n\nadhoc\r別名, monthly, 補正, ignored\n 随時 , adhoc, 任意キー, adhoc-fixed ",
     ),
     {
       valid: true,
-      value: "月次案件集計, monthly, 定期\nadhoc",
+      value:
+        "月次案件集計, monthly, 定期\nadhoc\n別名, monthly, 補正, ignored\n随時, adhoc, 任意キー, adhoc-fixed",
       message: null,
     },
   );
@@ -193,7 +194,42 @@ test("START許可ネットワーク一覧はCSV4列までと旧1列を正規化�
   }
 });
 
-test("区切り行をラベル付き・空ラベルのグループとしてパースし、重複は全グループで先勝ちにする", () => {
+test("同一network_idのモード違いを保存往復で保持し、完全同一行だけ除去する", () => {
+  const source = [
+    "---マスタ",
+    "P2-11テスト集計(補正), KSQL_FLOW_TEST_P211UI01_scheduled_p211-scheduled, 補正, {ネットワークID}@{年}-{月}-correction-1",
+    "---月次",
+    "P2-11テスト集計(定期), KSQL_FLOW_TEST_P211UI01_scheduled_p211-scheduled, 定期",
+  ].join("\n");
+  const firstSave = validateStartAllowedNetworks(source);
+  assert.deepEqual(firstSave, { valid: true, value: source, message: null });
+  assert.deepEqual(validateStartAllowedNetworks(firstSave.value), firstSave);
+  assert.deepEqual(
+    flattenStartAllowedNetworks(parseStartAllowedNetworks(firstSave.value)),
+    [
+      {
+        label: "P2-11テスト集計(補正)",
+        networkId: "KSQL_FLOW_TEST_P211UI01_scheduled_p211-scheduled",
+        mode: "correction",
+        businessKeyTemplate: "{ネットワークID}@{年}-{月}-correction-1",
+      },
+      {
+        label: "P2-11テスト集計(定期)",
+        networkId: "KSQL_FLOW_TEST_P211UI01_scheduled_p211-scheduled",
+        mode: "scheduled",
+      },
+    ],
+  );
+
+  const identical =
+    "同一, shared, 補正, {ネットワークID}@{年}-{月}\n同一, shared, 補正, {ネットワークID}@{年}-{月}";
+  assert.equal(
+    validateStartAllowedNetworks(identical).value,
+    "同一, shared, 補正, {ネットワークID}@{年}-{月}",
+  );
+});
+
+test("区切り行をラベル付き・空ラベルのグループとしてパースし、異なる行は同じnetwork_idでも保持する", () => {
   const source = [
     "先頭, before, 定期",
     "---マスタ",
@@ -206,7 +242,7 @@ test("区切り行をラベル付き・空ラベルのグループとしてパ�
   ].join("\n");
   assert.deepEqual(validateStartAllowedNetworks(source), {
     valid: true,
-    value: source.replace("\n重複, before, 補正", ""),
+    value: source,
     message: null,
   });
   assert.deepEqual(parseStartAllowedNetworks(source), {
@@ -229,6 +265,11 @@ test("区切り行をラベル付き・空ラベルのグループとしてパ�
       {
         label: "取引先,カンマも区切りラベル",
         entries: [
+          {
+            label: "重複",
+            networkId: "before",
+            mode: "correction",
+          },
           {
             label: "取引先",
             networkId: "vendor",
@@ -305,7 +346,7 @@ test("ダウンロードpayloadはメタ情報と検証・正規化済みのconf
         requestAppId: "51",
         logAppId: "61",
         startAllowedNetworks:
-          "月次案件集計(補正), monthly, 補正, {ネットワークID}@{年}-{月}-correction-1\nadhoc",
+          "月次案件集計(補正), monthly, 補正, {ネットワークID}@{年}-{月}-correction-1\n月次案件集計(重複), monthly\nadhoc",
         deployOnSave: false,
       },
     },
@@ -319,7 +360,7 @@ test("インポートはメタ付き・素の設定を検証し、未知キー�
     requestAppId: "51",
     logAppId: "61",
     startAllowedNetworks:
-      "月次案件集計(補正), monthly, 補正, {ネットワークID}@{年}-{月}-correction-1\nadhoc",
+      "月次案件集計(補正), monthly, 補正, {ネットワークID}@{年}-{月}-correction-1\n別名, monthly\nadhoc",
     deployOnSave: false,
   };
   assert.deepEqual(
@@ -457,7 +498,7 @@ test("不正JSON・検証エラーのインポートはフォーム状態を変�
       "21",
       "22",
       "23",
-      "月次案件集計, monthly\n随時実行, adhoc",
+      "月次案件集計, monthly\n重複名, monthly\n随時実行, adhoc",
       false,
     ]);
     assert.equal(importFile.value, "");

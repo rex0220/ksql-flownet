@@ -279,7 +279,7 @@ test("設定一覧は表示名とnetwork_idを分け、補助表示したnetwork
   );
   assert.deepEqual(
     networkSelect.children.map((option) => option.attributes.get("value")),
-    ["", "monthly", "adhoc", "xss-safe-id", otherValue],
+    ["", "0", "1", "2", otherValue],
   );
   assert.equal(
     allNodes(document.body).some((node) => node.tagName === "img"),
@@ -298,7 +298,7 @@ test("設定一覧は表示名とnetwork_idを分け、補助表示したnetwork
   assert.equal(otherInput.required, true);
   assert.equal(networkIdHelp.hidden, true);
 
-  networkSelect.value = "monthly";
+  networkSelect.value = "0";
   networkSelect.trigger("change");
   assert.equal(otherInput.hidden, true);
   assert.equal(networkIdHelp.hidden, false);
@@ -344,7 +344,7 @@ test("設定一覧のモードとbusiness_keyテンプレートを自動設定�
   const scheduled = named(document.body, "scheduled_for");
   const business = named(document.body, "business_key");
 
-  network.value = "monthly_deal_summary";
+  network.value = "0";
   network.trigger("change");
   assert.equal(mode.value, "correction");
   assert.equal(business.disabled, false);
@@ -364,7 +364,7 @@ test("設定一覧のモードとbusiness_keyテンプレートを自動設定�
   scheduled.trigger("change");
   assert.equal(business.value, "operator-edited-key");
 
-  network.value = "monthly_deal_summary";
+  network.value = "0";
   network.trigger("change");
   assert.equal(
     business.value,
@@ -372,7 +372,7 @@ test("設定一覧のモードとbusiness_keyテンプレートを自動設定�
     "エントリ選び直しで手編集フラグをリセットする",
   );
 
-  network.value = "dated_adhoc";
+  network.value = "1";
   network.trigger("change");
   assert.equal(mode.value, "explicit");
   assert.equal(scheduled.disabled, true);
@@ -382,9 +382,74 @@ test("設定一覧のモードとbusiness_keyテンプレートを自動設定�
     "explicitでは残存対象期間を使って日付テンプレートを展開しない",
   );
 
-  network.value = "fixed_adhoc";
+  network.value = "2";
   network.trigger("change");
   assert.equal(business.value, "fixed_adhoc-fixed");
+});
+
+test("同一network_idのモード違いを個別選択し、各設定を適用して同じnetwork_idをPOSTする", async () => {
+  const sharedNetworkId = "KSQL_FLOW_TEST_P211UI01_scheduled_p211-scheduled";
+  const allowedNetworks = [
+    {
+      label: "P2-11テスト集計(補正)",
+      networkId: sharedNetworkId,
+      mode: "correction",
+      businessKeyTemplate: "{ネットワークID}@{年}-{月}-correction-1",
+    },
+    {
+      label: "P2-11テスト集計(定期)",
+      networkId: sharedNetworkId,
+      mode: "scheduled",
+    },
+  ];
+  const postedNetworkIds = [];
+
+  for (const [selectedIndex, expectedMode] of [
+    ["0", "correction"],
+    ["1", "scheduled"],
+  ]) {
+    const document = new FakeDocument();
+    openStartRequestDialog(
+      options(document, {
+        allowedNetworks,
+        postRecord: async (body) => {
+          postedNetworkIds.push(body.record.network_id.value);
+          return { id: "88", revision: "1" };
+        },
+      }),
+    );
+    await tick();
+    const network = named(document.body, "network_id");
+    const mode = named(document.body, "mode");
+    const scheduled = named(document.body, "scheduled_for");
+    const business = named(document.body, "business_key");
+    assert.deepEqual(
+      network.children
+        .slice(1, 3)
+        .map((option) => option.attributes.get("value")),
+      ["0", "1"],
+    );
+
+    network.value = selectedIndex;
+    network.trigger("change");
+    assert.equal(mode.value, expectedMode);
+    scheduled.value = "2026-09-15T09:30";
+    scheduled.trigger("input");
+    assert.equal(
+      business.value,
+      expectedMode === "correction"
+        ? `${sharedNetworkId}@2026-09-correction-1`
+        : "",
+    );
+    named(document.body, "reason").value = "same network id regression";
+    allNodes(document.body)
+      .find((node) => node.tagName === "form")
+      .trigger("submit");
+    await tick();
+    await tick();
+  }
+
+  assert.deepEqual(postedNetworkIds, [sharedNetworkId, sharedNetworkId]);
 });
 
 test("区切りグループをoptgroupで表示し、グループを跨いだ選択でも自動設定する", () => {
@@ -433,7 +498,7 @@ test("区切りグループをoptgroupで表示し、グループを跨いだ選
       option.textContent,
       option.attributes.get("value"),
     ]),
-    [["顧客補正", "customer"]],
+    [["顧客補正", "1"]],
   );
   assert.deepEqual(
     [network.children[0].textContent, network.children.at(-1).textContent],
@@ -443,14 +508,14 @@ test("区切りグループをoptgroupで表示し、グループを跨いだ選
   const mode = named(document.body, "mode");
   const scheduled = named(document.body, "scheduled_for");
   const business = named(document.body, "business_key");
-  network.value = "customer";
+  network.value = "1";
   network.trigger("change");
   scheduled.value = "2026-09-15T09:30";
   scheduled.trigger("input");
   assert.equal(mode.value, "correction");
   assert.equal(business.value, "customer@2026-09");
 
-  network.value = "adhoc";
+  network.value = "2";
   network.trigger("change");
   assert.equal(mode.value, "explicit");
   assert.equal(business.value, "adhoc-fixed");
