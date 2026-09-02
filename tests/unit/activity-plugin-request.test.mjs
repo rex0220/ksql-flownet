@@ -228,6 +228,52 @@ test("POST occurs once, then GET readback passes parseRequestRecord", async () =
   assert.equal(parsed.requestState, "REQUESTED");
 });
 
+test("START posts only its five human fields once and validates canonical readback", async () => {
+  const posts = [];
+  const parsed = await createRequest(
+    {
+      requestAppId: 500,
+      postRecord: async (body) => {
+        posts.push(body);
+        return { id: "89", revision: "1" };
+      },
+      fetchRecords: async () => ({
+        records: [
+          {
+            ...readbackRecord("START"),
+            $id: field("89"),
+            run_id: field(""),
+            network_id: field("monthly"),
+            business_key: field("monthly@2026-08-correction-1"),
+            scheduled_for: field("2026-08-31T15:00:00Z"),
+            rerun_from_node: field(""),
+          },
+        ],
+      }),
+    },
+    {
+      requestType: "START",
+      networkId: "monthly",
+      businessKey: "monthly@2026-08-correction-1",
+      scheduledFor: "2026-08-31T15:00:00Z",
+      reason: "operator reason",
+    },
+  );
+  assert.equal(posts.length, 1);
+  assert.deepEqual(posts[0], {
+    app: 500,
+    record: {
+      request_type: field("START"),
+      network_id: field("monthly"),
+      business_key: field("monthly@2026-08-correction-1"),
+      scheduled_for: field("2026-08-31T15:00:00Z"),
+      reason: field("operator reason"),
+    },
+  });
+  assert.equal(parsed.requestType, "START");
+  assert.equal(parsed.runId, "");
+});
+
 test("POST 403 is dedicated; GET/parse and generic POST failures are not retried", async () => {
   let postCalls = 0;
   let getCalls = 0;

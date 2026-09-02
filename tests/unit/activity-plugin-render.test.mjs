@@ -146,6 +146,57 @@ test("board view model renders four badges, fixed actions, evidence, and judged 
   assert.match(allText(root), /レコード/u);
 });
 
+test("configured board header renders START button and pending link; unset board renders neither", () => {
+  const document = new FakeDocument();
+  const base = {
+    activeSection: { state: "ready", rows: [], error: null },
+    attentionSection: { state: "ready", rows: [], error: null },
+    attentionRemainingCount: 0,
+    pendingWarning: null,
+    judgedAt: Date.parse("2026-09-02T00:00:00Z"),
+    state: "ready",
+    rows: [],
+    error: null,
+  };
+  const root = new FakeElement("div", document);
+  let starts = 0;
+  renderBoard(
+    root,
+    {
+      ...base,
+      requestEnabled: true,
+      requestAppId: "300",
+      pendingStartCount: 2,
+    },
+    { onReload: () => {}, onStart: () => (starts += 1) },
+  );
+  const button = findText(root, "新規実行");
+  assert.ok(button);
+  button.listeners.get("click")();
+  assert.equal(starts, 1);
+  const pending = findText(root, "処理待ちのSTART要求 2件");
+  assert.equal(pending.tagName, "a");
+  assert.match(pending.attributes.get("href"), /^\/k\/300\/\?query=/u);
+
+  renderBoard(
+    root,
+    {
+      ...base,
+      requestEnabled: false,
+      requestAppId: null,
+      pendingStartCount: null,
+    },
+    { onReload: () => {}, onStart: () => (starts += 1) },
+  );
+  assert.equal(findText(root, "新規実行"), undefined);
+  assert.equal(
+    allNodes(root).some((node) =>
+      node.textContent.startsWith("処理待ちのSTART要求"),
+    ),
+    false,
+  );
+});
+
 test("empty and fail-closed models render without an activity badge", () => {
   const document = new FakeDocument();
   const root = new FakeElement("div", document);

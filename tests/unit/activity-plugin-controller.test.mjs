@@ -96,6 +96,89 @@ test("index/detail guards reject other views and record types", () => {
   assert.equal(apiCalls, 1, "起動時のform fields自動検出だけを行う");
 });
 
+test("board loads pending START count only when request app is configured and never preloads dialog candidates", async () => {
+  const queries = [];
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      queries.push({ app: request.app, query: request.query });
+      if (
+        request.app === "300" &&
+        request.query.includes('request_type in ("START")')
+      ) {
+        return {
+          records: [
+            {
+              $id: field("41"),
+              request_type: field("START"),
+              request_state: field("REQUESTED"),
+            },
+            {
+              $id: field("42"),
+              request_type: field("START"),
+              request_state: field("ACCEPTED"),
+            },
+          ],
+        };
+      }
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "300",
+    nowMs: () => NOW,
+  });
+  assert.equal(model.pendingStartCount, 2);
+  assert.equal(model.pendingWarning, null);
+  assert.equal(
+    queries.some(({ query }) => query.includes('request_state in ("DONE")')),
+    false,
+  );
+  assert.equal(
+    queries.some(({ query }) =>
+      /^record_type in \("NETWORK_RUN"\) order/u.test(query),
+    ),
+    false,
+  );
+
+  const unsetQueries = [];
+  const unset = await loadBoard({
+    fetchRecords: async (request) => {
+      unsetQueries.push(request);
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "",
+    nowMs: () => NOW,
+  });
+  assert.equal(unset.pendingStartCount, null);
+  assert.equal(
+    unsetQueries.some(({ app }) => app === "300"),
+    false,
+  );
+});
+
+test("pending START GET failure warns but leaves START creation enabled", async () => {
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      if (
+        request.app === "300" &&
+        request.query.includes('request_type in ("START")')
+      ) {
+        throw Object.assign(new Error("forbidden"), { status: 403 });
+      }
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "300",
+    nowMs: () => NOW,
+  });
+  assert.equal(model.requestEnabled, true);
+  assert.equal(model.pendingStartCount, null);
+  assert.match(model.pendingWarning, /件数を取得できません/u);
+});
+
 test("terminal detail performs no GET when request app is unset and uses shared action model", async () => {
   let calls = 0;
   const model = await loadDetail(

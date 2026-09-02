@@ -260,6 +260,7 @@
 .ksql-flownet-reload:focus-visible,
 .ksql-flownet-dialog-close:focus-visible,
 .ksql-flownet-dialog input:focus-visible,
+.ksql-flownet-dialog select:focus-visible,
 .ksql-flownet-dialog textarea:focus-visible {
   outline: 3px solid #2563eb;
   outline-offset: 2px;
@@ -401,10 +402,64 @@
 }
 
 .ksql-flownet-dialog input,
+.ksql-flownet-dialog select,
 .ksql-flownet-dialog textarea {
   box-sizing: border-box;
   width: 100%;
   padding: 8px;
+}
+
+.ksql-flownet-start-pending {
+  color: #1d4ed8;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ksql-flownet-start-form {
+  gap: 14px;
+}
+
+.ksql-flownet-start-candidate-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ksql-flownet-start-candidates {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dce2e5;
+  border-radius: 4px;
+  background: #f7f9fa;
+}
+
+.ksql-flownet-start-candidates h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.ksql-flownet-candidate-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.ksql-flownet-candidate {
+  padding: 6px 8px;
+  border: 1px solid #c9d1d5;
+  border-radius: 3px;
+  color: #33434b;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  background: #fff;
+  cursor: pointer;
+}
+
+.ksql-flownet-candidate:hover {
+  border-color: #3498db;
+  background: #f6fbfe;
 }
 
 .ksql-flownet-dialog .ksql-flownet-error-detail {
@@ -463,6 +518,10 @@
 
   .ksql-flownet-toolbar-actions {
     flex-wrap: wrap;
+  }
+
+  .ksql-flownet-start-candidate-groups {
+    grid-template-columns: 1fr;
   }
 }
 

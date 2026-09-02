@@ -44,6 +44,7 @@ export interface BoardViewModel {
   readonly attentionSection: BoardSectionViewModel<TerminalRowViewModel>;
   readonly attentionRemainingCount: number;
   readonly pendingWarning: string | null;
+  readonly pendingStartCount: number | null;
   readonly requestEnabled: boolean;
   readonly requestAppId: string | null;
   readonly judgedAt: number;
@@ -74,6 +75,7 @@ export interface ActionTarget {
 
 export interface RenderCallbacks {
   readonly onReload: () => void;
+  readonly onStart?: () => void;
   readonly onAction?: (target: ActionTarget) => void;
   readonly onCopyRunId?: (runId: string, button: HTMLButtonElement) => void;
 }
@@ -602,7 +604,12 @@ function normalizeCallbacks(
 }
 
 function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
-  if (model.activeSection !== undefined) return model;
+  if (model.activeSection !== undefined) {
+    return {
+      ...model,
+      pendingStartCount: model.pendingStartCount ?? null,
+    };
+  }
   const legacy = model as unknown as {
     state: "ready" | "error";
     rows: readonly ActivityRowViewModel[];
@@ -626,6 +633,7 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
     attentionSection: { state: "ready", rows: [], error: null },
     attentionRemainingCount: 0,
     pendingWarning: null,
+    pendingStartCount: null,
     requestEnabled: false,
     requestAppId: null,
     judgedAt: legacy.judgedAt ?? 0,
@@ -666,6 +674,33 @@ export function renderBoard(
     "div",
     "ksql-flownet-toolbar-actions",
   );
+  if (model.requestEnabled && callbacks.onStart !== undefined) {
+    const start = element(
+      pageDocument,
+      "button",
+      "ksql-flownet-action ksql-flownet-start-action",
+      "新規実行",
+    ) as HTMLButtonElement;
+    start.type = "button";
+    start.addEventListener("click", callbacks.onStart);
+    toolbarActions.append(start);
+  }
+  if (
+    model.requestEnabled &&
+    model.requestAppId !== null &&
+    model.pendingStartCount !== null
+  ) {
+    const pendingLink = pageDocument.createElement("a");
+    pendingLink.className = "ksql-flownet-start-pending";
+    pendingLink.textContent = `処理待ちのSTART要求 ${model.pendingStartCount}件`;
+    pendingLink.setAttribute(
+      "href",
+      `/k/${model.requestAppId}/?query=${encodeURIComponent(
+        'request_type in ("START") and request_state in ("REQUESTED", "ACCEPTED")',
+      )}`,
+    );
+    toolbarActions.append(pendingLink);
+  }
   toolbarActions.append(
     element(
       pageDocument,

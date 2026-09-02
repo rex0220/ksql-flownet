@@ -39,7 +39,7 @@ const ACTION_NAME: Readonly<Record<BoardRequestAction, string>> = {
   RELEASE: "解除要求",
 };
 
-function node(
+export function dialogNode(
   pageDocument: Document,
   tag: string,
   className?: string,
@@ -51,11 +51,14 @@ function node(
   return result;
 }
 
-function requestUrl(appId: string, id: string): string {
+// 既存dialog内では短い別名を維持し、公開helperだけをSTART dialogと共有する。
+const node = dialogNode;
+
+export function requestUrl(appId: string, id: string): string {
   return `/k/${appId}/show#record=${id}`;
 }
 
-function addRequestLink(
+export function addRequestLink(
   pageDocument: Document,
   parent: HTMLElement,
   appId: string,
@@ -68,7 +71,7 @@ function addRequestLink(
   parent.append(link);
 }
 
-function definitionList(
+export function definitionList(
   pageDocument: Document,
   items: readonly (readonly [string, string, boolean?])[],
   className = "ksql-flownet-dialog-details",

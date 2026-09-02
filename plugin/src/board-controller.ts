@@ -26,7 +26,10 @@ import {
   type FetchRecords,
 } from "./kintone-reader.js";
 import { requiredText, type KintoneRecord } from "./kintone-record.js";
-import { loadPendingRequests } from "./request-client.js";
+import {
+  loadPendingRequests,
+  loadPendingStartRequests,
+} from "./request-client.js";
 import { loadTerminalRuns } from "./terminal-run-loader.js";
 import {
   ACTION_TEXT,
@@ -415,9 +418,14 @@ export async function loadBoard(
     requestConfig.value !== null &&
     requestConfig.value !== "";
   let pendingWarning: string | null = null;
+  let pendingStartCount: number | null = null;
   let active = activeSection;
   let terminal = attention.section;
   if (requestEnabled) {
+    const startPendingPromise = loadPendingStartRequests(
+      dependencies.fetchRecords,
+      requestConfig.value,
+    );
     const runIds = [
       ...(active.state === "ready" ? active.rows.map((row) => row.runId) : []),
       ...(terminal.state === "ready"
@@ -439,12 +447,22 @@ export async function loadBoard(
         terminal = readySection(applyPending(terminal.rows, result.byRunId));
       }
     }
+    const startPending = await startPendingPromise;
+    if (startPending.state === "ready") {
+      pendingStartCount = startPending.summary.count;
+    } else {
+      pendingWarning =
+        pendingWarning === null
+          ? startPending.warning
+          : `${pendingWarning} ${startPending.warning}`;
+    }
   }
   return {
     activeSection: active,
     attentionSection: terminal,
     attentionRemainingCount: attention.remaining,
     pendingWarning,
+    pendingStartCount,
     requestEnabled,
     requestAppId: requestEnabled ? requestConfig.value : null,
     judgedAt: nowMs,

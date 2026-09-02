@@ -184,6 +184,8 @@ await Promise.all([
     "related-app-detection",
     "request-dialog",
     "request-client",
+    "start-request",
+    "start-request-dialog",
     "terminal-run-loader",
   ].map((name) =>
     buildWorkspaceEntry(resolve(pluginDirectory, "src", `${name}.ts`), {
