@@ -87,6 +87,27 @@
           </p>
         </section>
       </div>
+      <section class="ksql-flownet-config-backup">
+        <h2>設定のバックアップ（ダウンロード／アップロード）</h2>
+        <div class="ksql-flownet-config-backup-actions">
+          <button id="ksql-flownet-config-download" type="button">
+            ダウンロード
+          </button>
+          <button id="ksql-flownet-config-upload" type="button">
+            アップロード（読込）
+          </button>
+          <input
+            id="ksql-flownet-config-import-file"
+            type="file"
+            accept="application/json,.json"
+            hidden
+          />
+        </div>
+        <p>
+          ダウンロード: 現在の設定を JSON で保存。アップロード: 選んだ JSON
+          で現在の設定を置き換え（反映するには「保存」してください）。
+        </p>
+      </section>
       <p
         id="ksql-flownet-config-error"
         class="ksql-flownet-config-callout"

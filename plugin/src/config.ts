@@ -80,6 +80,23 @@ export interface SaveConfigOutcome {
   readonly message: string;
 }
 
+export interface EditablePluginConfig {
+  readonly auditAppId: string;
+  readonly requestAppId: string;
+  readonly logAppId: string;
+  readonly startAllowedNetworks: string;
+  readonly deployOnSave: boolean;
+}
+
+export interface ConfigBackupPayload {
+  readonly date: string;
+  readonly pluginName: "kSQL-FlowNet Run Activity";
+  readonly pluginId: string;
+  readonly appId: number | null;
+  readonly appName: string;
+  readonly config: EditablePluginConfig;
+}
+
 const POSITIVE_DECIMAL = /^[1-9][0-9]*$/u;
 const DETECTION_UNAVAILABLE = "自動検出できません(関連レコード一覧が未設定)";
 const PREVIEW_UNAVAILABLE = "アプリを確認できません(IDまたは権限を確認)";
@@ -91,6 +108,8 @@ const SAVE_ONLY_MESSAGE = "保存しました。アプリ更新で反映され�
 const DEPLOY_SUCCESS_MESSAGE = "保存し、運用環境へ反映しました";
 const MANUAL_DEPLOY_MESSAGE =
   "設定は保存済みです。アプリ設定から手動でアプリ更新してください。";
+const IMPORT_SUCCESS_MESSAGE =
+  "設定を読み込みました。内容を確認して保存してください。";
 
 const wait: Wait = (milliseconds) =>
   new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
@@ -103,6 +122,88 @@ export function buildPluginConfig(
   deployOnSave: boolean,
 ): PluginConfig {
   return deployOnSave ? { ...values } : { ...values, deployOnSave: "false" };
+}
+
+function validationError(message: string | null): Error {
+  return new Error(message ?? "設定値が不正です。");
+}
+
+function validateEditableConfig(
+  values: Readonly<Record<string, unknown>>,
+  deployOnSave: unknown,
+): EditablePluginConfig {
+  const audit = validateAuditAppIdOverride(values.auditAppId);
+  if (!audit.valid || audit.value === null)
+    throw validationError(audit.message);
+  const request = validateRequestAppId(values.requestAppId);
+  if (!request.valid || request.value === null)
+    throw validationError(request.message);
+  const log = validateLogAppId(values.logAppId);
+  if (!log.valid || log.value === null) throw validationError(log.message);
+  const networks = validateStartAllowedNetworks(values.startAllowedNetworks);
+  if (!networks.valid || networks.value === null)
+    throw validationError(networks.message);
+
+  let shouldDeploy: boolean;
+  if (deployOnSave === undefined || deployOnSave === true) {
+    shouldDeploy = true;
+  } else if (deployOnSave === false || deployOnSave === "false") {
+    shouldDeploy = false;
+  } else {
+    throw new Error("保存時のアプリ更新設定が不正です。");
+  }
+  return {
+    auditAppId: audit.value,
+    requestAppId: request.value,
+    logAppId: log.value,
+    startAllowedNetworks: networks.value,
+    deployOnSave: shouldDeploy,
+  };
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** メタ情報付き・素のどちらも受理し、既知の全設定だけを検証して返す。 */
+export function applyImported(raw: unknown): EditablePluginConfig {
+  if (!isRecord(raw)) throw new Error("設定データが見つかりません。");
+  const body = isRecord(raw.config) ? raw.config : raw;
+  return validateEditableConfig(body, body.deployOnSave);
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function dateText(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+}
+
+function dateStamp(date: Date): string {
+  return `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}${pad2(date.getSeconds())}`;
+}
+
+export function buildConfigBackup(
+  config: EditablePluginConfig,
+  metadata: {
+    readonly pluginId: string;
+    readonly appId: number | null;
+    readonly appName: string;
+  },
+  date = new Date(),
+): { readonly payload: ConfigBackupPayload; readonly filename: string } {
+  return {
+    payload: {
+      date: dateText(date),
+      pluginName: "kSQL-FlowNet Run Activity",
+      pluginId: metadata.pluginId,
+      appId: metadata.appId,
+      appName: metadata.appName,
+      config,
+    },
+    filename: `flownet-activity-app${metadata.appId ?? "x"}-${dateStamp(date)}.json`,
+  };
 }
 
 function setConfigAsync(
@@ -352,6 +453,15 @@ export function installConfigPage(
   const cancel = pageDocument.querySelector<HTMLButtonElement>(
     "#ksql-flownet-config-cancel",
   );
+  const download = pageDocument.querySelector<HTMLButtonElement>(
+    "#ksql-flownet-config-download",
+  );
+  const upload = pageDocument.querySelector<HTMLButtonElement>(
+    "#ksql-flownet-config-upload",
+  );
+  const importFile = pageDocument.querySelector<HTMLInputElement>(
+    "#ksql-flownet-config-import-file",
+  );
   if (
     input === null ||
     requestInput === null ||
@@ -366,7 +476,10 @@ export function installConfigPage(
     form === null ||
     error === null ||
     deployOnSave === null ||
-    cancel === null
+    cancel === null ||
+    download === null ||
+    upload === null ||
+    importFile === null
   ) {
     throw new Error(
       "プラグイン設定画面の要素が不足しています。引数を確認してください。",
@@ -401,47 +514,113 @@ export function installConfigPage(
     bindAppPreview(field, lookupAppName);
   }
   void renderAutoDetection(kintoneApi, fields, lookupAppName);
+
+  const readFormConfig = (): EditablePluginConfig =>
+    validateEditableConfig(
+      {
+        auditAppId: input.value,
+        requestAppId: requestInput.value,
+        logAppId: logInput.value,
+        startAllowedNetworks: startAllowedNetworks.value,
+      },
+      deployOnSave.checked,
+    );
+
+  download.addEventListener("click", () => {
+    let config: EditablePluginConfig;
+    try {
+      config = readFormConfig();
+    } catch (cause) {
+      showCallout(
+        error,
+        "error",
+        cause instanceof Error ? cause.message : "設定値が不正です。",
+      );
+      return;
+    }
+    const appId = kintoneApi.app.getId();
+    void (async () => {
+      const appName =
+        appId === null ? "" : ((await lookupAppName(String(appId))) ?? "");
+      const backup = buildConfigBackup(
+        config,
+        { pluginId, appId, appName },
+        new Date(),
+      );
+      const blob = new Blob([JSON.stringify(backup.payload, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = pageDocument.createElement("a");
+      anchor.href = url;
+      anchor.download = backup.filename;
+      pageDocument.body.appendChild(anchor);
+      anchor.click();
+      pageDocument.body.removeChild(anchor);
+      globalThis.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      showCallout(
+        error,
+        "success",
+        `設定をダウンロードしました: ${backup.filename}`,
+      );
+    })();
+  });
+
+  upload.addEventListener("click", () => importFile.click());
+  importFile.addEventListener("change", () => {
+    const file = importFile.files?.[0];
+    importFile.value = "";
+    if (file === undefined) return;
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      try {
+        const config = applyImported(JSON.parse(String(reader.result)));
+        input.value = config.auditAppId;
+        requestInput.value = config.requestAppId;
+        logInput.value = config.logAppId;
+        startAllowedNetworks.value = config.startAllowedNetworks;
+        deployOnSave.checked = config.deployOnSave;
+        for (const field of Object.values(fields)) {
+          field.preview.textContent = "";
+          field.preview.className = "ksql-flownet-config-preview";
+        }
+        showCallout(error, "success", IMPORT_SUCCESS_MESSAGE);
+      } catch (cause) {
+        showCallout(
+          error,
+          "error",
+          `読み込みに失敗しました: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+    });
+    reader.addEventListener("error", () =>
+      showCallout(error, "error", "ファイルの読み込みに失敗しました。"),
+    );
+    reader.readAsText(file);
+  });
+
   let saving = false;
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (saving) return;
-    const result = validateAuditAppIdOverride(input.value);
-    if (!result.valid || result.value === null) {
-      showCallout(error, "error", result.message ?? "設定値が不正です。");
-      return;
-    }
-    const requestResult = validateRequestAppId(requestInput.value);
-    if (!requestResult.valid || requestResult.value === null) {
+    let editableConfig: EditablePluginConfig;
+    try {
+      editableConfig = readFormConfig();
+    } catch (cause) {
       showCallout(
         error,
         "error",
-        requestResult.message ?? "設定値が不正です。",
+        cause instanceof Error ? cause.message : "設定値が不正です。",
       );
       return;
     }
-    const logResult = validateLogAppId(logInput.value);
-    if (!logResult.valid || logResult.value === null) {
-      showCallout(error, "error", logResult.message ?? "設定値が不正です。");
-      return;
-    }
-    const networksResult = validateStartAllowedNetworks(
-      startAllowedNetworks.value,
-    );
-    if (!networksResult.valid || networksResult.value === null) {
-      showCallout(
-        error,
-        "error",
-        networksResult.message ?? "設定値が不正です。",
-      );
-      return;
-    }
-    const shouldDeploy = deployOnSave.checked;
+    const shouldDeploy = editableConfig.deployOnSave;
     const config = buildPluginConfig(
       {
-        auditAppId: result.value,
-        requestAppId: requestResult.value,
-        logAppId: logResult.value,
-        startAllowedNetworks: networksResult.value,
+        auditAppId: editableConfig.auditAppId,
+        requestAppId: editableConfig.requestAppId,
+        logAppId: editableConfig.logAppId,
+        startAllowedNetworks: editableConfig.startAllowedNetworks,
       },
       shouldDeploy,
     );

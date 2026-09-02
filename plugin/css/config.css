@@ -139,6 +139,41 @@
   color: #b91c1c;
 }
 
+.ksql-flownet-config-backup {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #dce2e5;
+  border-radius: 4px;
+  background: #f7f9fa;
+}
+
+.ksql-flownet-config-backup h2 {
+  margin: 0 0 9px;
+  color: #24353d;
+  font-size: 14px;
+}
+
+.ksql-flownet-config-backup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ksql-flownet-config-backup button {
+  padding: 7px 12px;
+  border: 1px solid #c9d1d5;
+  border-radius: 4px;
+  color: #33434b;
+  font: inherit;
+  background: #fff;
+  cursor: pointer;
+}
+
+.ksql-flownet-config-backup p {
+  margin: 8px 0 0;
+  color: #596970;
+  font-size: 12px;
+}
+
 .ksql-flownet-config-callout {
   margin: 14px 0;
   padding: 10px 12px;
@@ -232,6 +267,7 @@
 
 .ksql-flownet-config-section > input:focus-visible,
 .ksql-flownet-config-section > textarea:focus-visible,
+.ksql-flownet-config-backup button:focus-visible,
 .ksql-flownet-config-deploy input:focus-visible,
 .ksql-flownet-config-actions button:focus-visible {
   outline: 3px solid #2563eb;

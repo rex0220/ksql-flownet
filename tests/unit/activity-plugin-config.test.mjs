@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  applyImported,
+  buildConfigBackup,
   buildPluginConfig,
   installConfigPage,
   saveConfigAndDeploy,
@@ -88,6 +90,191 @@ test("START許可ネットワーク一覧はtrim・空行除去・入力順の�
   );
 });
 
+test("ダウンロードpayloadはメタ情報と検証・正規化済みのconfig全欄を持つ", () => {
+  const config = applyImported({
+    auditAppId: "41",
+    requestAppId: "51",
+    logAppId: "61",
+    startAllowedNetworks: " monthly \r\nmonthly\n adhoc ",
+    deployOnSave: false,
+  });
+  const backup = buildConfigBackup(
+    config,
+    {
+      pluginId: "plugin-id",
+      appId: 101,
+      appName: "Run 状況 <script>",
+    },
+    new Date(2026, 8, 2, 14, 5, 6),
+  );
+
+  assert.deepEqual(backup, {
+    filename: "flownet-activity-app101-20260902-140506.json",
+    payload: {
+      date: "2026-09-02 14:05:06",
+      pluginName: "kSQL-FlowNet Run Activity",
+      pluginId: "plugin-id",
+      appId: 101,
+      appName: "Run 状況 <script>",
+      config: {
+        auditAppId: "41",
+        requestAppId: "51",
+        logAppId: "61",
+        startAllowedNetworks: "monthly\nadhoc",
+        deployOnSave: false,
+      },
+    },
+  });
+});
+
+test("インポートはメタ付き・素の設定を検証し、未知キーを無視する", () => {
+  const expected = {
+    auditAppId: "41",
+    requestAppId: "51",
+    logAppId: "61",
+    startAllowedNetworks: "monthly\nadhoc",
+    deployOnSave: false,
+  };
+  assert.deepEqual(
+    applyImported({
+      date: "2026-09-02 14:05:06",
+      config: {
+        ...expected,
+        startAllowedNetworks: " monthly \nmonthly\nadhoc ",
+        futureSetting: "ignored",
+      },
+    }),
+    expected,
+  );
+  assert.deepEqual(applyImported({ ...expected, unknown: true }), expected);
+  assert.throws(
+    () => applyImported({ ...expected, requestAppId: " 51 " }),
+    /操作要求アプリID/u,
+  );
+  assert.throws(
+    () => applyImported({ ...expected, deployOnSave: "yes" }),
+    /アプリ更新設定/u,
+  );
+});
+
+test("不正JSON・検証エラーのインポートはフォーム状態を変えずinputをリセットする", async () => {
+  const auditInput = inputElement("11");
+  const requestInput = inputElement("12");
+  const logInput = inputElement("13");
+  const startAllowedNetworks = inputElement("before");
+  const deployOnSave = inputElement();
+  deployOnSave.checked = true;
+  const error = statusElement();
+  const importFile = inputElement();
+  const elements = new Map([
+    ["#ksql-flownet-audit-app-id", auditInput],
+    ["#ksql-flownet-request-app-id", requestInput],
+    ["#ksql-flownet-log-app-id", logInput],
+    ["#ksql-flownet-start-allowed-networks", startAllowedNetworks],
+    ["#ksql-flownet-audit-app-detection", statusElement()],
+    ["#ksql-flownet-audit-app-preview", statusElement()],
+    ["#ksql-flownet-request-app-detection", statusElement()],
+    ["#ksql-flownet-request-app-preview", statusElement()],
+    ["#ksql-flownet-log-app-detection", statusElement()],
+    ["#ksql-flownet-log-app-preview", statusElement()],
+    ["#ksql-flownet-config-form", { addEventListener: () => {} }],
+    ["#ksql-flownet-config-error", error],
+    ["#ksql-flownet-deploy-on-save", deployOnSave],
+    ["#ksql-flownet-config-cancel", inputElement()],
+    ["#ksql-flownet-config-download", inputElement()],
+    ["#ksql-flownet-config-upload", inputElement()],
+    ["#ksql-flownet-config-import-file", importFile],
+  ]);
+  const originalFileReader = globalThis.FileReader;
+  globalThis.FileReader = class {
+    listeners = new Map();
+    result = null;
+    addEventListener(name, listener) {
+      this.listeners.set(name, listener);
+    }
+    readAsText(file) {
+      this.result = file.contents;
+      this.listeners.get("load")();
+    }
+  };
+  const api = async () => ({ properties: {} });
+  api.url = (path) => path;
+  try {
+    installConfigPage(
+      {
+        $PLUGIN_ID: "plugin-id",
+        app: { getId: () => 101 },
+        plugin: {
+          app: {
+            getConfig: () => ({
+              auditAppId: "11",
+              requestAppId: "12",
+              logAppId: "13",
+              startAllowedNetworks: "before",
+            }),
+            setConfig: () => {},
+          },
+        },
+        api,
+      },
+      "plugin-id",
+      { querySelector: (selector) => elements.get(selector) ?? null },
+    );
+
+    const before = () => [
+      auditInput.value,
+      requestInput.value,
+      logInput.value,
+      startAllowedNetworks.value,
+      deployOnSave.checked,
+    ];
+    const initial = before();
+    for (const contents of [
+      "{invalid",
+      JSON.stringify({
+        auditAppId: "21",
+        requestAppId: " 22 ",
+        logAppId: "23",
+        startAllowedNetworks: "after",
+        deployOnSave: false,
+      }),
+    ]) {
+      importFile.files = [{ contents }];
+      importFile.value = "selected.json";
+      importFile.dispatch("change");
+      assert.equal(importFile.value, "", "同じファイルを再選択できる");
+      assert.deepEqual(before(), initial, "失敗時はフォーム状態を維持する");
+      assert.match(error.textContent, /読み込みに失敗/u);
+    }
+
+    importFile.files = [
+      {
+        contents: JSON.stringify({
+          config: {
+            auditAppId: "21",
+            requestAppId: "22",
+            logAppId: "23",
+            startAllowedNetworks: " after \nafter\nsecond ",
+            deployOnSave: false,
+            futureSetting: "ignored",
+          },
+        }),
+      },
+    ];
+    importFile.value = "selected.json";
+    importFile.dispatch("change");
+    assert.deepEqual(before(), ["21", "22", "23", "after\nsecond", false]);
+    assert.equal(importFile.value, "");
+    assert.equal(
+      error.textContent,
+      "設定を読み込みました。内容を確認して保存してください。",
+    );
+  } finally {
+    globalThis.FileReader = originalFileReader;
+  }
+  await flushAsync();
+});
+
 test("config page rejects invalid saves and preserves the valid decimal string", async () => {
   const listeners = new Map();
   const input = inputElement();
@@ -125,6 +312,9 @@ test("config page rejects invalid saves and preserves the valid decimal string",
     ["#ksql-flownet-config-error", error],
     ["#ksql-flownet-deploy-on-save", deployOnSave],
     ["#ksql-flownet-config-cancel", cancel],
+    ["#ksql-flownet-config-download", inputElement()],
+    ["#ksql-flownet-config-upload", inputElement()],
+    ["#ksql-flownet-config-import-file", inputElement()],
   ]);
   const saved = [];
   const originalHistory = globalThis.history;
@@ -237,6 +427,9 @@ test("config GETは自アプリの関連先検出とアプリ名確認だけに�
     ["#ksql-flownet-config-error", statusElement()],
     ["#ksql-flownet-deploy-on-save", deployOnSave],
     ["#ksql-flownet-config-cancel", { addEventListener: () => {} }],
+    ["#ksql-flownet-config-download", inputElement()],
+    ["#ksql-flownet-config-upload", inputElement()],
+    ["#ksql-flownet-config-import-file", inputElement()],
   ]);
   const calls = [];
   const api = async (url, method, body) => {
@@ -381,10 +574,16 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-log-app-preview",
     "ksql-flownet-config-error",
     "ksql-flownet-deploy-on-save",
+    "ksql-flownet-config-backup",
+    "ksql-flownet-config-download",
+    "ksql-flownet-config-upload",
+    "ksql-flownet-config-import-file",
     "ksql-flownet-config-cancel",
     "保存時に運用環境へ反映(アプリ更新)",
     "入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用",
     "STARTを許可するネットワーク(改行区切り・任意)",
+    "設定のバックアップ（ダウンロード／アップロード）",
+    "反映するには「保存」してください",
   ]) {
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
   }
