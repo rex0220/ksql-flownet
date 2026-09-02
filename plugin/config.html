@@ -73,17 +73,19 @@
         </section>
         <section class="ksql-flownet-config-section">
           <label for="ksql-flownet-start-allowed-networks"
-            >STARTを許可するネットワーク(改行区切り・任意)</label
+            >STARTを許可するネットワーク(CSV・任意)</label
           >
           <textarea
             id="ksql-flownet-start-allowed-networks"
             name="startAllowedNetworks"
             maxlength="4000"
             rows="6"
+            placeholder="例: 月次案件集計, monthly_deal_summary"
           ></textarea>
           <p class="ksql-flownet-config-help">
             VPSのallowlistでapp_start:
-            trueを設定したnetwork_idを1行ずつ入力します。
+            trueを設定したネットワークを「ネットワーク名,
+            network_id」のCSV形式で1行ずつ入力します。
           </p>
         </section>
       </div>

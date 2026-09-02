@@ -120,7 +120,7 @@ STARTが`REJECTED / STALE`になった場合は、次の順で照合する。
 3. 要求のclaim時刻以後に新しいNETWORK_RUNが出ていないか、ボード、実行管理、監査履歴、JOBログで確認する。新Runがあれば再起票せず、そのRunと業務結果を追跡する。
 4. 新Runが出ていないこと、live owner・矛盾・複数一致がないことを二次対応者が確認できた場合だけ、新しいSTART要求を起票する。確認不能なら再起票しない。
 
-network定義の配備中は、キー再導出と実行時定義がずれるため、**先にポーラーを停止**する。定義を配備し`validate`と`poll-requests --check`を完了してからポーラーを再開する。`app_start: true`の有効化は最後に行い、allowlist開放時はプラグイン設定のSTART許可ネットワーク一覧も更新する。
+network定義の配備中は、キー再導出と実行時定義がずれるため、**先にポーラーを停止**する。定義を配備し`validate`と`poll-requests --check`を完了してからポーラーを再開する。`app_start: true`の有効化は最後に行い、allowlist開放時はプラグイン設定のSTART許可ネットワーク一覧も`ネットワーク名, network_id`のCSV形式（例: `月次案件集計, monthly_deal_summary`）で更新する。
 
 allowlistからnetworkを除去、または`app_start`を無効化した後に、そのnetworkの`ACCEPTED` STARTが滞留した場合は自動決着させない。二次対応者が次を行う。
 

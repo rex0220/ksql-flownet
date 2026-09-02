@@ -208,12 +208,19 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   assert.equal(scheduled.disabled, true);
 });
 
-test("設定一覧があればnetwork_id selectとその他入力を切替え、選択値をPOSTする", async () => {
+test("設定一覧は表示名とnetwork_idを分け、補助表示したnetwork_idをPOSTする", async () => {
   const document = new FakeDocument();
   let postedNetworkId = null;
   openStartRequestDialog(
     options(document, {
-      allowedNetworkIds: ["monthly", "adhoc", '<img src=x onerror="attack">'],
+      allowedNetworks: [
+        { label: "月次案件集計", networkId: "monthly" },
+        { label: "adhoc", networkId: "adhoc" },
+        {
+          label: '<img src=x onerror="attack">',
+          networkId: "xss-safe-id",
+        },
+      ],
       postRecord: async (body) => {
         postedNetworkId = body.record.network_id.value;
         return { id: "88", revision: "1" };
@@ -223,16 +230,21 @@ test("設定一覧があればnetwork_id selectとその他入力を切替え、
   await tick();
   const networkSelect = named(document.body, "network_id");
   const otherInput = named(document.body, "network_id_other");
+  const otherValue = networkSelect.children.at(-1).attributes.get("value");
   assert.equal(networkSelect.tagName, "select");
   assert.deepEqual(
     networkSelect.children.map((option) => option.textContent),
     [
       "選択してください",
-      "monthly",
+      "月次案件集計",
       "adhoc",
       '<img src=x onerror="attack">',
       "その他(自由入力)",
     ],
+  );
+  assert.deepEqual(
+    networkSelect.children.map((option) => option.attributes.get("value")),
+    ["", "monthly", "adhoc", "xss-safe-id", otherValue],
   );
   assert.equal(
     allNodes(document.body).some((node) => node.tagName === "img"),
@@ -241,16 +253,21 @@ test("設定一覧があればnetwork_id selectとその他入力を切替え、
   assert.equal(otherInput.hidden, true);
   assert.equal(otherInput.disabled, true);
 
-  const otherValue = networkSelect.children.at(-1).attributes.get("value");
+  const networkIdHelp = allNodes(document.body).find((node) =>
+    node.className.split(" ").includes("ksql-flownet-start-network-id"),
+  );
   networkSelect.value = otherValue;
   networkSelect.trigger("change");
   assert.equal(otherInput.hidden, false);
   assert.equal(otherInput.disabled, false);
   assert.equal(otherInput.required, true);
+  assert.equal(networkIdHelp.hidden, true);
 
   networkSelect.value = "monthly";
   networkSelect.trigger("change");
   assert.equal(otherInput.hidden, true);
+  assert.equal(networkIdHelp.hidden, false);
+  assert.equal(networkIdHelp.textContent, "network_id: monthly");
   named(document.body, "scheduled_for").value = "2026-09-01T00:00";
   named(document.body, "reason").value = "monthly start";
   allNodes(document.body)

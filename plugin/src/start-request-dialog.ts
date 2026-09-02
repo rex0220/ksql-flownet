@@ -20,6 +20,7 @@ import {
   type StartCandidate,
   type StartInputMode,
 } from "./start-request.js";
+import type { StartAllowedNetwork } from "./config-validation.js";
 
 export interface StartRequestDialogOptions {
   readonly pageDocument: Document;
@@ -28,7 +29,7 @@ export interface StartRequestDialogOptions {
   readonly postRecord: PostRecord;
   readonly stateAppId: number | string;
   readonly requestAppId: string;
-  readonly allowedNetworkIds?: readonly string[];
+  readonly allowedNetworks?: readonly StartAllowedNetwork[];
   readonly onCreated: (record: RequestRecord) => void;
 }
 
@@ -203,10 +204,16 @@ export function openStartRequestDialog(
     undefined,
     "network_id(必須 — サーバー側で許可されたもののみ起動します)",
   );
-  const allowedNetworkIds = options.allowedNetworkIds ?? [];
+  const allowedNetworks = options.allowedNetworks ?? [];
   const networkSelect =
-    allowedNetworkIds.length > 0 ? pageDocument.createElement("select") : null;
+    allowedNetworks.length > 0 ? pageDocument.createElement("select") : null;
   const networkInput = pageDocument.createElement("input");
+  const networkIdHelp = dialogNode(
+    pageDocument,
+    "small",
+    "ksql-flownet-dialog-help ksql-flownet-start-network-id",
+  );
+  networkIdHelp.hidden = true;
   networkInput.type = "text";
   networkInput.maxLength = REQUEST_VALUE_LIMITS.networkId;
   if (networkSelect === null) {
@@ -220,10 +227,10 @@ export function openStartRequestDialog(
     prompt.setAttribute("value", "");
     prompt.textContent = "選択してください";
     networkSelect.append(prompt);
-    for (const networkId of allowedNetworkIds) {
+    for (const network of allowedNetworks) {
       const option = pageDocument.createElement("option");
-      option.setAttribute("value", networkId);
-      option.textContent = networkId;
+      option.setAttribute("value", network.networkId);
+      option.textContent = network.label;
       networkSelect.append(option);
     }
     const other = pageDocument.createElement("option");
@@ -233,7 +240,7 @@ export function openStartRequestDialog(
     networkInput.name = "network_id_other";
     networkInput.hidden = true;
     networkInput.disabled = true;
-    networkLabel.append(networkSelect, networkInput);
+    networkLabel.append(networkSelect, networkIdHelp, networkInput);
   }
   const business = labeledInput(
     pageDocument,
@@ -340,6 +347,17 @@ export function openStartRequestDialog(
     networkInput.hidden = !isOther;
     networkInput.disabled = !isOther;
     networkInput.required = isOther;
+    const selected = allowedNetworks.find(
+      (network) => network.networkId === networkSelect.value,
+    );
+    const showNetworkId =
+      !isOther &&
+      selected !== undefined &&
+      selected.label !== selected.networkId;
+    networkIdHelp.hidden = !showNetworkId;
+    networkIdHelp.textContent = showNetworkId
+      ? `network_id: ${selected.networkId}`
+      : "";
     if (isOther) networkInput.focus();
   };
   networkSelect?.addEventListener("change", applyNetworkSelection);
@@ -352,7 +370,11 @@ export function openStartRequestDialog(
   const chooseCandidate = (candidate: StartCandidate): void => {
     if (networkSelect === null) {
       networkInput.value = candidate.networkId;
-    } else if (allowedNetworkIds.includes(candidate.networkId)) {
+    } else if (
+      allowedNetworks.some(
+        (network) => network.networkId === candidate.networkId,
+      )
+    ) {
       networkSelect.value = candidate.networkId;
       networkInput.value = "";
       applyNetworkSelection();

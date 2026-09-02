@@ -5,6 +5,7 @@ import {
 } from "./board-controller.js";
 import {
   parseStartAllowedNetworks,
+  type StartAllowedNetwork,
   validateAuditAppId,
 } from "./config-validation.js";
 import { loadDetail } from "./detail-controller.js";
@@ -130,7 +131,7 @@ export function createKintonePostRecord(api: KintoneRecordPostApi): PostRecord {
 interface RuntimeDependencies {
   readonly load: ActivityLoadDependencies;
   readonly postRecord: PostRecord;
-  readonly startAllowedNetworks: readonly string[];
+  readonly startAllowedNetworks: readonly StartAllowedNetwork[];
 }
 
 export async function loadRuntimeDependencies(
@@ -248,7 +249,7 @@ export function installDesktop(
                   postRecord: dependencies.postRecord,
                   stateAppId: dependencies.load.stateAppId,
                   requestAppId: model.requestAppId,
-                  allowedNetworkIds: dependencies.startAllowedNetworks,
+                  allowedNetworks: dependencies.startAllowedNetworks,
                   onCreated: () => reload(),
                 });
               },

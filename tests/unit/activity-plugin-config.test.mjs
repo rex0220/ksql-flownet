@@ -6,6 +6,7 @@ import {
   buildConfigBackup,
   buildPluginConfig,
   installConfigPage,
+  parseStartAllowedNetworks,
   saveConfigAndDeploy,
   validateAuditAppId,
   validateAuditAppIdOverride,
@@ -70,11 +71,21 @@ test("logAppId accepts empty or a positive decimal string", () => {
     assert.equal(validateLogAppId(invalid).valid, false, String(invalid));
 });
 
-test("START許可ネットワーク一覧はtrim・空行除去・入力順の重複除去を行い上限を検証する", () => {
+test("START許可ネットワーク一覧はCSV2列と旧1列を正規化しnetwork_idの先勝ちで重複除去する", () => {
   assert.deepEqual(
-    validateStartAllowedNetworks(" monthly \r\n\nadhoc\rmonthly\n  adhoc  "),
-    { valid: true, value: "monthly\nadhoc", message: null },
+    validateStartAllowedNetworks(
+      " 月次案件集計 , monthly \r\n\nadhoc\r別名, monthly\n 随時 , adhoc ",
+    ),
+    {
+      valid: true,
+      value: "月次案件集計, monthly\nadhoc",
+      message: null,
+    },
   );
+  assert.deepEqual(parseStartAllowedNetworks("月次案件集計, monthly\nadhoc"), [
+    { label: "月次案件集計", networkId: "monthly" },
+    { label: "adhoc", networkId: "adhoc" },
+  ]);
   assert.deepEqual(validateStartAllowedNetworks(""), {
     valid: true,
     value: "",
@@ -88,6 +99,16 @@ test("START許可ネットワーク一覧はtrim・空行除去・入力順の�
     validateStartAllowedNetworks("x".repeat(4_001)).message,
     /全体で4000文字以内/u,
   );
+  assert.equal(
+    validateStartAllowedNetworks("表示名, network_id, extra").message,
+    "各行は「ネットワーク名, network_id」の2列で入力してください。",
+  );
+  for (const value of [", monthly", "月次案件集計,", ","]) {
+    assert.match(
+      validateStartAllowedNetworks(value).message,
+      /ネットワーク名とnetwork_idは空にせず/u,
+    );
+  }
 });
 
 test("ダウンロードpayloadはメタ情報と検証・正規化済みのconfig全欄を持つ", () => {
@@ -95,7 +116,8 @@ test("ダウンロードpayloadはメタ情報と検証・正規化済みのconf
     auditAppId: "41",
     requestAppId: "51",
     logAppId: "61",
-    startAllowedNetworks: " monthly \r\nmonthly\n adhoc ",
+    startAllowedNetworks:
+      " 月次案件集計 , monthly \r\n月次案件集計(重複), monthly\n adhoc ",
     deployOnSave: false,
   });
   const backup = buildConfigBackup(
@@ -120,7 +142,7 @@ test("ダウンロードpayloadはメタ情報と検証・正規化済みのconf
         auditAppId: "41",
         requestAppId: "51",
         logAppId: "61",
-        startAllowedNetworks: "monthly\nadhoc",
+        startAllowedNetworks: "月次案件集計, monthly\nadhoc",
         deployOnSave: false,
       },
     },
@@ -132,7 +154,7 @@ test("インポートはメタ付き・素の設定を検証し、未知キー�
     auditAppId: "41",
     requestAppId: "51",
     logAppId: "61",
-    startAllowedNetworks: "monthly\nadhoc",
+    startAllowedNetworks: "月次案件集計, monthly\nadhoc",
     deployOnSave: false,
   };
   assert.deepEqual(
@@ -140,7 +162,7 @@ test("インポートはメタ付き・素の設定を検証し、未知キー�
       date: "2026-09-02 14:05:06",
       config: {
         ...expected,
-        startAllowedNetworks: " monthly \nmonthly\nadhoc ",
+        startAllowedNetworks: " 月次案件集計 , monthly \n別名, monthly\nadhoc ",
         futureSetting: "ignored",
       },
     }),
@@ -254,7 +276,8 @@ test("不正JSON・検証エラーのインポートはフォーム状態を変�
             auditAppId: "21",
             requestAppId: "22",
             logAppId: "23",
-            startAllowedNetworks: " after \nafter\nsecond ",
+            startAllowedNetworks:
+              " 月次案件集計 , monthly \n重複名, monthly\n 随時実行, adhoc ",
             deployOnSave: false,
             futureSetting: "ignored",
           },
@@ -263,7 +286,13 @@ test("不正JSON・検証エラーのインポートはフォーム状態を変�
     ];
     importFile.value = "selected.json";
     importFile.dispatch("change");
-    assert.deepEqual(before(), ["21", "22", "23", "after\nsecond", false]);
+    assert.deepEqual(before(), [
+      "21",
+      "22",
+      "23",
+      "月次案件集計, monthly\n随時実行, adhoc",
+      false,
+    ]);
     assert.equal(importFile.value, "");
     assert.equal(
       error.textContent,
@@ -581,7 +610,9 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "ksql-flownet-config-cancel",
     "保存時に運用環境へ反映(アプリ更新)",
     "入力欄が空の場合は、下記の関連レコード一覧から自動検出したアプリを使用",
-    "STARTを許可するネットワーク(改行区切り・任意)",
+    "STARTを許可するネットワーク(CSV・任意)",
+    "例: 月次案件集計, monthly_deal_summary",
+    "ネットワーク名,",
     "設定のバックアップ（ダウンロード／アップロード）",
     "反映するには「保存」してください",
   ]) {

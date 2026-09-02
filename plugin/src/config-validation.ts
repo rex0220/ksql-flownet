@@ -21,7 +21,12 @@ export interface ConfigValidationResult {
 export const START_ALLOWED_NETWORK_LINE_LIMIT = 128;
 export const START_ALLOWED_NETWORK_TOTAL_LIMIT = 4_000;
 
-/** 改行区切りのSTART候補を、入力順を保った一意な保存文字列へ正規化する。 */
+export interface StartAllowedNetwork {
+  readonly label: string;
+  readonly networkId: string;
+}
+
+/** 改行区切りのSTART候補を、network_idの入力順を保った一意な保存文字列へ正規化する。 */
 export function validateStartAllowedNetworks(
   value: unknown,
 ): ConfigValidationResult {
@@ -42,7 +47,8 @@ export function validateStartAllowedNetworks(
       message: `START許可ネットワーク一覧は全体で${START_ALLOWED_NETWORK_TOTAL_LIMIT}文字以内にしてください。`,
     };
   }
-  const unique = new Set<string>();
+  const networkIds = new Set<string>();
+  const normalized: string[] = [];
   for (const sourceLine of value.split(/\r?\n|\r/u)) {
     const line = sourceLine.trim();
     if (line === "") continue;
@@ -53,16 +59,43 @@ export function validateStartAllowedNetworks(
         message: `START許可ネットワーク一覧は1行${START_ALLOWED_NETWORK_LINE_LIMIT}文字以内にしてください。`,
       };
     }
-    unique.add(line);
+    const columns = line.split(",");
+    if (columns.length > 2) {
+      return {
+        valid: false,
+        value: null,
+        message:
+          "各行は「ネットワーク名, network_id」の2列で入力してください。",
+      };
+    }
+    const label = columns[0]?.trim() ?? "";
+    const networkId = (columns[1] ?? columns[0])?.trim() ?? "";
+    if (label === "" || networkId === "") {
+      return {
+        valid: false,
+        value: null,
+        message: "ネットワーク名とnetwork_idは空にせず入力してください。",
+      };
+    }
+    if (networkIds.has(networkId)) continue;
+    networkIds.add(networkId);
+    normalized.push(
+      columns.length === 1 ? networkId : `${label}, ${networkId}`,
+    );
   }
-  return { valid: true, value: [...unique].join("\n"), message: null };
+  return { valid: true, value: normalized.join("\n"), message: null };
 }
 
-export function parseStartAllowedNetworks(value: unknown): readonly string[] {
+export function parseStartAllowedNetworks(
+  value: unknown,
+): readonly StartAllowedNetwork[] {
   const result = validateStartAllowedNetworks(value);
-  return result.valid && result.value !== null && result.value !== ""
-    ? result.value.split("\n")
-    : [];
+  if (!result.valid || result.value === null || result.value === "") return [];
+  return result.value.split("\n").map((line) => {
+    const [first, second] = line.split(",");
+    const label = first?.trim() ?? "";
+    return { label, networkId: second?.trim() ?? label };
+  });
 }
 
 export function validateAuditAppId(value: unknown): ConfigValidationResult {
