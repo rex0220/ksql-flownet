@@ -289,6 +289,96 @@ test("pending START section hides when empty and renders multiple safe linked de
   );
 });
 
+test("section headings share the bold title class and START content toggles accessibly", async () => {
+  const document = new FakeDocument();
+  const root = new FakeElement("div", document);
+  renderBoard(
+    root,
+    {
+      activeSection: { state: "ready", rows: [], error: null },
+      attentionSection: { state: "ready", rows: [], error: null },
+      attentionRemainingCount: 0,
+      pendingWarning: null,
+      pendingStartCount: 1,
+      pendingStartRequests: [
+        {
+          id: "41",
+          requestState: "REQUESTED",
+          networkId: "monthly",
+          businessKey: null,
+          scheduledFor: null,
+          reason: "確認",
+          creatorName: "運用担当",
+          createdAt: "2026-09-01T00:00:00Z",
+        },
+      ],
+      terminalStartRequests: [],
+      recentTerminalRuns: [
+        {
+          recordId: "70",
+          status: "SUCCESS",
+          networkId: "monthly",
+          businessKey: "monthly@2026-09",
+          asOf: "2026-09-01T01:23:00Z",
+          updatedAt: "2026-09-01T02:34:00Z",
+        },
+      ],
+      stateAppId: "100",
+      requestEnabled: true,
+      requestAppId: "300",
+      judgedAt: 1,
+      state: "ready",
+      rows: [],
+      error: null,
+    },
+    { onReload: () => {} },
+  );
+
+  const headings = allNodes(root).filter((node) => node.tagName === "h3");
+  assert.equal(headings.length, 4);
+  assert.ok(
+    headings.every(
+      (heading) => heading.className === "ksql-flownet-section-title",
+    ),
+  );
+
+  const toggle = allNodes(root).find(
+    (node) => node.className === "ksql-flownet-section-toggle",
+  );
+  const content = allNodes(root).find(
+    (node) => node.id === "ksql-flownet-start-request-content",
+  );
+  const chevron = toggle.children[0];
+  assert.equal(toggle.tagName, "button");
+  assert.equal(toggle.type, "button");
+  assert.equal(toggle.attributes.get("aria-controls"), content.id);
+  assert.equal(toggle.attributes.get("aria-expanded"), "true");
+  assert.equal(content.hidden, false, "START要求は初期展開する");
+  assert.equal(chevron.textContent, "▼");
+  assert.equal(findText(toggle, "1件").textContent, "1件");
+
+  toggle.listeners.get("click")();
+  assert.equal(content.hidden, true);
+  assert.equal(toggle.attributes.get("aria-expanded"), "false");
+  assert.equal(chevron.textContent, "▶");
+  assert.equal(findText(toggle, "1件").textContent, "1件");
+
+  toggle.listeners.get("click")();
+  assert.equal(content.hidden, false);
+  assert.equal(toggle.attributes.get("aria-expanded"), "true");
+  assert.equal(chevron.textContent, "▼");
+
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(
+    new globalThis.URL("../../plugin/css/desktop.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    css,
+    /\.ksql-flownet-section-title\s*\{[^}]*color:\s*#24353d;[^}]*font-weight:\s*700;/su,
+  );
+});
+
 test("START request history renders terminal results and tones below pending rows", () => {
   const document = new FakeDocument();
   const root = new FakeElement("div", document);

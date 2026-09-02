@@ -825,12 +825,60 @@ function sectionHeader(
   pageDocument: Document,
   title: string,
   count: number,
+  collapsibleContent?: HTMLElement,
 ): HTMLElement {
   const header = element(pageDocument, "header", "ksql-flownet-section-header");
-  header.append(
-    element(pageDocument, "h3", undefined, title),
-    element(pageDocument, "span", "ksql-flownet-count-badge", `${count}件`),
+  const heading = element(
+    pageDocument,
+    "h3",
+    "ksql-flownet-section-title",
+    title,
   );
+  const countBadge = element(
+    pageDocument,
+    "span",
+    "ksql-flownet-count-badge",
+    `${count}件`,
+  );
+  if (collapsibleContent === undefined) {
+    header.append(heading, countBadge);
+    return header;
+  }
+
+  header.className += " ksql-flownet-section-header--collapsible";
+  const toggle = element(
+    pageDocument,
+    "button",
+    "ksql-flownet-section-toggle",
+  ) as HTMLButtonElement;
+  const toggleTitle = element(
+    pageDocument,
+    "span",
+    "ksql-flownet-section-toggle-title",
+    title,
+  );
+  const chevron = element(
+    pageDocument,
+    "span",
+    "ksql-flownet-section-chevron",
+    "▼",
+  );
+  toggle.type = "button";
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.setAttribute("aria-controls", collapsibleContent.id);
+  chevron.setAttribute("aria-hidden", "true");
+  collapsibleContent.hidden = false;
+  let expanded = true;
+  heading.textContent = "";
+  toggle.append(chevron, toggleTitle, countBadge);
+  heading.append(toggle);
+  toggle.addEventListener("click", () => {
+    expanded = !expanded;
+    collapsibleContent.hidden = !expanded;
+    toggle.setAttribute("aria-expanded", String(expanded));
+    chevron.textContent = expanded ? "▼" : "▶";
+  });
+  header.append(heading);
   return header;
 }
 
@@ -912,19 +960,22 @@ export function renderBoard(
       "section",
       "ksql-flownet-section ksql-flownet-start-request-section",
     );
+    const pendingStartTable = renderStartRequestTable(
+      pageDocument,
+      model.pendingStartRequests ?? [],
+      model.terminalStartRequests ?? [],
+      model.requestAppId,
+    );
+    pendingStartTable.id = "ksql-flownet-start-request-content";
     pendingStart.append(
       sectionHeader(
         pageDocument,
         "START要求",
         (model.pendingStartRequests?.length ?? 0) +
           (model.terminalStartRequests?.length ?? 0),
+        pendingStartTable,
       ),
-      renderStartRequestTable(
-        pageDocument,
-        model.pendingStartRequests ?? [],
-        model.terminalStartRequests ?? [],
-        model.requestAppId,
-      ),
+      pendingStartTable,
     );
     board.append(pendingStart);
   }

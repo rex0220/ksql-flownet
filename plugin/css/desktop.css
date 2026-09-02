@@ -84,9 +84,46 @@
   background: #f7f9fa;
 }
 
-.ksql-flownet-section-header h3 {
+.ksql-flownet-section-title {
   margin: 0;
+  color: #24353d;
   font-size: 16px;
+  font-weight: 700;
+}
+
+.ksql-flownet-section-header--collapsible {
+  padding: 0;
+}
+
+.ksql-flownet-section-header--collapsible .ksql-flownet-section-title {
+  width: 100%;
+}
+
+.ksql-flownet-section-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+}
+
+.ksql-flownet-section-toggle:focus-visible {
+  outline: 2px solid #3498db;
+  outline-offset: -2px;
+}
+
+.ksql-flownet-section-chevron {
+  width: 1em;
+  color: #24353d;
+  font-weight: 700;
+  text-align: center;
 }
 
 .ksql-flownet-count-badge {
