@@ -22,7 +22,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "pack:plugin": "npm run build:plugin && kintone-plugin-packer --out plugin/zip/ksql-flownet-activity.zip plugin",
+    "pack:plugin": "npm run build:plugin && kintone-plugin-packer --ppk %USERPROFILE%/.ksql-flownet/flownet-activity-plugin.ppk --out plugin/zip/flownet-activity-plugin.zip plugin",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build && npm run build:plugin",
     "test": "node --test tests/unit/*.test.mjs",

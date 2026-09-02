@@ -10,6 +10,7 @@ import {
   definitionPathForNetwork,
   KINTONE_DATETIME_PRECISION_ALLOWANCE_MS,
   loadPollRequestsConfig,
+  networkForNetworkId,
   PollRequestsConfigError,
 } from "../../dist/requests/poll-requests-config.js";
 
@@ -30,7 +31,40 @@ const valid = () =>
 test("allowlistを読み込みnetwork_idから絶対定義pathを引ける", () => {
   const config = loadPollRequestsConfig(valid());
   assert.equal(config.networks.length, 1);
+  assert.equal(config.networks[0].appStart, false);
   assert.equal(definitionPathForNetwork(config, "m5_success"), fixture);
+});
+
+test("app_startは明示booleanだけを受理し省略時falseにする", () => {
+  for (const [source, expected] of [
+    ["app_start: true", true],
+    ["app_start: false", false],
+    ["", false],
+  ]) {
+    const path = allowlist(
+      `networks:\n  - network_id: m5_success\n    definition_path: ${JSON.stringify(fixture)}\n${source === "" ? "" : `    ${source}\n`}`,
+    );
+    const network = networkForNetworkId(
+      loadPollRequestsConfig(path),
+      "m5_success",
+    );
+    assert.equal(network.appStart, expected);
+    assert.equal(network.definitionPath, fixture);
+  }
+});
+
+test("app_startの非booleanと未知keyをfail-closedにする", () => {
+  for (const extra of ["app_start: yes", "app_start: 1", "unknown: false"]) {
+    const path = allowlist(
+      `networks:\n  - network_id: m5_success\n    definition_path: ${JSON.stringify(fixture)}\n    ${extra}\n`,
+    );
+    assert.throws(
+      () => loadPollRequestsConfig(path),
+      (error) =>
+        error instanceof PollRequestsConfigError &&
+        error.code === "NETWORK_ENTRY_INVALID",
+    );
+  }
 });
 
 test("heartbeat/stale/分精度余裕の既定値を固定する", () => {

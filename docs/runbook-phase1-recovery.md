@@ -109,6 +109,28 @@ ksql-flownet run-network <network_id> --resume-run <run_id> ...
 | `STOP` | `run_id`、理由 | 要求が`DONE`になり、Runが次ノード境界で停止 | 実行中のSQLは途中停止しない |
 | `RELEASE` | `run_id`、理由 | 要求が`DONE`になりholdが解除 | RELEASE自身はRunを再開しない。ただし定期`--resume`が次回起動時に再開し得る |
 
+### START要求(P2-11)
+
+STARTは未作成の業務実行単位を作る要求であり、既存Runの再開には使わない。ボードの「新規実行」または操作要求アプリへの直接追加で起票する。`DONE`は要求処理の完了であってRun成功ではないため、必ず実行管理アプリのNETWORK_RUNとボードで成否を追跡する。
+
+STARTが`REJECTED / STALE`になった場合は、次の順で照合する。
+
+1. 要求レコードの`network_id`、`business_key`、`scheduled_for`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`を控える。
+2. 対象networkの定義とキーpolicyからbusiness keyを再導出し、`ksql-flownet status <network_id> --profile <profile> --business-key <business_key> --json`を実行する。
+3. 要求のclaim時刻以後に新しいNETWORK_RUNが出ていないか、ボード、実行管理、監査履歴、JOBログで確認する。新Runがあれば再起票せず、そのRunと業務結果を追跡する。
+4. 新Runが出ていないこと、live owner・矛盾・複数一致がないことを二次対応者が確認できた場合だけ、新しいSTART要求を起票する。確認不能なら再起票しない。
+
+network定義の配備中は、キー再導出と実行時定義がずれるため、**先にポーラーを停止**する。定義を配備し`validate`と`poll-requests --check`を完了してからポーラーを再開する。`app_start: true`の有効化は最後に行う。
+
+allowlistからnetworkを除去、または`app_start`を無効化した後に、そのnetworkの`ACCEPTED` STARTが滞留した場合は自動決着させない。二次対応者が次を行う。
+
+1. ポーラーを停止し、要求の3入力欄とclaim情報を控える。
+2. 上記STALE手順で新Run、Invocation、監査、JOBログ、live ownerを照合する。Runが作成済みなら、そのRunの状態と業務結果を記録する。
+3. 自動回収不能であることと照合結果を作業記録へ残し、要求レコードを手動で`request_state=REJECTED`、`result_code=STALE`へ更新する。`result_message`には「allowlist変更後の人手決着」であること、確認したRun IDまたは「新Runなし」、確認者、確認日時を記録する。元の入力欄・claim欄は変更しない。
+4. 要求一覧から滞留が消えたことを確認する。networkを再許可する場合は、定義検証と`poll-requests --check`後にポーラーを再開し、必要なSTARTは別の新規レコードとして起票する。
+
+この手動更新は通常の一次操作ではなく、allowlist変更で自動回収経路を失った要求を監査可能に終端する二次対応手順である。
+
 ボード起票のRERUNが`REJECTED / LOCK_CONFLICT`になった場合は、一次対応者に同じ要求を繰り返させない。二次対応者が本runbookの手順1〜3に従って旧ownerの停止を確認し、`force-unlock-network`でstale Network lockを回収した後、一次対応者へ**ボードのリラン要求ボタンをもう一度押す**よう依頼する。M3 B-1/B-2では、1回目がkill後のlock競合で拒否され、回収後の2回目はジョブログ証拠による孤児裁定を経てSUCCESSまで完走した。同じ経路でも証拠が見つからなければUNKNOWNへ移るため、その場合は再要求せず手順5の解決へ進む。
 
 同一failure kindが3回連続した`RETRY_BRAKE`は、通常のRERUNだけでは対象ノードを再実行しない。原因(SQL、入力データ、認証・接続設定等)を修正してから、新しいRERUN要求の`rerun_from_node`へブレーキ対象の冪等Node IDを指定する。要求結果が`DONE / RETRY_BRAKE`のままなら、対象Node、冪等性、修正内容を二次対応者が再確認する。非冪等NodeやUNKNOWNはアプリ操作で強行しない。

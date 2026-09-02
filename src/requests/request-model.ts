@@ -1,6 +1,6 @@
 import type { KintoneRecord } from "../persistence/kintone/client.js";
 
-export const REQUEST_TYPES = ["RERUN", "STOP", "RELEASE"] as const;
+export const REQUEST_TYPES = ["RERUN", "STOP", "RELEASE", "START"] as const;
 export type RequestType = (typeof REQUEST_TYPES)[number];
 
 export const REQUEST_STATES = [
@@ -14,6 +14,8 @@ export type TerminalRequestState = Extract<RequestState, "DONE" | "REJECTED">;
 
 export const REQUEST_VALUE_LIMITS = {
   runId: 128,
+  networkId: 128,
+  businessKey: 128,
   rerunFromNode: 128,
   reason: 65_535,
   creatorCode: 256,
@@ -29,6 +31,9 @@ export interface RequestRecord {
   readonly createdAt: string;
   readonly requestType: RequestType;
   readonly runId: string;
+  readonly networkId: string | null;
+  readonly businessKey: string | null;
+  readonly scheduledFor: string | null;
   readonly rerunFromNode: string | null;
   readonly reason: string;
   readonly requestState: RequestState;
@@ -72,6 +77,14 @@ function stringValue(record: KintoneRecord, field: string): string {
 function optionalString(record: KintoneRecord, field: string): string | null {
   const value = stringValue(record, field);
   return value === "" ? null : value;
+}
+
+function additiveOptionalString(
+  record: KintoneRecord,
+  field: string,
+): string | null {
+  if (!Object.hasOwn(record, field)) return null;
+  return optionalString(record, field);
 }
 
 function creatorCode(record: KintoneRecord): string {
@@ -160,7 +173,7 @@ export function validateRequestRecord(
       message: "must be an ISO UTC datetime",
     });
   }
-  if (record.runId.trim() === "") {
+  if (record.requestType !== "START" && record.runId.trim() === "") {
     issues.push({
       code: "REQUIRED",
       field: "run_id",
@@ -182,6 +195,18 @@ export function validateRequestRecord(
     });
   }
   addLengthIssue(issues, "run_id", record.runId, REQUEST_VALUE_LIMITS.runId);
+  addLengthIssue(
+    issues,
+    "network_id",
+    record.networkId,
+    REQUEST_VALUE_LIMITS.networkId,
+  );
+  addLengthIssue(
+    issues,
+    "business_key",
+    record.businessKey,
+    REQUEST_VALUE_LIMITS.businessKey,
+  );
   addLengthIssue(
     issues,
     "rerun_from_node",
@@ -294,6 +319,9 @@ export function parseRequestRecord(record: KintoneRecord): RequestRecord {
       "request_type",
     ),
     runId: stringValue(record, "run_id"),
+    networkId: additiveOptionalString(record, "network_id"),
+    businessKey: additiveOptionalString(record, "business_key"),
+    scheduledFor: additiveOptionalString(record, "scheduled_for"),
     rerunFromNode: optionalString(record, "rerun_from_node"),
     reason: stringValue(record, "reason"),
     requestState: choice(

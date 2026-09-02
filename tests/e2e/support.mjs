@@ -348,15 +348,29 @@ export async function snapshotPersistenceRevisions(settings) {
 }
 
 export async function loadRunGraph(settings, businessKey) {
-  const runRecords = await getPersistenceRecords(
-    settings,
-    "state",
-    `record_type in ("NETWORK_RUN") and business_key = ${quote(businessKey)} order by created_at desc`,
-  );
+  // kintone実測(2026-09-02): 非uniqueの文字列1行では `=` がトークン一致で
+  // 「...@2026-08」と「...@2026-08-correction-1」を相互に返し得る。クエリは
+  // 絞り込みとして使い、厳密一致はJS側で行う(cleanupM5Recordsと同じ前例)。
+  const runRecords = (
+    await getPersistenceRecords(
+      settings,
+      "state",
+      `record_type in ("NETWORK_RUN") and business_key = ${quote(businessKey)} order by created_at desc`,
+    )
+  ).filter((record) => field(record, "business_key") === businessKey);
   assert.equal(
     runRecords.length,
     1,
-    "business_keyに対応するRunは1件であること",
+    `business_keyに対応するRunは1件であること: ${JSON.stringify(
+      runRecords.map((record) => ({
+        id: field(record, "$id"),
+        businessKey: field(record, "business_key"),
+        runId: field(record, "run_id"),
+        status: field(record, "status"),
+        requestedBy: field(record, "requested_by"),
+        createdAt: field(record, "created_at"),
+      })),
+    )}`,
   );
   const run = decodeRun(runRecords[0]);
   const stateRecords = await getPersistenceRecords(

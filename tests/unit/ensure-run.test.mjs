@@ -362,6 +362,33 @@ test("D-02 未完了1件RESUME: 保存bundleだけを検証し作業ツリーSQL
   await resumed.close({ status: "CANCELLED", resultCode: "TEST_DONE" });
 });
 
+test("resume非指定の同一キー未完了RunはInvocation・bundle・Node state変更前に拒否する", async (context) => {
+  const { networkPath } = fixture(context);
+  const h = harness();
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+  const invocationCount = (
+    await h.repository.getInvocations(created.run.value.run_id)
+  ).length;
+  const statesBefore = await h.repository.getNodeStates(created.run.value.run_id);
+  h.events.length = 0;
+  await assert.rejects(ensureRun(input(networkPath, h)), (error) => {
+    assert.ok(error instanceof EnsureRunError);
+    assert.equal(error.code, "RUN_ALREADY_EXISTS");
+    assert.deepEqual(error.blockedBy, [created.run.value.run_id]);
+    return true;
+  });
+  assert.equal(
+    (await h.repository.getInvocations(created.run.value.run_id)).length,
+    invocationCount,
+  );
+  assert.deepEqual(
+    await h.repository.getNodeStates(created.run.value.run_id),
+    statesBefore,
+  );
+  assert.equal(h.events.some((event) => event.startsWith("download:")), false);
+});
+
 test("CANCEL_REQUEST hold中のRESUMEはRUN_ON_HOLDで拒否する", async (context) => {
   const { networkPath } = fixture(context);
   const h = harness();

@@ -15,6 +15,7 @@ import {
   openRequestDialog,
   type RequestDialogTarget,
 } from "./request-dialog.js";
+import { openStartRequestDialog } from "./start-request-dialog.js";
 import type {
   CreateRecordResponse,
   CreateRequestBody,
@@ -231,6 +232,18 @@ export function installDesktop(
           render: (model, reload) =>
             renderBoard(root, model, {
               onReload: reload,
+              onStart: () => {
+                if (model.requestAppId === null) return;
+                openStartRequestDialog({
+                  pageDocument,
+                  host: pageDocument.body,
+                  fetchRecords: dependencies.load.fetchRecords,
+                  postRecord: dependencies.postRecord,
+                  stateAppId: dependencies.load.stateAppId,
+                  requestAppId: model.requestAppId,
+                  onCreated: () => reload(),
+                });
+              },
               onAction: (target) => {
                 if (model.requestAppId === null) return;
                 openRequestDialog({
@@ -309,7 +322,7 @@ declare const document: Document | undefined;
 
 if (typeof kintone !== "undefined" && typeof document !== "undefined") {
   console.info(
-    `kSQL-FlowNet Run状況 plugin v1 loaded (plugin_id captured: ${typeof kintone.$PLUGIN_ID === "string" && kintone.$PLUGIN_ID !== ""})`,
+    `kSQL-FlowNet Run状況 plugin v2 loaded (plugin_id captured: ${typeof kintone.$PLUGIN_ID === "string" && kintone.$PLUGIN_ID !== ""})`,
   );
   installDesktop(kintone, document);
 }

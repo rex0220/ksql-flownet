@@ -135,6 +135,20 @@
   background: #f6fbfe;
 }
 
+.ksql-flownet-start-request-reason {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ksql-flownet-start-request-result {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ksql-flownet-start-request-terminal-row--first td {
+  border-top: 2px solid #cfd7da;
+}
+
 .ksql-flownet-record-cell {
   width: 7em;
   min-width: 7em;
@@ -178,6 +192,27 @@
 
 .ksql-flownet-badge--interrupted,
 .ksql-flownet-error {
+  color: #7f1d1d;
+  background: #fecaca;
+}
+
+.ksql-flownet-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.ksql-flownet-status--success,
+.ksql-flownet-status--done {
+  color: #14532d;
+  background: #bbf7d0;
+}
+
+.ksql-flownet-status--rejected {
   color: #7f1d1d;
   background: #fecaca;
 }
@@ -260,6 +295,7 @@
 .ksql-flownet-reload:focus-visible,
 .ksql-flownet-dialog-close:focus-visible,
 .ksql-flownet-dialog input:focus-visible,
+.ksql-flownet-dialog select:focus-visible,
 .ksql-flownet-dialog textarea:focus-visible {
   outline: 3px solid #2563eb;
   outline-offset: 2px;
@@ -317,6 +353,23 @@
   font-size: 14px;
   background: #fff;
   box-shadow: 0 12px 36px rgb(0 0 0 / 30%);
+}
+
+.ksql-flownet-start-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(96vw, 780px);
+  max-height: min(90vh, 900px);
+  overflow: hidden;
+}
+
+.ksql-flownet-start-dialog-scroll {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ksql-flownet-start-dialog-footer {
+  flex: 0 0 auto;
 }
 
 .ksql-flownet-dialog-header {
@@ -401,10 +454,68 @@
 }
 
 .ksql-flownet-dialog input,
+.ksql-flownet-dialog select,
 .ksql-flownet-dialog textarea {
   box-sizing: border-box;
   width: 100%;
   padding: 8px;
+}
+
+.ksql-flownet-start-pending {
+  color: #1d4ed8;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ksql-flownet-start-form {
+  gap: 14px;
+}
+
+.ksql-flownet-start-business-key {
+  width: 100%;
+}
+
+.ksql-flownet-start-candidate-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ksql-flownet-start-candidates {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dce2e5;
+  border-radius: 4px;
+  background: #f7f9fa;
+}
+
+.ksql-flownet-start-candidates h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.ksql-flownet-candidate-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.ksql-flownet-candidate {
+  padding: 6px 8px;
+  border: 1px solid #c9d1d5;
+  border-radius: 3px;
+  color: #33434b;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  background: #fff;
+  cursor: pointer;
+}
+
+.ksql-flownet-candidate:hover {
+  border-color: #3498db;
+  background: #f6fbfe;
 }
 
 .ksql-flownet-dialog .ksql-flownet-error-detail {
@@ -463,6 +574,10 @@
 
   .ksql-flownet-toolbar-actions {
     flex-wrap: wrap;
+  }
+
+  .ksql-flownet-start-candidate-groups {
+    grid-template-columns: 1fr;
   }
 }
 

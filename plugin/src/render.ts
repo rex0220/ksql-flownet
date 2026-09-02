@@ -6,6 +6,11 @@ import type {
 } from "./board-action.js";
 import type { RunActivity } from "./activity-entry.js";
 import type { ErrorSummary, ErrorSummaryItem } from "./error-summary.js";
+import type {
+  PendingStartRequest,
+  TerminalStartRequest,
+} from "./request-client.js";
+import type { RecentTerminalRun } from "./terminal-run-loader.js";
 
 export interface ActionRowViewModel {
   readonly runId: string;
@@ -44,6 +49,11 @@ export interface BoardViewModel {
   readonly attentionSection: BoardSectionViewModel<TerminalRowViewModel>;
   readonly attentionRemainingCount: number;
   readonly pendingWarning: string | null;
+  readonly pendingStartCount: number | null;
+  readonly pendingStartRequests: readonly PendingStartRequest[] | null;
+  readonly terminalStartRequests: readonly TerminalStartRequest[] | null;
+  readonly recentTerminalRuns: readonly RecentTerminalRun[] | null;
+  readonly stateAppId: string;
   readonly requestEnabled: boolean;
   readonly requestAppId: string | null;
   readonly judgedAt: number;
@@ -74,6 +84,7 @@ export interface ActionTarget {
 
 export interface RenderCallbacks {
   readonly onReload: () => void;
+  readonly onStart?: () => void;
   readonly onAction?: (target: ActionTarget) => void;
   readonly onCopyRunId?: (runId: string, button: HTMLButtonElement) => void;
 }
@@ -99,7 +110,7 @@ export function limitDisplayValue(value: string): string {
   return `${characters.slice(0, MAX_DISPLAY_LENGTH).join("")}…`;
 }
 
-/** ISO日時をブラウザローカル時刻(ja-JP、分まで)で表示する。不正値は原文のまま。 */
+/** ISO日時をJST(ja-JP、分まで)で表示する。不正値は原文のまま。 */
 export function formatLocalDateTime(value: string): string {
   const milliseconds = Date.parse(value);
   if (Number.isNaN(milliseconds)) return value;
@@ -109,6 +120,7 @@ export function formatLocalDateTime(value: string): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Tokyo",
   });
 }
 
@@ -130,6 +142,18 @@ function badge(pageDocument: Document, activity: RunActivity): HTMLElement {
     "span",
     `ksql-flownet-badge ksql-flownet-badge--${activity.toLowerCase()}`,
     activity,
+  );
+}
+
+function statusBadge(
+  pageDocument: Document,
+  status: "SUCCESS" | "DONE" | "REJECTED",
+): HTMLElement {
+  return element(
+    pageDocument,
+    "span",
+    `ksql-flownet-status ksql-flownet-status--${status.toLowerCase()}`,
+    status,
   );
 }
 
@@ -323,6 +347,7 @@ function recordCell(
 function tableHeader(
   pageDocument: Document,
   labels: readonly string[],
+  lastIsOperation = true,
 ): HTMLElement {
   const thead = element(pageDocument, "thead");
   const header = element(pageDocument, "tr");
@@ -330,7 +355,7 @@ function tableHeader(
     const className =
       index === 0
         ? "ksql-flownet-record-cell"
-        : index === labels.length - 1
+        : lastIsOperation && index === labels.length - 1
           ? "ksql-flownet-operation-cell"
           : undefined;
     header.append(element(pageDocument, "th", className, label));
@@ -393,6 +418,151 @@ function renderActiveTable(
         row.error ?? [row.evidence, row.actionText].filter(Boolean).join(" / "),
       ),
       actionCell,
+    );
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  return table;
+}
+
+function startKeyAndSchedule(
+  row: PendingStartRequest | TerminalStartRequest,
+): string {
+  return [
+    row.businessKey === null ? null : `業務キー: ${row.businessKey}`,
+    row.scheduledFor === null
+      ? null
+      : `対象日時: ${formatLocalDateTime(row.scheduledFor)}`,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(" / ");
+}
+
+function renderStartRequestTable(
+  pageDocument: Document,
+  pendingRows: readonly PendingStartRequest[],
+  terminalRows: readonly TerminalStartRequest[],
+  requestAppId: string,
+): HTMLElement {
+  const table = element(
+    pageDocument,
+    "table",
+    "ksql-flownet-table ksql-flownet-start-request-table",
+  );
+  const thead = tableHeader(
+    pageDocument,
+    [
+      "レコード",
+      "状態",
+      "network_id",
+      "業務キー / 対象日時",
+      "要求者 / 作成日時",
+      "理由",
+      "結果",
+    ],
+    false,
+  );
+  const tbody = element(pageDocument, "tbody");
+  for (const row of [...pendingRows, ...terminalRows]) {
+    const tr = element(pageDocument, "tr");
+    if (row.requestState === "DONE" || row.requestState === "REJECTED") {
+      tr.className =
+        row === terminalRows[0] && pendingRows.length > 0
+          ? "ksql-flownet-start-request-terminal-row ksql-flownet-start-request-terminal-row--first"
+          : "ksql-flownet-start-request-terminal-row";
+    }
+    const record = element(pageDocument, "td", "ksql-flownet-record-cell");
+    record.append(
+      requestLink(pageDocument, requestAppId, row.id, `#${row.id}`),
+    );
+    tr.append(
+      record,
+      (() => {
+        const stateCell = element(
+          pageDocument,
+          "td",
+          "ksql-flownet-cell-nowrap",
+        );
+        stateCell.append(
+          row.requestState === "DONE" || row.requestState === "REJECTED"
+            ? statusBadge(pageDocument, row.requestState)
+            : element(pageDocument, "span", undefined, row.requestState),
+        );
+        return stateCell;
+      })(),
+      element(pageDocument, "td", undefined, row.networkId),
+      element(pageDocument, "td", undefined, startKeyAndSchedule(row)),
+      element(
+        pageDocument,
+        "td",
+        undefined,
+        `${row.creatorName} / ${formatLocalDateTime(row.createdAt)}`,
+      ),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-start-request-reason",
+        row.reason,
+      ),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-start-request-result",
+        "resultCode" in row
+          ? [row.resultCode, row.resultMessage].filter(Boolean).join(" / ")
+          : "—",
+      ),
+    );
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  return table;
+}
+
+function renderRecentTerminalRunTable(
+  pageDocument: Document,
+  rows: readonly RecentTerminalRun[],
+  stateAppId: string,
+): HTMLElement {
+  const table = element(pageDocument, "table", "ksql-flownet-table");
+  const thead = tableHeader(
+    pageDocument,
+    ["レコード", "状態", "network_id", "業務キー", "対象日時", "更新時刻"],
+    false,
+  );
+  const tbody = element(pageDocument, "tbody");
+  for (const row of rows) {
+    const record = element(pageDocument, "td", "ksql-flownet-record-cell");
+    const link = pageDocument.createElement("a");
+    link.textContent = `#${row.recordId}`;
+    link.setAttribute("href", `/k/${stateAppId}/show#record=${row.recordId}`);
+    link.setAttribute("target", "_blank");
+    link.setAttribute("rel", "noopener noreferrer");
+    record.append(link);
+    const stateCell = element(pageDocument, "td", "ksql-flownet-cell-nowrap");
+    stateCell.append(
+      row.status === "SUCCESS"
+        ? statusBadge(pageDocument, "SUCCESS")
+        : element(pageDocument, "span", undefined, row.status),
+    );
+    const tr = element(pageDocument, "tr");
+    tr.append(
+      record,
+      stateCell,
+      element(pageDocument, "td", undefined, row.networkId),
+      element(pageDocument, "td", undefined, row.businessKey),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-cell-nowrap",
+        row.asOf === null ? "—" : formatLocalDateTime(row.asOf),
+      ),
+      element(
+        pageDocument,
+        "td",
+        "ksql-flownet-cell-nowrap",
+        formatLocalDateTime(row.updatedAt),
+      ),
     );
     tbody.append(tr);
   }
@@ -602,7 +772,18 @@ function normalizeCallbacks(
 }
 
 function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
-  if (model.activeSection !== undefined) return model;
+  if (model.activeSection !== undefined) {
+    return {
+      ...model,
+      pendingStartCount: model.pendingStartCount ?? null,
+      pendingStartRequests: model.pendingStartRequests ?? null,
+      terminalStartRequests:
+        model.terminalStartRequests ??
+        (model.pendingStartRequests === null ? null : []),
+      recentTerminalRuns: model.recentTerminalRuns ?? null,
+      stateAppId: model.stateAppId ?? "",
+    };
+  }
   const legacy = model as unknown as {
     state: "ready" | "error";
     rows: readonly ActivityRowViewModel[];
@@ -626,6 +807,11 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
     attentionSection: { state: "ready", rows: [], error: null },
     attentionRemainingCount: 0,
     pendingWarning: null,
+    pendingStartCount: null,
+    pendingStartRequests: null,
+    terminalStartRequests: null,
+    recentTerminalRuns: null,
+    stateAppId: "",
     requestEnabled: false,
     requestAppId: null,
     judgedAt: legacy.judgedAt ?? 0,
@@ -666,6 +852,33 @@ export function renderBoard(
     "div",
     "ksql-flownet-toolbar-actions",
   );
+  if (model.requestEnabled && callbacks.onStart !== undefined) {
+    const start = element(
+      pageDocument,
+      "button",
+      "ksql-flownet-action ksql-flownet-start-action",
+      "新規実行",
+    ) as HTMLButtonElement;
+    start.type = "button";
+    start.addEventListener("click", callbacks.onStart);
+    toolbarActions.append(start);
+  }
+  if (
+    model.requestEnabled &&
+    model.requestAppId !== null &&
+    model.pendingStartCount !== null
+  ) {
+    const pendingLink = pageDocument.createElement("a");
+    pendingLink.className = "ksql-flownet-start-pending";
+    pendingLink.textContent = `処理待ちのSTART要求 ${model.pendingStartCount}件`;
+    pendingLink.setAttribute(
+      "href",
+      `/k/${model.requestAppId}/?query=${encodeURIComponent(
+        'request_type in ("START") and request_state in ("REQUESTED", "ACCEPTED")',
+      )}`,
+    );
+    toolbarActions.append(pendingLink);
+  }
   toolbarActions.append(
     element(
       pageDocument,
@@ -687,6 +900,34 @@ export function renderBoard(
   toolbarActions.append(reload);
   toolbar.append(toolbarActions);
   board.append(toolbar);
+
+  if (
+    model.requestAppId !== null &&
+    (model.pendingStartRequests?.length ?? 0) +
+      (model.terminalStartRequests?.length ?? 0) >
+      0
+  ) {
+    const pendingStart = element(
+      pageDocument,
+      "section",
+      "ksql-flownet-section ksql-flownet-start-request-section",
+    );
+    pendingStart.append(
+      sectionHeader(
+        pageDocument,
+        "START要求",
+        (model.pendingStartRequests?.length ?? 0) +
+          (model.terminalStartRequests?.length ?? 0),
+      ),
+      renderStartRequestTable(
+        pageDocument,
+        model.pendingStartRequests ?? [],
+        model.terminalStartRequests ?? [],
+        model.requestAppId,
+      ),
+    );
+    board.append(pendingStart);
+  }
 
   const active = element(pageDocument, "section", "ksql-flownet-section");
   active.append(
@@ -755,6 +996,26 @@ export function renderBoard(
     }
   }
   board.append(attention);
+
+  if (
+    model.recentTerminalRuns !== null &&
+    model.recentTerminalRuns.length > 0
+  ) {
+    const recent = element(pageDocument, "section", "ksql-flownet-section");
+    recent.append(
+      sectionHeader(
+        pageDocument,
+        "最近の終了Run（直近10件）",
+        model.recentTerminalRuns.length,
+      ),
+      renderRecentTerminalRunTable(
+        pageDocument,
+        model.recentTerminalRuns,
+        model.stateAppId,
+      ),
+    );
+    board.append(recent);
+  }
 
   if (model.pendingWarning !== null) {
     board.append(

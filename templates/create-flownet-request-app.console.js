@@ -48,8 +48,16 @@
 
   const fields = Object.fromEntries(
     [
-      dropdown("request_type", "要求種別", ["RERUN", "STOP", "RELEASE"], true),
-      text("run_id", "Run ID", true),
+      dropdown(
+        "request_type",
+        "要求種別",
+        ["RERUN", "STOP", "RELEASE", "START"],
+        true,
+      ),
+      text("run_id", "Run ID"),
+      text("network_id", "Network ID"),
+      text("business_key", "Business Key"),
+      datetime("scheduled_for", "対象日時"),
       text("rerun_from_node", "リラン開始ノード"),
       multiline("reason", "理由", true),
       dropdown(
@@ -73,6 +81,22 @@
       fields: [
         { type: "DROP_DOWN", code: "request_type", size: { width: "180" } },
         { type: "SINGLE_LINE_TEXT", code: "run_id", size: { width: "460" } },
+      ],
+    },
+    {
+      type: "ROW",
+      fields: [
+        {
+          type: "SINGLE_LINE_TEXT",
+          code: "network_id",
+          size: { width: "300" },
+        },
+        {
+          type: "SINGLE_LINE_TEXT",
+          code: "business_key",
+          size: { width: "380" },
+        },
+        { type: "DATETIME", code: "scheduled_for", size: { width: "260" } },
       ],
     },
     {
@@ -148,6 +172,9 @@
         "レコード番号",
         "request_type",
         "run_id",
+        "network_id",
+        "business_key",
+        "scheduled_for",
         "rerun_from_node",
         "reason",
         "request_state",
@@ -166,6 +193,9 @@
         "レコード番号",
         "request_type",
         "run_id",
+        "network_id",
+        "business_key",
+        "scheduled_for",
         "reason",
         "result_code",
         "result_message",

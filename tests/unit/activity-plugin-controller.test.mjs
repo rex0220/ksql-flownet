@@ -43,6 +43,30 @@ const invocationRecord = () => ({
   invocation_id: field("invoke_1"),
   run_id: field("run_1"),
 });
+const pendingStartRecord = (id, state) => ({
+  $id: field(String(id)),
+  request_state: field(state),
+  network_id: field("monthly"),
+  business_key: field(id === 41 ? "monthly@2026-09" : ""),
+  scheduled_for: field(id === 42 ? "2026-09-01T01:23:00Z" : ""),
+  reason: field(`reason_${id}`),
+  作成者: field({ code: "operator@example.test", name: "運用担当" }),
+  作成日時: field("2026-09-01T00:00:00Z"),
+});
+const terminalStartRecord = (id, state = "DONE") => ({
+  ...pendingStartRecord(id, state),
+  result_code: field(state === "DONE" ? "OK" : "NETWORK_NOT_ALLOWED"),
+  result_message: field(state === "DONE" ? "" : "許可対象外です"),
+});
+const recentTerminalRecord = (id, status = "SUCCESS") => ({
+  $id: field(String(id)),
+  record_type: field("NETWORK_RUN"),
+  status: field(status),
+  network_id: field("monthly"),
+  business_key: field("monthly@2026-09"),
+  as_of: field("2026-09-01T01:23:00Z"),
+  updated_at: field("2026-09-01T02:34:00Z"),
+});
 
 test("index/detail guards reject other views and record types", () => {
   assert.equal(
@@ -96,6 +120,146 @@ test("index/detail guards reject other views and record types", () => {
   assert.equal(apiCalls, 1, "起動時のform fields自動検出だけを行う");
 });
 
+test("board loads pending START count only when request app is configured and never preloads dialog candidates", async () => {
+  const queries = [];
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      queries.push({ app: request.app, query: request.query });
+      if (request.app === "300" && request.query.includes("REQUESTED")) {
+        return {
+          records: [
+            pendingStartRecord(41, "REQUESTED"),
+            pendingStartRecord(42, "ACCEPTED"),
+          ],
+        };
+      }
+      if (request.app === "300" && request.query.includes("REJECTED")) {
+        return { records: [terminalStartRecord(51)] };
+      }
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "300",
+    nowMs: () => NOW,
+  });
+  assert.equal(model.pendingStartCount, 2);
+  assert.deepEqual(
+    model.pendingStartRequests.map(({ id, requestState }) => ({
+      id,
+      requestState,
+    })),
+    [
+      { id: "41", requestState: "REQUESTED" },
+      { id: "42", requestState: "ACCEPTED" },
+    ],
+  );
+  assert.equal(model.pendingWarning, null);
+  assert.equal(model.terminalStartRequests[0].id, "51");
+  assert.equal(
+    queries.filter(
+      ({ app, query }) =>
+        app === "300" && query.includes('request_type in ("START")'),
+    ).length,
+    2,
+  );
+  assert.equal(
+    queries.some(({ query }) =>
+      /^record_type in \("NETWORK_RUN"\) order/u.test(query),
+    ),
+    false,
+  );
+
+  const unsetQueries = [];
+  const unset = await loadBoard({
+    fetchRecords: async (request) => {
+      unsetQueries.push(request);
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "",
+    nowMs: () => NOW,
+  });
+  assert.equal(unset.pendingStartCount, null);
+  assert.equal(unset.pendingStartRequests, null);
+  assert.equal(
+    unsetQueries.some(({ app }) => app === "300"),
+    false,
+  );
+});
+
+test("pending START GET failure warns but leaves START creation enabled", async () => {
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      if (
+        request.app === "300" &&
+        request.query.includes('request_type in ("START")')
+      ) {
+        throw Object.assign(new Error("forbidden"), { status: 403 });
+      }
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "300",
+    nowMs: () => NOW,
+  });
+  assert.equal(model.requestEnabled, true);
+  assert.equal(model.pendingStartCount, null);
+  assert.equal(model.pendingStartRequests, null);
+  assert.match(model.pendingWarning, /件数を取得できません/u);
+});
+
+test("board passes both START queries and recent terminal Run history; failures hide history with warnings", async () => {
+  const model = await loadBoard({
+    fetchRecords: async (request) => {
+      if (request.app === "300" && request.query.includes("REQUESTED")) {
+        return { records: [pendingStartRecord(41, "REQUESTED")] };
+      }
+      if (request.app === "300" && request.query.includes("REJECTED")) {
+        return { records: [terminalStartRecord(52, "REJECTED")] };
+      }
+      if (request.query.includes('status in ("SUCCESS", "FAILED"')) {
+        return { records: [recentTerminalRecord(70)] };
+      }
+      if (
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        return { records: [], totalCount: "0" };
+      }
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    requestAppId: "300",
+    nowMs: () => NOW,
+  });
+  assert.equal(model.pendingStartRequests[0].id, "41");
+  assert.equal(model.terminalStartRequests[0].id, "52");
+  assert.equal(model.recentTerminalRuns[0].recordId, "70");
+  assert.equal(model.stateAppId, "100");
+
+  const failed = await loadBoard({
+    fetchRecords: async (request) => {
+      if (request.query.includes('status in ("SUCCESS", "FAILED"')) {
+        throw new Error("recent denied");
+      }
+      if (
+        request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+      ) {
+        return { records: [], totalCount: "0" };
+      }
+      return { records: [] };
+    },
+    stateAppId: 100,
+    auditAppId: "200",
+    nowMs: () => NOW,
+  });
+  assert.equal(failed.recentTerminalRuns, null);
+  assert.match(failed.pendingWarning, /最近の終了Run/u);
+});
+
 test("terminal detail performs no GET when request app is unset and uses shared action model", async () => {
   let calls = 0;
   const model = await loadDetail(
@@ -116,7 +280,7 @@ test("terminal detail performs no GET when request app is unset and uses shared 
   assert.equal(calls, 0);
 });
 
-test("board uses the minimum four records GET requests with scoped apps, fields, and queries", async () => {
+test("board uses scoped GET requests including recent terminal history", async () => {
   const requests = [];
   const fetchRecords = async (request) => {
     requests.push(request);
@@ -124,6 +288,9 @@ test("board uses the minimum four records GET requests with scoped apps, fields,
       request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
     ) {
       return { records: [], totalCount: "0" };
+    }
+    if (request.query.includes('status in ("SUCCESS", "FAILED"')) {
+      return { records: [] };
     }
     if (request.query.includes('record_type in ("NETWORK_RUN")')) {
       return { records: [runRecord(1)] };
@@ -147,10 +314,10 @@ test("board uses the minimum four records GET requests with scoped apps, fields,
   });
   assert.equal(model.state, "ready");
   assert.equal(model.rows[0]?.activity, "LIVE");
-  assert.equal(requests.length, 5);
+  assert.equal(requests.length, 6);
   assert.deepEqual(
     requests.map(({ app }) => app).sort(),
-    [100, 100, 100, 100, "200"].sort(),
+    [100, 100, 100, 100, 100, "200"].sort(),
   );
   assert.match(requests[0].query, /status not in/u);
   assert.ok(
@@ -164,7 +331,10 @@ test("board uses the minimum four records GET requests with scoped apps, fields,
   assert.ok(
     requests
       .filter(({ totalCount }) => totalCount !== true)
-      .every(({ query }) => query.includes("limit 500")),
+      .every(
+        ({ query }) =>
+          query.includes("limit 500") || query.endsWith("limit 10"),
+      ),
   );
   assert.deepEqual(invocationRequest.fields, [
     "$id",
@@ -205,7 +375,7 @@ test("configuration and supporting-read failures expose no partial activity badg
   });
   assert.equal(invalid.state, "error");
   assert.equal(invalid.rows.length, 0);
-  assert.equal(invalidConfigCalls, 1, "独立した要対応セクションだけはGETする");
+  assert.equal(invalidConfigCalls, 2, "要対応と最近の終了Runは独立してGETする");
 
   let calls = 0;
   const failed = await loadBoard({
@@ -230,7 +400,7 @@ test("configuration and supporting-read failures expose no partial activity badg
     stateAppId: 100,
     auditAppId: "200",
   });
-  assert.equal(calls, 5);
+  assert.equal(calls, 6);
   assert.equal(failed.state, "error");
   assert.equal(failed.rows.length, 0);
   assert.equal(failed.activeSection.state, "error");

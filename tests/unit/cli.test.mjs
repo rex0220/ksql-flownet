@@ -426,6 +426,7 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
     aggregate_status: "FAILED",
     invocation_result_code: "NODE_FAILED_OR_BLOCKED",
     retry_brake_node_ids: ["failed"],
+    blocked_run_ids: [],
   });
 
   await runRunNetworkCommand(
@@ -468,6 +469,7 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
     aggregate_status: null,
     invocation_result_code: "LOCK_CONFLICT",
     retry_brake_node_ids: [],
+    blocked_run_ids: [],
   });
 
   const postInvocationFailure = await runRunNetworkCommand(
@@ -502,13 +504,57 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
     aggregate_status: null,
     invocation_result_code: "NETWORK_LEASE_INTERRUPTED",
     retry_brake_node_ids: [],
+    blocked_run_ids: [],
   });
+});
+
+test("run-network accepts scheduled-period correction flags and passes both through", async (context) => {
+  context.mock.method(process.stdout, "write", () => true);
+  let received;
+  const exitCode = await runRunNetworkCommand(
+    [
+      "network.yaml",
+      "--business-key",
+      "net@2026-08-correction",
+      "--scheduled-for",
+      "2026-08-01T00:00:00Z",
+      "--json",
+    ],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke(value) {
+        received = value;
+        return {
+          outcome: "NEW",
+          run: { value: { run_id: "run-correction" } },
+          invocation: { value: { invocation_id: "invoke-correction" } },
+          blockedBy: [],
+          businessKey: "net@2026-08-correction",
+          bundleBytes: Buffer.from("bundle"),
+          async close() {},
+        };
+      },
+      async schedule() {
+        return { aggregateStatus: "SUCCESS", invocationResultCode: "OK" };
+      },
+    },
+  );
+  assert.equal(exitCode, 0);
+  assert.equal(received.businessKey, "net@2026-08-correction");
+  assert.equal(received.scheduledFor, "2026-08-01T00:00:00Z");
 });
 
 test("run-network reports max_active_runs blockers and exits 1", async (context) => {
   const stderr = [];
+  const stdout = [];
   context.mock.method(process.stderr, "write", (value) => {
     stderr.push(String(value));
+    return true;
+  });
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
     return true;
   });
   const exitCode = await runRunNetworkCommand(
@@ -528,6 +574,19 @@ test("run-network reports max_active_runs blockers and exits 1", async (context)
   assert.equal(exitCode, 1);
   assert.match(stderr.join(""), /MAX_ACTIVE_RUNS/);
   assert.match(stderr.join(""), /run-a, run-b/);
+  const jsonExitCode = await runRunNetworkCommand(
+    ["network.yaml", "--business-key", "net@new", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        throw new EnsureRunError("RUN_ALREADY_EXISTS", "exists", ["run-c"]);
+      },
+    },
+  );
+  assert.equal(jsonExitCode, 1);
+  assert.deepEqual(JSON.parse(stdout.pop()).blocked_run_ids, ["run-c"]);
 });
 
 test("plan prints a generated business key and stable topological plan", (context) => {
@@ -589,7 +648,7 @@ test("plan accepts an explicit key for a scheduled-period network", (context) =>
   assert.match(result.stdout, /^Business key: cli_plan@2026-08-correction$/m);
 });
 
-test("plan rejects both scheduled-period business key inputs", (context) => {
+test("plan accepts scheduled-period correction inputs and preserves business key", (context) => {
   const directory = createPlanFixture(
     context,
     '  type: scheduled_period\n  period: month\n  timezone: UTC\n  format: "{network_id}@{yyyy}-{MM}"',
@@ -603,8 +662,8 @@ test("plan rejects both scheduled-period business key inputs", (context) => {
     "cli_plan@2026-08-correction",
   );
 
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /BUSINESS_KEY_INPUT_CONFLICT/);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^Business key: cli_plan@2026-08-correction$/m);
 });
 
 test("plan with an explicit key preserves it and remains read-only", (context) => {

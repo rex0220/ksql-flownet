@@ -54,7 +54,7 @@ async function evaluateTemplate({ existing = [] } = {}) {
   return calls;
 }
 
-test("操作要求テンプレートは仕様§3の全10フィールドと型・必須を生成する", async () => {
+test("操作要求テンプレートは仕様§3の全13フィールドと型・必須を生成する", async () => {
   const calls = await evaluateTemplate();
   const properties = calls.find(
     ({ url, method }) =>
@@ -63,6 +63,9 @@ test("操作要求テンプレートは仕様§3の全10フィールドと型・
   assert.deepEqual(Object.keys(properties), [
     "request_type",
     "run_id",
+    "network_id",
+    "business_key",
+    "scheduled_for",
     "rerun_from_node",
     "reason",
     "request_state",
@@ -74,9 +77,13 @@ test("操作要求テンプレートは仕様§3の全10フィールドと型・
   ]);
   assert.equal(properties.request_type.type, "DROP_DOWN");
   assert.equal(properties.run_id.type, "SINGLE_LINE_TEXT");
+  assert.equal(properties.network_id.type, "SINGLE_LINE_TEXT");
+  assert.equal(properties.business_key.type, "SINGLE_LINE_TEXT");
+  assert.equal(properties.scheduled_for.type, "DATETIME");
   assert.equal(properties.reason.type, "MULTI_LINE_TEXT");
   assert.equal(properties.claimed_at.type, "DATETIME");
-  assert.equal(properties.run_id.required, true);
+  assert.equal(properties.run_id.required, false);
+  assert.equal(properties.scheduled_for.required, false);
   assert.equal(properties.reason.required, true);
 });
 
@@ -88,6 +95,7 @@ test("dropdown値を固定しrequest_state初期値をREQUESTEDにする", async
     "RERUN",
     "STOP",
     "RELEASE",
+    "START",
   ]);
   assert.deepEqual(Object.keys(properties.request_state.options), [
     "REQUESTED",
@@ -96,6 +104,31 @@ test("dropdown値を固定しrequest_state初期値をREQUESTEDにする", async
     "REJECTED",
   ]);
   assert.equal(properties.request_state.defaultValue, "REQUESTED");
+});
+
+test("STARTの3欄をlayoutと処理待ち・拒否一覧へ追加する", async () => {
+  const calls = await evaluateTemplate();
+  const layout = calls.find(
+    ({ url, method }) => url === "/preview/app/form/layout" && method === "PUT",
+  ).body.layout;
+  const layoutCodes = layout.flatMap(({ fields }) =>
+    fields.map(({ code }) => code).filter(Boolean),
+  );
+  for (const code of ["network_id", "business_key", "scheduled_for"]) {
+    assert.equal(
+      layoutCodes.filter((value) => value === code).length,
+      1,
+      `${code}はlayoutへ1回だけ配置する`,
+    );
+  }
+
+  const views = calls.find(({ url }) => url === "/preview/app/views").body
+    .views;
+  for (const view of Object.values(views)) {
+    for (const code of ["network_id", "business_key", "scheduled_for"]) {
+      assert.ok(view.fields.includes(code), `${view.name}へ${code}を表示する`);
+    }
+  }
 });
 
 test("一覧2件は重複しないindexと正しいfilter・安定sortを持つ", async () => {

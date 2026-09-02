@@ -50,6 +50,7 @@ export type EnsureRunErrorCode =
   | "BUSINESS_KEY_INVALID"
   | "MULTIPLE_RUNS"
   | "RUN_NOT_FOUND"
+  | "RUN_ALREADY_EXISTS"
   | "RUN_ID_MISMATCH"
   | "RUN_NOT_RESUMABLE"
   | "RUN_ON_HOLD"
@@ -236,15 +237,6 @@ export async function ensureRun(
       outcome = "NEW";
     } else {
       assertRunIdentity(run.value, input.profile, definition.network_id);
-      const cancelRequest = await input.repository.getCancelRequest(
-        run.value.run_id,
-      );
-      if (isCancelHold(cancelRequest)) {
-        throw new EnsureRunError(
-          "RUN_ON_HOLD",
-          `run '${run.value.run_id}' is on hold by CANCEL:${run.value.run_id} (${cancelRequest.value.state}, revision ${cancelRequest.revision})`,
-        );
-      }
       if (run.value.status === "SUCCESS" && input.rerunFrom === undefined) {
         await input.lockManager.release(lock, "SUCCESS", "ALREADY_SUCCESS");
         lock = null;
@@ -255,6 +247,26 @@ export async function ensureRun(
           blockedBy: [],
           businessKey: run.value.business_key,
         };
+      }
+      if (
+        input.resume !== true &&
+        input.resumeRunId === undefined &&
+        input.rerunFrom === undefined
+      ) {
+        throw new EnsureRunError(
+          "RUN_ALREADY_EXISTS",
+          `run '${run.value.run_id}' already exists for this business key; use RERUN to continue it`,
+          [run.value.run_id],
+        );
+      }
+      const cancelRequest = await input.repository.getCancelRequest(
+        run.value.run_id,
+      );
+      if (isCancelHold(cancelRequest)) {
+        throw new EnsureRunError(
+          "RUN_ON_HOLD",
+          `run '${run.value.run_id}' is on hold by CANCEL:${run.value.run_id} (${cancelRequest.value.state}, revision ${cancelRequest.revision})`,
+        );
       }
       outcome = "RESUME";
       if (input.rerunFrom === undefined) {

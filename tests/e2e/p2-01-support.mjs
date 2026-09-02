@@ -28,6 +28,8 @@ const P2_01_FIXTURES = new Set([
   "network-success.yaml",
   "network-brake.yaml",
   "network-drill.yaml",
+  "network-p211-explicit.yaml",
+  "network-p211-scheduled.yaml",
 ]);
 const FLOWNET_CLI = fileURLToPath(
   new globalThis.URL("../../dist/cli/index.js", import.meta.url),
@@ -137,6 +139,9 @@ function decodeRequest(record) {
     createdAt: rawField(record, "作成日時"),
     requestType: rawField(record, "request_type"),
     runId: rawField(record, "run_id"),
+    networkId: rawField(record, "network_id") || null,
+    businessKey: rawField(record, "business_key") || null,
+    scheduledFor: rawField(record, "scheduled_for") || null,
     rerunFromNode: rawField(record, "rerun_from_node") || null,
     reason: rawField(record, "reason"),
     requestState: rawField(record, "request_state"),
@@ -180,7 +185,16 @@ export async function createRequest(settings, input) {
   const machine = input.machine ?? {};
   const record = {
     request_type: { value: input.requestType },
-    run_id: { value: input.runId },
+    run_id: { value: input.runId ?? "" },
+    ...(input.networkId === undefined
+      ? {}
+      : { network_id: { value: input.networkId ?? "" } }),
+    ...(input.businessKey === undefined
+      ? {}
+      : { business_key: { value: input.businessKey ?? "" } }),
+    ...(input.scheduledFor === undefined
+      ? {}
+      : { scheduled_for: { value: input.scheduledFor ?? "" } }),
     rerun_from_node: { value: input.rerunFromNode ?? "" },
     reason: { value: input.reason },
     request_state: { value: machine.requestState ?? "REQUESTED" },
@@ -342,6 +356,9 @@ export async function createAllowlist(fixtures) {
       networks: fixtures.map((fixture) => ({
         network_id: fixture.networkId,
         definition_path: fixture.networkPath,
+        ...(fixture.appStart === undefined
+          ? {}
+          : { app_start: fixture.appStart }),
       })),
     }),
     "utf8",

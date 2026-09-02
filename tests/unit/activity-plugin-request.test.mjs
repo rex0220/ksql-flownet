@@ -5,7 +5,9 @@ import {
   buildCreateRequestBody,
   createRequest,
   guardPendingRequest,
+  loadPendingStartRequests,
   loadPendingRequests,
+  loadTerminalStartRequests,
   PENDING_MAX_FINAL_QUERY_LENGTH,
   RequestPostError,
 } from "../../dist/plugin/request-client.js";
@@ -15,6 +17,17 @@ const pending = (id, runId, state = "REQUESTED") => ({
   $id: field(String(id)),
   run_id: field(runId),
   request_state: field(state),
+});
+const pendingStart = (id, overrides = {}) => ({
+  $id: field(String(id)),
+  request_state: field("REQUESTED"),
+  network_id: field("monthly"),
+  business_key: field("monthly@2026-09"),
+  scheduled_for: field("2026-09-01T01:23:00Z"),
+  reason: field("operator reason"),
+  作成者: field({ code: "operator@example.test", name: "運用担当" }),
+  作成日時: field("2026-09-01T00:00:00Z"),
+  ...overrides,
 });
 
 test("3 request types use only the fixed human-owned POST fields", () => {
@@ -180,6 +193,110 @@ test("any pending chunk failure discards all partial results and fails open", as
   assert.equal(outside.byRunId.size, 0);
 });
 
+test("pending START details parse creator/date/nulls while count and oldestId remain compatible", async () => {
+  const gets = [];
+  const result = await loadPendingStartRequests(async (request) => {
+    gets.push(request);
+    return {
+      records: [
+        pendingStart(41),
+        pendingStart(42, {
+          request_state: field("ACCEPTED"),
+          business_key: field(""),
+          scheduled_for: field(""),
+          作成者: field({ code: "second@example.test", name: "第二担当" }),
+          作成日時: field("2026-09-01T02:34:00Z"),
+        }),
+      ],
+    };
+  }, 300);
+  assert.equal(result.state, "ready");
+  assert.equal(result.summary.count, 2, "existing count contract");
+  assert.equal(result.summary.oldestId, "41", "existing oldestId contract");
+  assert.deepEqual(result.summary.requests, [
+    {
+      id: "41",
+      requestState: "REQUESTED",
+      networkId: "monthly",
+      businessKey: "monthly@2026-09",
+      scheduledFor: "2026-09-01T01:23:00Z",
+      reason: "operator reason",
+      creatorName: "運用担当",
+      createdAt: "2026-09-01T00:00:00Z",
+    },
+    {
+      id: "42",
+      requestState: "ACCEPTED",
+      networkId: "monthly",
+      businessKey: null,
+      scheduledFor: null,
+      reason: "operator reason",
+      creatorName: "第二担当",
+      createdAt: "2026-09-01T02:34:00Z",
+    },
+  ]);
+  assert.deepEqual(gets[0].fields, [
+    "$id",
+    "request_state",
+    "network_id",
+    "business_key",
+    "scheduled_for",
+    "reason",
+    "作成者",
+    "作成日時",
+  ]);
+});
+
+test("terminal START GET is limited newest-first and parses result fields", async () => {
+  const gets = [];
+  const result = await loadTerminalStartRequests(async (request) => {
+    gets.push(request);
+    return {
+      records: [
+        pendingStart(52, {
+          request_state: field("REJECTED"),
+          result_code: field("NETWORK_NOT_ALLOWED"),
+          result_message: field("許可対象外です"),
+        }),
+        pendingStart(51, {
+          request_state: field("DONE"),
+          result_code: field("OK"),
+          result_message: field(""),
+        }),
+      ],
+    };
+  }, 300);
+  assert.equal(result.state, "ready");
+  assert.match(
+    gets[0].query,
+    /request_state in \("DONE", "REJECTED"\) order by \$id desc limit 10$/u,
+  );
+  assert.ok(gets[0].fields.includes("result_code"));
+  assert.ok(gets[0].fields.includes("result_message"));
+  assert.deepEqual(
+    result.requests.map(({ id, requestState, resultCode, resultMessage }) => ({
+      id,
+      requestState,
+      resultCode,
+      resultMessage,
+    })),
+    [
+      {
+        id: "52",
+        requestState: "REJECTED",
+        resultCode: "NETWORK_NOT_ALLOWED",
+        resultMessage: "許可対象外です",
+      },
+      {
+        id: "51",
+        requestState: "DONE",
+        resultCode: "OK",
+        resultMessage: null,
+      },
+    ],
+  );
+});
+
 function readbackRecord(type = "RERUN") {
   return {
     $id: field("88"),
@@ -226,6 +343,52 @@ test("POST occurs once, then GET readback passes parseRequestRecord", async () =
   assert.equal(gets[0].query, "$id = 88 limit 1");
   assert.equal(parsed.id, "88");
   assert.equal(parsed.requestState, "REQUESTED");
+});
+
+test("START posts only its five human fields once and validates canonical readback", async () => {
+  const posts = [];
+  const parsed = await createRequest(
+    {
+      requestAppId: 500,
+      postRecord: async (body) => {
+        posts.push(body);
+        return { id: "89", revision: "1" };
+      },
+      fetchRecords: async () => ({
+        records: [
+          {
+            ...readbackRecord("START"),
+            $id: field("89"),
+            run_id: field(""),
+            network_id: field("monthly"),
+            business_key: field("monthly@2026-08-correction-1"),
+            scheduled_for: field("2026-08-31T15:00:00Z"),
+            rerun_from_node: field(""),
+          },
+        ],
+      }),
+    },
+    {
+      requestType: "START",
+      networkId: "monthly",
+      businessKey: "monthly@2026-08-correction-1",
+      scheduledFor: "2026-08-31T15:00:00Z",
+      reason: "operator reason",
+    },
+  );
+  assert.equal(posts.length, 1);
+  assert.deepEqual(posts[0], {
+    app: 500,
+    record: {
+      request_type: field("START"),
+      network_id: field("monthly"),
+      business_key: field("monthly@2026-08-correction-1"),
+      scheduled_for: field("2026-08-31T15:00:00Z"),
+      reason: field("operator reason"),
+    },
+  });
+  assert.equal(parsed.requestType, "START");
+  assert.equal(parsed.runId, "");
 });
 
 test("POST 403 is dedicated; GET/parse and generic POST failures are not retried", async () => {

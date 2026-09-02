@@ -132,6 +132,16 @@ test("runtime adapters allow only form fields GET, records GET, and single-recor
       reason: { value: "reason" },
     },
   });
+  await createKintonePostRecord({ api })({
+    app: 300,
+    record: {
+      request_type: { value: "START" },
+      network_id: { value: "monthly" },
+      business_key: { value: "" },
+      scheduled_for: { value: "2026-08-31T15:00:00.000Z" },
+      reason: { value: "reason" },
+    },
+  });
   const roles = new Map([
     [100, "state"],
     [200, "audit"],
@@ -145,7 +155,7 @@ test("runtime adapters allow only form fields GET, records GET, and single-recor
     "log|/k/v1/records.json|GET",
     "request|/k/v1/record.json|POST",
   ]);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
   for (const { url, method, body } of calls) {
     const role = roles.get(body.app);
     assert.ok(role, `unknown app role: ${body.app}`);
@@ -155,11 +165,13 @@ test("runtime adapters allow only form fields GET, records GET, and single-recor
     );
     if (method === "POST") {
       assert.equal(role, "request");
-      assert.deepEqual(Object.keys(body.record), [
-        "request_type",
-        "run_id",
-        "reason",
-      ]);
+      const fields = Object.keys(body.record);
+      assert.ok(
+        [
+          "request_type,run_id,reason",
+          "request_type,network_id,business_key,scheduled_for,reason",
+        ].includes(fields.join(",")),
+      );
     }
   }
 });

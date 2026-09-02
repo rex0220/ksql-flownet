@@ -16,8 +16,13 @@ import type { RequestRecord } from "./request-model.js";
 import {
   classifyCancelResult,
   classifyRunNetworkResult,
+  classifyStartNetworkResult,
   rejected,
 } from "./request-result.js";
+import {
+  prepareStartRequest,
+  startNetworkNotAllowed,
+} from "./start-request.js";
 
 export interface RequestPollerDependencies {
   readonly store: Pick<
@@ -31,7 +36,7 @@ export interface RequestPollerDependencies {
   >;
   readonly child: Pick<
     FlownetChildClient,
-    "status" | "runNetwork" | "cancelRun"
+    "status" | "runNetwork" | "startNetwork" | "cancelRun"
   >;
   readonly config: PollRequestsConfig;
   readonly host: string;
@@ -116,6 +121,9 @@ async function processClaimed(
   readonly request: RequestRecord;
   readonly result: RequestResult;
 }> {
+  if (claimed.requestType === "START") {
+    return processStart(dependencies, claimed, now, log);
+  }
   try {
     requestedBy(claimed);
   } catch {
@@ -179,6 +187,67 @@ async function processClaimed(
     () =>
       dependencies.child.cancelRun(claimed, claimed.requestType === "RELEASE"),
     (result) => classifyCancelResult(result, claimed.requestType === "RELEASE"),
+    now,
+    log,
+  );
+}
+
+async function processStart(
+  dependencies: RequestPollerDependencies,
+  claimed: RequestRecord,
+  now: () => Date,
+  log: (code: string, detail: string) => void,
+): Promise<{ readonly request: RequestRecord; readonly result: RequestResult }> {
+  if (claimed.runId.trim() !== "") {
+    return {
+      request: claimed,
+      result: rejected(
+        "RUN_ID_NOT_ALLOWED",
+        "STARTではrun_idを指定できません。",
+      ),
+    };
+  }
+  const network =
+    claimed.networkId === null
+      ? undefined
+      : dependencies.config.networks.find(
+          ({ networkId }) => networkId === claimed.networkId,
+        );
+  if (network === undefined) {
+    return {
+      request: claimed,
+      result: startNetworkNotAllowed("NOT_IN_ALLOWLIST"),
+    };
+  }
+  if (!network.appStart) {
+    return {
+      request: claimed,
+      result: startNetworkNotAllowed("APP_START_DISABLED"),
+    };
+  }
+  let prepared = prepareStartRequest(network, claimed);
+  if (!prepared.ok) return { request: claimed, result: prepared.result };
+  try {
+    requestedBy(claimed);
+  } catch {
+    return {
+      request: claimed,
+      result: rejected(
+        "REQUESTED_BY_INVALID",
+        "Request creator correlation is invalid or too long",
+      ),
+    };
+  }
+  // Minimize the definition gate-to-spawn window by re-reading immediately
+  // before constructing the child invocation.
+  prepared = prepareStartRequest(network, claimed);
+  if (!prepared.ok) return { request: claimed, result: prepared.result };
+  const input = prepared.value.input;
+  return withHeartbeat(
+    dependencies,
+    claimed,
+    () => dependencies.child.startNetwork(network, claimed, input),
+    classifyStartNetworkResult,
     now,
     log,
   );
@@ -313,6 +382,23 @@ async function recoverStale(
       continue;
     }
     try {
+      if (request.requestType === "START") {
+        const recoveredStart = await recoverStaleStart(
+          dependencies,
+          request,
+          nowMs,
+        );
+        if (!recoveredStart) continue;
+        await dependencies.store.writeResult(
+          request,
+          rejected(
+            "STALE",
+            "Execution and result are unknown; do not request another operation until Run and audit records are reconciled",
+          ),
+        );
+        recovered += 1;
+        continue;
+      }
       const matches = await resolveRun(dependencies, request.runId);
       if (matches.length !== 1) continue;
       const resolved = matches[0]!;
@@ -340,6 +426,38 @@ async function recoverStale(
     }
   }
   return recovered;
+}
+
+async function recoverStaleStart(
+  dependencies: RequestPollerDependencies,
+  request: RequestRecord,
+  nowMs: number,
+): Promise<boolean> {
+  if (request.networkId === null) return false;
+  const network = dependencies.config.networks.find(
+    ({ networkId }) => networkId === request.networkId,
+  );
+  if (network === undefined) return false;
+  const prepared = prepareStartRequest(network, request);
+  if (!prepared.ok) return false;
+  const status = await dependencies.child.status(network, {
+    businessKey: prepared.value.businessKey,
+  });
+  if (status === null) return false;
+  const matches = status.runs.filter(
+    ({ business_key }) => business_key === prepared.value.businessKey,
+  );
+  if (matches.length !== 1) return false;
+  const run = matches[0]!;
+  return (
+    run.activity !== "LIVE" &&
+    !hasLiveOwner(
+      status,
+      run,
+      nowMs,
+      dependencies.config.stalePrecisionAllowanceMs,
+    )
+  );
 }
 
 function waitForChildOrHeartbeat<T>(
