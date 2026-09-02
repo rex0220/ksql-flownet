@@ -50,6 +50,8 @@
 
 **M0コード確認の結果(2026-09-02実施 — F-01再判定済み)**: ①`--business-key`単独は現行CLIが**受理**(business-key.ts:249-262 — キー=指定値、as_of=nullで起動時刻断面になるためN-1の危険は実在。ポーラー側AS_OF_UNDEFINED拒否が必要かつ正、CLI変更不要) ②両フラグ併用は**BUSINESS_KEY_INPUT_CONFLICTで拒否**(business-key.ts:240-248) — ただしensure-run.ts:504の`as_of: input.scheduledFor ?? null`は既に汎用のため、**M2のCLI後方互換拡張1点(scheduled_periodで両指定時: business_keyを採用、scheduled_forはタイムスタンプ検証のうえas-ofのみに使用)でcorrection契約は成立** — F-01はこの拡張のM2計上をもって解消 ③重複案内経路のJSONは`run_id: null`・blockedByは非JSON時のstderrのみ(run-network-command.ts:152-172) — **blocked_run_ids追加は必要(M2確定)** ④NOOP経路のJSONに`run_id`**あり**(run-network-command.ts:113-120) — 契約成立・作業不要
 
+**M0 Codexレビューの帰結(同日 — [実装計画](./p2-11-implementation-plan.md)P-01〜P-06、§9に採否記録)**: **P-01**により本節の前提「`--resume`なしのNEW経路では未完了Run存在は案内で終わる」は現行実装で不成立(ensure-run.tsは同一キーRunを`input.resume`を見ずにRESUMEする — Phase 1 §2.1の文書仕様と実装の乖離)。M2でensure-runを補正し、resume非指定かつ同一キー未完了は**`REJECTED / RUN_ALREADY_EXISTS`+`blockedBy=[既存run_id]`**でInvocation不作成とする(本番cronは明示`--resume`使用をVPS実機で確認済み — 互換)。**P-02**によりSTARTのstale回収は`run_id`検索が使えないため、network_id直接解決+キー再導出で`status --business-key`照合する(定義デプロイ中ポーラー停止をM4手順へ)。**受入3の補足(P-04)**: ほぼ同時2件の敗者codeは`LOCK_CONFLICT`/`RUN_ALREADY_EXISTS`のいずれかで固定しない(Run一意性と非resumeのみを合格条件とする)。**[実装計画](./p2-11-implementation-plan.md)§2〜§6を実装時の補足契約とする**(P2-08と同じ扱い — 判定順序・責務分割・候補上限500件・ラベル「START要求実績(DONE)」の採用値は同計画が正)
+
 **profile前提(E-1)**: 単一profile運用(ポーラー環境変数由来)を前提とし、要求レコードにprofile欄を持たない。複数profile化は本仕様の再審議事項。
 
 **不変条件**:
@@ -208,3 +210,14 @@
 | Claude X-7 | NOOP経路のrun_idはG-04が保証していない(§4固定文言が依存) | **採用** — M0コード確認を4点へ拡張(④NOOP JSONのrun_id有無) |
 | Gemini 1 | 両フラグ併用時「business_key採用+as-ofはscheduled_forから」の期待動作を確認内容へ | **採用** — M0①②の確認内容へ明記。不成立ならCLI後方互換拡張をM2へ計上 |
 | Gemini 判定 / ChatGPT 9.6 | FROZEN承認 / 1・2修正のうえv6でFROZEN可 | 上記反映のうえ**v6=FROZEN候補(F-01確認のみ残)**とする |
+
+**M0 Codexレビュー(2026-09-02 — [実装計画](./p2-11-implementation-plan.md)作成時のP-01〜P-06)**:
+
+| 指摘 | 採否・判断 |
+| --- | --- |
+| P-01(BLOCKER) | ensure-runは`--resume`なしでも同一キー未完了RunをRESUMEする(実装計画の行番号指摘をClaudeがコードで確認)。仕様§2の前提が現行実装で不成立 | **採用** — M2でensure-run補正: resume非指定+同一キー未完了は`RUN_ALREADY_EXISTS`+blockedByで拒否(Invocation不作成)。Phase 1 §2.1の文書仕様へ実装を合わせる方向。本番cronの明示`--resume`使用をVPSで確認済みのため互換 |
+| P-02(BLOCKER) | STARTはrun_id空のためstale回収(run_id検索)が機能せずACCEPTED永久滞留 | **採用** — STARTのみnetwork_id直接解決+キー再導出で`status --business-key`照合。取得不能・再導出不能・複数一致は更新しない(fail-closed)。定義デプロイ中はポーラー停止をM4手順へ。追加フィールドによる解決はFROZENの3欄を超えるため不採用 |
+| P-03 | キー規則検証の責務分割(model=構造/M2=policy依存判定) | **採用** — §7 M1の「request-model検証(キー規則)」はこの分割で読む。既存3種のREQUEST_INVALID規則は不変 |
+| P-04 | 並行受入3の敗者codeがタイミング依存 | **採用** — 敗者codeを固定しない(Run一意性・非resume・可能ならblocked_run_ids返却のみを合格条件) |
+| P-05 | 冪等ゲートとbundle作成間のTOCTOU窓 | **採用(残余リスクとして記録)** — spawn直前再読込で窓を最小化+M4で「デプロイ中ポーラー停止→定義配備→検証→最後にapp_start:true」の順序固定。CLIへの冪等性強制フラグ追加は本仕様では見送り(要追加審議) |
+| P-06 | 候補取得の上限未定義・ラベルの正確性 | **採用** — 各群走査上限500件(定数化)、上限到達時のみ欠落注記。ラベルは「START要求実績(DONE)」(NOOP含みを正確に表現) |
