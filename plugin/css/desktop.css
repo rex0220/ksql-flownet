@@ -475,6 +475,13 @@
   width: 100%;
 }
 
+/* 値+カレンダーアイコンが離れないよう、日時入力は内容に見合う幅に絞る
+   (2026-09-02実機フィードバック) */
+.ksql-flownet-start-form input[type="datetime-local"] {
+  width: auto;
+  max-width: 16em;
+}
+
 .ksql-flownet-start-mode-description {
   margin: -6px 0 0;
 }
