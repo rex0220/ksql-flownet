@@ -145,38 +145,40 @@
 }
 
 .ksql-flownet-config-backup {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border: 1px solid #dce2e5;
-  border-radius: 4px;
-  background: #f7f9fa;
-}
-
-.ksql-flownet-config-backup h2 {
-  margin: 0 0 9px;
-  color: #24353d;
-  font-size: 14px;
-}
-
-.ksql-flownet-config-backup-actions {
+  grid-column: 1 / -1;
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  color: #596970;
+  font-size: 12px;
 }
 
 .ksql-flownet-config-backup button {
-  padding: 7px 12px;
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 5px;
   border: 1px solid #c9d1d5;
   border-radius: 4px;
   color: #33434b;
-  font: inherit;
   background: #fff;
   cursor: pointer;
 }
 
-.ksql-flownet-config-backup p {
-  margin: 8px 0 0;
-  color: #596970;
-  font-size: 12px;
+.ksql-flownet-config-backup button:hover {
+  border-color: #9eabb1;
+  background: #f7f9fa;
+}
+
+.ksql-flownet-config-backup svg {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ksql-flownet-config-callout {
@@ -213,12 +215,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 14px;
-  padding: 12px 14px;
-  border: 1px solid #e8edef;
-  border-radius: 4px;
+  margin-right: auto;
   color: #33434b;
-  background: #f7f9fa;
   cursor: pointer;
 }
 
@@ -294,6 +292,12 @@
   }
 
   .ksql-flownet-config-actions {
+    flex-direction: column;
+    align-items: stretch;
     margin: 16px -14px -14px;
+  }
+
+  .ksql-flownet-config-deploy {
+    margin-right: 0;
   }
 }

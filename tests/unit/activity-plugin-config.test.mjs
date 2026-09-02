@@ -678,8 +678,11 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
     "月次案件集計(当月分の起動), monthly_deal_summary, 定期",
     "月次案件集計(補正), monthly_deal_summary, 補正, {ネットワークID}@{年}-{月}-correction-1",
     "ネットワーク名,",
-    "設定のバックアップ（ダウンロード／アップロード）",
-    "反映するには「保存」してください",
+    "設定のバックアップ:",
+    'title="設定をJSONでダウンロード"',
+    'aria-label="設定をJSONでダウンロード"',
+    'title="JSONを読み込み(反映するには保存)"',
+    'aria-label="JSONを読み込み(反映するには保存)"',
   ]) {
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
   }
@@ -698,11 +701,17 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
       html.indexOf('class="ksql-flownet-config-save"'),
     "フッターはキャンセル、保存の順にする",
   );
-  assert.ok(
-    html.indexOf('class="ksql-flownet-config-deploy"') <
-      html.indexOf('class="ksql-flownet-config-actions"'),
-    "運用環境への反映帯をフッター直前に置く",
-  );
+  const footer = html.match(
+    /<footer class="ksql-flownet-config-actions">([\s\S]*?)<\/footer>/u,
+  )?.[1];
+  assert.ok(footer, "設定操作フッターが必要");
+  for (const required of [
+    'class="ksql-flownet-config-deploy"',
+    'id="ksql-flownet-config-cancel"',
+    'class="ksql-flownet-config-save"',
+  ]) {
+    assert.ok(footer.includes(required), `フッター内に${required}が必要`);
+  }
 });
 
 test("config.cssはrequest dialogと同じロゴ・ヘッダー・カード・フッター意匠を持つ", async () => {
