@@ -898,3 +898,92 @@ test("bootstrapはdocument構築中ならDOMContentLoadedまで設置を遅延�
   assert.throws(() => listeners[0].handler(), /要素が不足/u);
   assert.ok(queried > 0, "DOMContentLoaded後に設置を試行する");
 });
+
+test("保存時反映ONは保存成功後に画面遷移せず、OFFは設定一覧へ戻る(2026-09-02実機フィードバック)", async () => {
+  for (const [deployChecked, expectBack] of [
+    [true, false],
+    [false, true],
+  ]) {
+    const listeners = new Map();
+    const input = inputElement("41");
+    const requestInput = inputElement("51");
+    const logInput = inputElement("61");
+    const startAllowedNetworks = inputElement("");
+    const error = { textContent: "" };
+    const deployOnSave = inputElement();
+    deployOnSave.checked = deployChecked;
+    const form = {
+      addEventListener: (name, listener) =>
+        listeners.set(`form:${name}`, listener),
+    };
+    const cancel = { addEventListener: () => {} };
+    const elements = new Map([
+      ["#ksql-flownet-audit-app-id", input],
+      ["#ksql-flownet-request-app-id", requestInput],
+      ["#ksql-flownet-log-app-id", logInput],
+      ["#ksql-flownet-start-allowed-networks", startAllowedNetworks],
+      ["#ksql-flownet-audit-app-detection", statusElement()],
+      ["#ksql-flownet-audit-app-preview", statusElement()],
+      ["#ksql-flownet-request-app-detection", statusElement()],
+      ["#ksql-flownet-request-app-preview", statusElement()],
+      ["#ksql-flownet-log-app-detection", statusElement()],
+      ["#ksql-flownet-log-app-preview", statusElement()],
+      ["#ksql-flownet-config-form", form],
+      ["#ksql-flownet-config-error", error],
+      ["#ksql-flownet-deploy-on-save", deployOnSave],
+      ["#ksql-flownet-config-cancel", cancel],
+      ["#ksql-flownet-config-download", inputElement()],
+      ["#ksql-flownet-config-upload", inputElement()],
+      ["#ksql-flownet-config-import-file", inputElement()],
+    ]);
+    let backCalls = 0;
+    const originalHistory = globalThis.history;
+    globalThis.history = {
+      back: () => {
+        backCalls += 1;
+      },
+    };
+    const api = async (url, method) => {
+      if (url === "/k/v1/preview/app/deploy.json") {
+        return method === "POST" ? {} : { apps: [{ status: "SUCCESS" }] };
+      }
+      return { properties: {} };
+    };
+    api.url = (path) => path;
+    try {
+      installConfigPage(
+        {
+          $PLUGIN_ID: "plugin-id",
+          app: { getId: () => 101 },
+          plugin: {
+            app: {
+              getConfig: () => ({
+                deployOnSave: deployChecked ? undefined : "false",
+              }),
+              setConfig: (config, callback) => callback(),
+            },
+          },
+          api,
+        },
+        "plugin-id",
+        { querySelector: (selector) => elements.get(selector) ?? null },
+      );
+      deployOnSave.checked = deployChecked;
+      listeners.get("form:submit")({ preventDefault: () => {} });
+      // deployポーリング(1秒間隔)と遷移予約のsetTimeoutを消化する
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 1200));
+      if (deployChecked) {
+        assert.match(error.textContent, /保存し、運用環境へ反映しました/u);
+      } else {
+        assert.match(error.textContent, /保存しました/u);
+      }
+      assert.equal(
+        backCalls,
+        expectBack ? 1 : 0,
+        `deployOnSave=${deployChecked}の遷移挙動`,
+      );
+    } finally {
+      globalThis.history = originalHistory;
+    }
+  }
+});

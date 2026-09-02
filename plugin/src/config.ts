@@ -638,7 +638,10 @@ export function installConfigPage(
     }).then((outcome) => {
       saving = false;
       showCallout(error, outcome.ok ? "success" : "error", outcome.message);
-      if (outcome.ok) {
+      // 「保存時に運用環境へ反映」チェック時は画面に留まる(2026-09-02実機
+      // フィードバック: 別タブで動作確認しながら設定変更を繰り返せるように)。
+      // 未チェック時は従来どおり設定一覧へ戻る。
+      if (outcome.ok && !shouldDeploy) {
         // calloutの描画機会を設けてから設定一覧へ戻る。
         globalThis.setTimeout(() => globalThis.history.back(), 0);
       }
