@@ -683,6 +683,11 @@ test("config.htmlはフラグメントのみ(html/head/body/doctype禁止 — ki
   ]) {
     assert.ok(html.includes(required), `config.htmlに${required}が必要`);
   }
+  assert.match(
+    html,
+    /<textarea[^>]*id="ksql-flownet-start-allowed-networks"[^>]*wrap="off"[^>]*>/su,
+    "START許可ネットワークCSV欄は折り返さない",
+  );
   assert.equal(
     html.match(/class="ksql-flownet-config-section"/gu)?.length,
     4,

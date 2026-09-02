@@ -296,9 +296,9 @@ export function openStartRequestDialog(
   );
   const error = dialogNode(pageDocument, "p", "ksql-flownet-error-detail");
   form.append(
+    networkLabel,
     modeLabel,
     modeDescription,
-    networkLabel,
     business.label,
     businessHelp,
     scheduled.label,

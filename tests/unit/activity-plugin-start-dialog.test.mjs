@@ -175,6 +175,11 @@ test("dialog switches 3 modes, keeps free inputs, cautions, and candidate text X
   assert.ok(footer);
   assert.equal(named(document.body, "network_id").tagName, "input");
   assert.equal(named(document.body, "network_id_other"), undefined);
+  assert.ok(
+    allNodes(document.body).indexOf(named(document.body, "network_id")) <
+      allNodes(document.body).indexOf(mode),
+    "network_id欄を入力モードより前に置く",
+  );
   assert.deepEqual(
     mode.children.map((option) => option.textContent),
     [
