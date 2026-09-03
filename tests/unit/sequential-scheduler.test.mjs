@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { buildBundle } from "../../dist/bundle/index.js";
@@ -36,6 +39,11 @@ function yaml(nodes) {
       "    trigger_rule: all_success",
       `    idempotent: ${node.idempotent ?? true}`,
     );
+    if (node.inputs) {
+      lines.push("    inputs:");
+      for (const [name, pattern] of Object.entries(node.inputs))
+        lines.push(`      ${name}: ${pattern}`);
+    }
   }
   return `${lines.join("\n")}\n`;
 }
@@ -383,6 +391,7 @@ async function execute(nodes, options = {}) {
     leaseMonitor: options.monitor ?? heldMonitor(),
     profile: "prod",
     configPath: "C:\\secure\\config.json",
+    ...(options.ioRoot === undefined ? {} : { ioRoot: options.ioRoot }),
     close: async (value) => {
       options.onClose?.();
       closeCalls.push(value);
@@ -404,6 +413,47 @@ async function execute(nodes, options = {}) {
   });
   return { ...seeded, summary, calls, closeCalls, concurrency };
 }
+
+test("到達nodeのinput不在はspawnせずAttempt/StateをFAILEDへ確定する", async (context) => {
+  const ioRoot = mkdtempSync(join(tmpdir(), "ksql-flownet-scheduler-io-"));
+  mkdirSync(join(ioRoot, "in"));
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  const result = await execute(
+    [{ id: "a", dependsOn: [], inputs: { sales: "missing.csv" } }],
+    { ioRoot },
+  );
+  assert.deepEqual(result.calls, []);
+  const attempts = await result.repository.getAttempts("run_1");
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0].value.status, "FAILED");
+  assert.equal(attempts[0].value.result_code, "INPUT_FILE_MISSING");
+  assert.equal(attempts[0].value.execution_started_at, null);
+  const states = await result.repository.getNodeStates("run_1");
+  assert.equal(states[0].value.status, "FAILED");
+  assert.equal(result.summary.invocationResultCode, "NODE_FAILED_OR_BLOCKED");
+});
+
+test("到達しない下流nodeのinputは一律pre-flightしない", async () => {
+  const result = await execute(
+    [
+      { id: "upstream", dependsOn: [] },
+      {
+        id: "downstream",
+        dependsOn: ["upstream"],
+        inputs: { sales: "missing.csv" },
+      },
+    ],
+    { outcomes: { upstream: "FAILED" } },
+  );
+  assert.deepEqual(result.calls, ["upstream"]);
+  assert.equal(result.summary.nodeResults[1].status, "BLOCKED");
+  assert.equal(
+    (await result.repository.getAttempts("run_1")).filter(
+      ({ value }) => value.node_id === "downstream",
+    ).length,
+    0,
+  );
+});
 
 test("retry brake counts equal trailing failures and treats PREPARE_FAILED as transparent", () => {
   const attempt = (attemptNo, status, resultCode) => ({

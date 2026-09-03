@@ -7,6 +7,7 @@ import { readStoreZip, verifyBundle } from "../bundle/index.js";
 import { stableTopologicalSort } from "../dag/topological-sort.js";
 import { loadNetworkDefinitionSource } from "../domain/load-network.js";
 import type { NetworkDefinition } from "../domain/network-definition.js";
+import { InputPathError, resolveNodeInputs } from "../io/io-path.js";
 import type {
   CancelRequest,
   NetworkRun,
@@ -73,6 +74,7 @@ export interface SequentialSchedulerInput {
   readonly profile: string;
   readonly configPath: string;
   readonly executionRoot?: string;
+  readonly ioRoot?: string;
   readonly close: (input: SchedulerCloseInput) => Promise<void>;
   readonly now?: () => Date;
   readonly uuid?: () => string;
@@ -365,23 +367,54 @@ export async function runSequentialScheduler(
       });
       states.set(nodeId, state);
 
-      const outcome = await input.attemptExecutor.execute({
-        attempt,
-        nodeState: state,
-        sqlPath: extracted.sqlPaths.get(nodeId)!,
-        profile: input.profile,
-        configPath: input.configPath,
-        asOf: input.run.value.as_of ?? input.run.value.created_at,
-        correlationId: input.run.value.run_id,
-        attemptId,
-        expectedJobId: node.job_id,
-        executionStartedAt: startedAt,
-        authorizeResultPersistence: async () => {
-          if (input.leaseMonitor.canPersistResults()) return true;
-          return input.leaseMonitor.confirmLeaseForFinalWrite();
-        },
-        runControlPlaneOperation,
-      });
+      let outcome: AttemptExecutionOutcome;
+      try {
+        const inputPatterns = node.inputs ?? {};
+        const imports =
+          Object.keys(inputPatterns).length === 0
+            ? []
+            : await resolveNodeInputs({
+                ioRoot: requiredIoRoot(input.ioRoot),
+                patterns: inputPatterns,
+                businessKey: input.run.value.business_key,
+                profile: input.profile,
+              });
+        outcome = await input.attemptExecutor.execute({
+          attempt,
+          nodeState: state,
+          sqlPath: extracted.sqlPaths.get(nodeId)!,
+          profile: input.profile,
+          configPath: input.configPath,
+          asOf: input.run.value.as_of ?? input.run.value.created_at,
+          correlationId: input.run.value.run_id,
+          attemptId,
+          expectedJobId: node.job_id,
+          imports,
+          executionStartedAt: startedAt,
+          authorizeResultPersistence: async () => {
+            if (input.leaseMonitor.canPersistResults()) return true;
+            return input.leaseMonitor.confirmLeaseForFinalWrite();
+          },
+          runControlPlaneOperation,
+        });
+      } catch (error) {
+        if (!(error instanceof InputPathError)) throw error;
+        const authorized =
+          input.leaseMonitor.canPersistResults() ||
+          (await input.leaseMonitor.confirmLeaseForFinalWrite());
+        if (!authorized) {
+          reconciliationRequired = true;
+          throw new SchedulerLeaseInterruptedError(true);
+        }
+        outcome = await finalizeInputPathFailure(
+          input.repository,
+          attempt,
+          state,
+          error,
+          now().toISOString(),
+          runControlPlaneOperation,
+        );
+      }
       state = outcome.nodeState;
       states.set(nodeId, state);
       results.set(
@@ -501,6 +534,80 @@ export async function runSequentialScheduler(
     if (extracted !== null)
       await rm(extracted.directory, { recursive: true, force: true });
   }
+}
+
+function requiredIoRoot(ioRoot: string | undefined): string {
+  if (ioRoot === undefined) {
+    throw new InputPathError(
+      "INPUT_PATH_REJECTED",
+      "IO root is not configured for a node with inputs",
+    );
+  }
+  return ioRoot;
+}
+
+async function finalizeInputPathFailure(
+  repository: PersistenceRepository,
+  attempt: Versioned<NodeAttempt>,
+  nodeState: Versioned<NodeState>,
+  error: InputPathError,
+  finishedAt: string,
+  controlPlane: <T>(operation: () => Promise<T>) => Promise<T>,
+): Promise<AttemptExecutionOutcome> {
+  const finalizedAttempt = await controlPlane(() =>
+    repository.finalizeAttempt(
+      attempt.value.node_attempt_id,
+      attempt.revision,
+      {
+        status: "FAILED",
+        result_code: error.code,
+        runner_execution_started_at: null,
+        execution_id: null,
+        finished_at: finishedAt,
+        duration_sec: null,
+        error_message: error.message,
+        read_count: 0,
+        written_count: 0,
+        last_successful_chunk_no: null,
+        last_written_key: null,
+      },
+    ),
+  );
+  const finalizedState = await controlPlane(() =>
+    repository.upsertNodeState({
+      expected_revision: nodeState.revision,
+      value: {
+        ...nodeState.value,
+        status: "FAILED",
+        active_attempt_id: null,
+        status_reason: error.code,
+        finished_at: finishedAt,
+        updated_at: finishedAt,
+      },
+    }),
+  );
+  return {
+    classification: {
+      kind: "NO_RESULT",
+      attemptOutcome: "FAILED",
+      resultCode: error.code,
+      details: [error.message],
+      result: null,
+      invocationResultCode: error.code,
+    },
+    process: {
+      exitCode: null,
+      stdout: "",
+      stderr: "",
+      resultJsonPath: "",
+      timedOut: false,
+      forced: false,
+      launchFailureConfirmed: true,
+    },
+    attempt: finalizedAttempt,
+    nodeState: finalizedState,
+    invocationResultCode: error.code,
+  };
 }
 
 async function prepareResumeStates(

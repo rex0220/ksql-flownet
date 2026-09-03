@@ -113,6 +113,7 @@ export interface EnsureRunInput {
   readonly lockManager: EnsureRunLockManager;
   readonly executor: EnsureRunExecutor;
   readonly bundleStore: EnsureRunBundleStore;
+  readonly beforeLock?: (definition: NetworkDefinition) => void | Promise<void>;
   readonly now?: () => Date;
   readonly uuid?: () => string;
 }
@@ -171,7 +172,13 @@ export async function ensureRun(
 
   // Contract 9.1: capability failure must not acquire the Network lock.
   const capabilities = await input.executor.capabilities();
-  validateCapabilities(capabilities);
+  validateCapabilities(
+    capabilities,
+    definition.nodes.some((node) => Object.keys(node.inputs ?? {}).length > 0)
+      ? ["importCsv"]
+      : [],
+  );
+  await input.beforeLock?.(definition);
 
   let lock: NetworkLockReference | null = null;
   let invocation: Versioned<RunInvocation> | null = null;

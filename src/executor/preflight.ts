@@ -61,14 +61,18 @@ export class PreflightError extends Error {
   }
 }
 
-export function validateCapabilities(capabilities: CapabilitiesResult): void {
+export function validateCapabilities(
+  capabilities: CapabilitiesResult,
+  additionalFeatures: readonly string[] = [],
+): void {
   if (!capabilities.executionContracts.includes(EXECUTION_CONTRACT)) {
     throw new PreflightError(
       "CAPABILITY_CONTRACT_MISSING",
       `required execution contract '${EXECUTION_CONTRACT}' is not supported`,
     );
   }
-  const missing = REQUIRED_CAPABILITY_FEATURES.filter(
+  const required = [...REQUIRED_CAPABILITY_FEATURES, ...additionalFeatures];
+  const missing = required.filter(
     (feature) => capabilities.features[feature] !== true,
   );
   if (missing.length > 0) {

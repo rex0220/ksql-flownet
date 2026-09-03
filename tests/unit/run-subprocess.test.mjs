@@ -83,6 +83,42 @@ test("timeoutMs nullは外側のbatch timeoutを無効にする", async () => {
   assert.equal(stopped, false);
 });
 
+test("CSV inputsをsource名順のimport/hashペアとしてargvへ渡す", async () => {
+  const calls = [];
+  const runner = new RunSubprocess({
+    command: "ksql-flow",
+    executionDirectory: "C:\\exec",
+    timeoutMs: null,
+    gracePeriodMs: 1,
+    uniqueId: () => "imports",
+    spawn: (call) => {
+      calls.push(call);
+      return {
+        completion: Promise.resolve({ exitCode: 0 }),
+        gracefulStop() {},
+        forceStop() {},
+      };
+    },
+  });
+  await runner.run({
+    ...request,
+    imports: [
+      { name: "zeta", path: "C:\\io\\in\\z.csv", sha256: "b".repeat(64) },
+      { name: "alpha", path: "C:\\io\\in\\a.csv", sha256: "a".repeat(64) },
+    ],
+  });
+  assert.deepEqual(calls[0].args.slice(-8), [
+    "--import-csv",
+    "alpha=C:\\io\\in\\a.csv",
+    "--expected-import-sha256",
+    `alpha=${"a".repeat(64)}`,
+    "--import-csv",
+    "zeta=C:\\io\\in\\z.csv",
+    "--expected-import-sha256",
+    `zeta=${"b".repeat(64)}`,
+  ]);
+});
+
 test("timeoutはgraceful signal後のCANCELLED終了を待つ", async () => {
   let graceful = 0;
   let finish;

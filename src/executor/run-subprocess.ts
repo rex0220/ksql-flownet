@@ -10,6 +10,13 @@ export interface RunRequest {
   readonly correlationId: string;
   readonly attemptId: string;
   readonly expectedJobId: string;
+  readonly imports?: readonly RunImport[];
+}
+
+export interface RunImport {
+  readonly name: string;
+  readonly path: string;
+  readonly sha256: string;
 }
 
 export interface ProcessExit {
@@ -105,6 +112,31 @@ export class RunSubprocess {
       "--expected-job-id",
       request.expectedJobId,
     ];
+    for (const input of [...(request.imports ?? [])].sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    )) {
+      if (
+        input.name.length === 0 ||
+        input.name.includes(":") ||
+        input.name.includes("=") ||
+        [...input.name].some((character) => {
+          const code = character.codePointAt(0)!;
+          return code <= 0x1f || code === 0x7f;
+        }) ||
+        !isAbsolute(input.path) ||
+        !/^[a-f0-9]{64}$/u.test(input.sha256)
+      ) {
+        throw new Error(
+          "import source must have a safe name, absolute path, and SHA-256",
+        );
+      }
+      contractArgs.push(
+        "--import-csv",
+        `${input.name}=${input.path}`,
+        "--expected-import-sha256",
+        `${input.name}=${input.sha256}`,
+      );
+    }
     const args = [...(this.options.binArgs ?? []), ...contractArgs];
     let stdout = "";
     let stderr = "";

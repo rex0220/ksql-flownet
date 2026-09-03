@@ -33,6 +33,7 @@ export interface NetworkNodeDefinition {
   readonly depends_on: readonly string[];
   readonly trigger_rule: TriggerRule;
   readonly idempotent: boolean;
+  readonly inputs?: Readonly<Record<string, string>>;
 }
 
 export interface NetworkDefinition {
@@ -64,6 +65,7 @@ export type ValidationErrorCode =
   | "NETWORK_LOCK_HEARTBEAT_NOT_LESS_THAN_LEASE"
   | "NETWORK_LOCK_HEARTBEAT_EXCEEDS_ONE_THIRD"
   | "DUPLICATE_NODE_ID"
+  | "INPUT_PATTERN_INVALID"
   | "TRIGGER_RULE_UNSUPPORTED"
   | "SELF_DEPENDENCY"
   | "DUPLICATE_DEPENDENCY"
