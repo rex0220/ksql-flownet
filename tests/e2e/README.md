@@ -251,6 +251,37 @@ node tests\e2e\p2-11-05-stale-regression.mjs
 
 `p2-11-05-stale-regression`はclaim後にポーラーが失われた永続状態を`ACCEPTED`要求として再現し、STALE回収、自動再claimなし、Run/Invocation不増加、人の再要求がNOOPへ収束することを確認します。同じシナリオで`app_start:false` networkのRERUNと、`run-network --scheduled-for ... --resume`のcron相当経路も確認します。P2-01のSTOP/RELEASE全体の実機証拠は既存`p2-01-04-stop-release.mjs`を引き続き正とします。
 
+## CSV取込 段階1 E2E
+
+CSV段階1は、既存のE2E state/audit/JOBログアプリに加えて、取込先を専用fixtureアプリへ分離します。顧客管理・案件管理は書込先にせず、本番JOBログアプリも使用しません。fixtureアプリには次のフィールドだけを作成し、E2E用tokenへレコード閲覧・追加・編集・削除権限を付与してください。
+
+| 環境変数                     | 用途                                                                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `KSQL_FLOWNET_IO_DIR`        | 実行者が用意した既存の絶対directory。各シナリオはこの直下にscope固有IO rootと`in/`・`out/`を一時作成して終了時に削除 |
+| `KSQL_CSV1_TARGET_APP_ID`    | `test_key`（文字列1行・重複禁止）と`test_value`（文字列1行）を持つCSV専用fixtureアプリ                               |
+| `KSQL_CSV1_TARGET_API_TOKEN` | 上記fixtureアプリ専用の閲覧・追加・編集・削除token                                                                   |
+
+`KSQL_CSV1_TARGET_APP_ID`はstate、audit、E2E JOBログ、操作要求の各アプリと同じIDにできません。さらにkSQL-Flow configの既存logical appとIDが重なる場合も開始前に拒否します。ハーネスは一時configへ`LAPP_KSQL_FLOW_TEST_CSV1`だけを追加し、token値を保存しません。すべての取込キーは`KSQL_FLOW_TEST_`で始まり、cleanupは今回生成した完全なキー集合を再照会してからID/revision指定で削除します。JOBログは削除しません。
+
+セットアップ後、安全な拒否系から次の順で直列実行します。実機実行はこのリポジトリ作成工程には含めません。
+
+```powershell
+. .\tests\e2e\setup-env.ps1
+node tests\e2e\csv1-03-rejections.mjs
+node tests\e2e\csv1-01-import-run.mjs
+node tests\e2e\csv1-02-mutated-resume.mjs
+node tests\e2e\csv1-04-10k-measure.mjs
+```
+
+| スクリプト               | 実測内容                                                                                                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `csv1-03-rejections`     | `INPUT_FILE_MISSING`、root外を指すsymlink/junctionの`INPUT_PATH_REJECTED`、`importCsv:false` capabilityのロック前拒否。Windowsでlink作成権限がない場合はskip理由と正本のunit test名を結果へ記録 |
+| `csv1-01-import-run`     | UTF-8の一気通貫SUCCESS、Attemptのbaselineとrows/encoding、専用アプリのセル一致、監査への絶対path・セル値非漏出                                                                                  |
+| `csv1-02-mutated-resume` | 250行の第1書込chunk成功後に第2chunkを非再試行HTTP 400で失敗させ、同じCSVの通常resumeが全key各1件へ収束。別のFAILED Runでは差替え後resumeを`INPUT_FILE_MUTATED`でInvocation作成前に拒否          |
+| `csv1-04-10k-measure`    | 2列・10,000 data rowをUTF-8とSJIS（ASCII内容）で各1回取込。壁時計時間と、kSQL-Flow子プロセス内`process.memoryUsage()`を10ms間隔で採取したpeakを結果JSONへ保存                                   |
+
+途中失敗hookはkSQL-Flowのorchestrator `run`子プロセスだけに作用し、対象fixtureアプリへの2回目のrecords POST/PUTだけをHTTP 400にします。FlowNetのstate/audit通信、capability/inspection、他アプリには作用しません。各ケースは結果を`tests/e2e/results/`へ保存し、終了時にstate/audit、要求（該当時）、IO root、専用アプリの書込レコードを清掃します。10,000件はflatな2列fixtureのgateであり、サブテーブル有無の比較はこのハーネスの対象外です。
+
 ## SQL文法の根拠
 
 - `C:\Users\rex02\Projects\ksql-flow\docs\ksql_flow_spec.md` 3.1〜3.3: dialect 1ヘッダ、`SELECT COUNT(*)`、`ASSERT (<scalar subquery>) <comparison>, 'message'`。

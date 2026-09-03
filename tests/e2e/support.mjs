@@ -248,6 +248,7 @@ function decodeAttempt(record) {
     runnerExecutionStartedAt: field(record, "runner_execution_started_at"),
     executionId: field(record, "execution_id"),
     finishedAt: field(record, "finished_at"),
+    errorMessage: field(record, "error_message"),
     readCount: numberField(record, "read_count"),
     writtenCount: numberField(record, "written_count"),
   };

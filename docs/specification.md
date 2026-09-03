@@ -434,7 +434,7 @@ JSON モードでは事前拒否も stdout に上記スキーマで返し、proc
 | `lock` | `record_id`, owner IDs, heartbeat、lease、revision、`stale_candidate`。なければ `null` |
 | `runs[]` | Run ID、業務キー、状態、resume可否、lifecycle、各時刻、activity |
 | `runs[].invocations[]` | 詳細指定時のみ。Invocation ID、mode、status、result code |
-| `runs[].node_states[]` | 詳細指定時のみ。Node 状態、理由、冪等性、Attempt 情報 |
+| `runs[].node_states[]` | 詳細指定時のみ。Node 状態、理由、冪等性、最新/実行中Attemptの状態とresult code |
 | `runs[].reconciliation.inconsistencies[]` | 詳細指定時のみ。不整合 code、Node、detail、Attempt IDs |
 | `runs[].recovery_identifiers` | `resolve-node`、`force-unlock-network`、`run-network --resume-run` に渡す識別子 |
 
