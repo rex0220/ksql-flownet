@@ -4,7 +4,7 @@
 
 反映状態: PROPOSAL（未反映）
 
-> **これは正本ではない。承認後に`docs/phase1-freeze-decision-record.md`へ反映する。** 本提案では`docs/`を変更しない。
+> **これは正本ではない。承認後に`docs/internal/phase1-freeze-decision-record.md`へ反映する。** 本提案では`docs/`を変更しない。
 
 ## 共通の検証条件と出典
 

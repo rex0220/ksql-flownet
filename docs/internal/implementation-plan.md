@@ -28,7 +28,7 @@
 | 対象 | 正本 |
 | --- | --- |
 | 製品境界・責務 | [プロジェクト分離ADR](./architecture-separation-adr.md) |
-| kSQL-FlowとのCLI境界 | [Execution Contract v1](./execution-contract-v1.md) |
+| kSQL-FlowとのCLI境界 | [Execution Contract v1](../execution-contract-v1.md) |
 | kSQL-Flow側の変更 | [現行kSQL-Flowの変更点](./current-ksql-flow-changes.md) |
 | Phase 1の機能・状態・受入基準 | [Phase 1仕様](./job-network-phase1-spec.md) |
 | 未決事項と凍結条件 | [Freeze Decision Record](./phase1-freeze-decision-record.md) |
@@ -403,7 +403,7 @@ ksql-flownet/
 
 秘密情報、API token、実データをfixtureやbundleへ含めない。実機試験結果を保存するときも、profile snapshotとログを秘匿化する。
 
-Execution Result Schemaの正本配置と配布方法は[Execution Contract v1](./execution-contract-v1.md) §13の決定に従う。kSQL-FlowNet側へ検証用copyまたは生成物を置く場合も、独立した正本にはせず、contract versionとhashで由来を検証する。
+Execution Result Schemaの正本配置と配布方法は[Execution Contract v1](../execution-contract-v1.md) §13の決定に従う。kSQL-FlowNet側へ検証用copyまたは生成物を置く場合も、独立した正本にはせず、contract versionとhashで由来を検証する。
 
 ## 9. 着手順
 

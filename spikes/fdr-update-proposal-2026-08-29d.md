@@ -2,7 +2,7 @@
 
 > **反映状態: REFLECTED(2026-08-29、選択肢(a)承認)**
 
-> **正本ではない。承認後反映。** 本書はユーザー承認後に`docs/phase1-freeze-decision-record.md`へ反映する差分案であり、本ラウンドでは`docs/`を変更しない。
+> **正本ではない。承認後反映。** 本書はユーザー承認後に`docs/internal/phase1-freeze-decision-record.md`へ反映する差分案であり、本ラウンドでは`docs/`を変更しない。
 
 ## 1. 提案の結論と選択肢
 

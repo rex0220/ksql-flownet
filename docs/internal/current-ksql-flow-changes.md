@@ -3,7 +3,7 @@
 - 文書状態: **PROPOSED**
 - 対象: kSQL-FlowNetとの連携に必要なkSQL-Flow側の変更
 - 基準バージョン: kSQL-Flow 0.6.0
-- 詳細契約: [kSQL-Flow Execution Contract v1](./execution-contract-v1.md)
+- 詳細契約: [kSQL-Flow Execution Contract v1](../execution-contract-v1.md)
 - 変更記録: 2026-08-30: `SQL_ERROR`のExit対応を3→1へ修正（kSQL-Flow公開仕様7.1との整合。kSQL-Flowからの疑義文書による再審議）
 - 実装状況: kSQL-Flow側実装完了（2026-08-30、ksql-flow main `28f3991`）。§9受入基準のkSQL-Flow担当項目は全て充足した。FlowNet責務（7／8／12等）はFN-09／FN-12実装時に担保する。文書状態自体はFlowNet側実装完了時に昇格する。
 

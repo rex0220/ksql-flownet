@@ -57,7 +57,7 @@ ksql-flow resolve-unknown ...    # phase1-freeze-decision-record.md D-13
 この表記のままだと次が成立しない。
 
 - orchestrator と kSQL-Flow の version / release cadence を独立させる（ADR 8 の利点）
-- [Execution Contract v1](./execution-contract-v1.md) における「orchestrator が `ksql-flow run` を subprocess 起動する」構造。同一binary内でも子プロセス起動は技術的に可能だが、Control PlaneとExecution Planeのrelease境界が失われる
+- [Execution Contract v1](../execution-contract-v1.md) における「orchestrator が `ksql-flow run` を subprocess 起動する」構造。同一binary内でも子プロセス起動は技術的に可能だが、Control PlaneとExecution Planeのrelease境界が失われる
 - `run-all --resume`（既存・バッチ resume）と `run-network --resume`（ensure-run semantics）が同一 CLI 上で異なる意味を持つことになり、利用者が区別できない
 
 ADR 3 の表記が正であり、仕様書と FDR のコマンド名を次へ統一する。
@@ -74,7 +74,7 @@ ksql-flownet resolve-node ...
 | [job-network-phase1-spec.md](./job-network-phase1-spec.md) 8.1 | Node ロック = `{profile}:{node_id}` |
 | [current-ksql-flow-changes.md](./current-ksql-flow-changes.md) 5 | 現行形式 `{profile}:{jobName}` を維持 |
 | [architecture-separation-adr.md](./architecture-separation-adr.md) 5 | Job / Node ロックの所有者は kSQL-Flow |
-| [execution-contract-v1.md](./execution-contract-v1.md) 2 | correlation / attempt ID をロックキーの生成材料にしない |
+| [execution-contract-v1.md](../execution-contract-v1.md) 2 | correlation / attempt ID をロックキーの生成材料にしない |
 
 ロックを取得するのは kSQL-Flow であり、契約の CLI には node_id を渡す引数がない。したがって実際に生成されるキーは SQL から解決した `job.name` 由来であり、`node_id` 由来ではない。両者が一致しない定義を書いた時点で、「ジョブネット内ノードと単体ジョブを同じロック体系で排他する」という設計目標が黙って失われる。
 

@@ -2,7 +2,7 @@
 
 反映状態: REFLECTED(2026-08-29)
 
-> **これは正本ではない。ユーザー承認後の別ラウンドで`docs/phase1-freeze-decision-record.md`へ反映する。** 本提案では`docs/`を変更しない。
+> **これは正本ではない。ユーザー承認後の別ラウンドで`docs/internal/phase1-freeze-decision-record.md`へ反映する。** 本提案では`docs/`を変更しない。
 
 ## 共通の実測条件
 

@@ -1,7 +1,7 @@
 # FDR反映提案 2026-08-31: Phase 1凍結(FDR ACCEPTED化)
 
 状態: REFLECTED(2026-08-31承認・実施済み。FDR ACCEPTED化・仕様凍結版昇格を同一コミットで実施)
-前提: QA-01受入28/28済(`docs/acceptance-phase1.md`、証跡`docs/test-results/m7-qa01-20260831/`)、M0〜M7全マイルストーン完了。
+前提: QA-01受入28/28済(`docs/internal/acceptance-phase1.md`、証跡`docs/internal/test-results/m7-qa01-20260831/`)、M0〜M7全マイルストーン完了。
 
 ## A. QA-01結果のFDR反映(m7実機が捕捉した製品ギャップ2件)
 

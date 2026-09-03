@@ -10,7 +10,7 @@
 - 凍結後の変更: 実装都合で本書・仕様を黙って変更せず、FDR再審議手続きによる(記録: 「13. 凍結後の再審議記録」)
 - 読み方の注意: 本文中の日付付き追記にある「`PROPOSED`を維持する」等の文言は**追記時点の履歴**であり、各判断の現在状態は「2. 判断の一覧」表と本ヘッダが正である
 - 関連仕様: [ジョブネット管理仕様書](./job-network-phase1-spec.md)
-- 実行境界: [kSQL-Flow Execution Contract v1](./execution-contract-v1.md)
+- 実行境界: [kSQL-Flow Execution Contract v1](../execution-contract-v1.md)
 - 分離判断: [プロジェクト分離ADR](./architecture-separation-adr.md)
 - レビュー根拠: [Phase 1仕様レビュー](./phase1-spec-review.md)
 

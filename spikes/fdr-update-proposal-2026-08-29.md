@@ -1,8 +1,8 @@
 # FDR更新提案書（2026-08-29）
 
-反映状態: REFLECTED(2026-08-29、docs/phase1-freeze-decision-record.mdへ反映済み)
+反映状態: REFLECTED(2026-08-29、docs/internal/phase1-freeze-decision-record.mdへ反映済み)
 
-> **正本ではない。** 本書は、ユーザー承認後に `docs/phase1-freeze-decision-record.md` へ反映する差分案である。本ラウンドでは `docs/` を変更しない。
+> **正本ではない。** 本書は、ユーザー承認後に `docs/internal/phase1-freeze-decision-record.md` へ反映する差分案である。本ラウンドでは `docs/` を変更しない。
 
 ## 1. 変更区分
 

@@ -32,7 +32,7 @@ kSQL-Flowは、単一SQLジョブの実行に加え、現行では`run-all`、`d
 
 ジョブネット管理を、kSQL-Flow本体とは別の製品kSQL-FlowNetとして、リポジトリ`ksql-flownet`に実装する。
 
-Phase 1では、kSQL-Flowとの境界をCLI subprocessとし、ライブラリimportを採用しない。境界の正本は[Execution Contract v1](./execution-contract-v1.md)とする。
+Phase 1では、kSQL-Flowとの境界をCLI subprocessとし、ライブラリimportを採用しない。境界の正本は[Execution Contract v1](../execution-contract-v1.md)とする。
 
 kSQL-Flow本体に必要な具体的変更、互換維持範囲、実装順は[現行kSQL-Flowの変更点](./current-ksql-flow-changes.md)にまとめる。
 

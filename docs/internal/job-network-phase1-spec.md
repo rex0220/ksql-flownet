@@ -20,7 +20,7 @@
 - 現行`run-all`は小規模・ローカル向けの軽量バッチ機能として維持し、エンタープライズ向けの状態モデルを追加しない。
 - Phase 1で実装するexecutorは`ksql-flow`だけとし、任意CLI、HTTP、Python等は後続Phaseへ送る。
 
-詳細は[プロジェクト分離ADR](./architecture-separation-adr.md)と[Execution Contract v1](./execution-contract-v1.md)を参照する。
+詳細は[プロジェクト分離ADR](./architecture-separation-adr.md)と[Execution Contract v1](../execution-contract-v1.md)を参照する。
 
 ## 基本方針
 

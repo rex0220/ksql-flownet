@@ -2,7 +2,7 @@
 
 対象: kSQL-FlowNet Phase 1。FlowNetプロセスの異常停止(kill、ホスト障害、電源断)後に、Network lockの回収、実行中Nodeの突合、UNKNOWN解決、Runのresumeを安全に行う手順。
 
-正本: `docs/phase1-freeze-decision-record.md` D-26/D-29、`docs/job-network-phase1-spec.md` §7・受入25。本runbookは手順書であり、契約の定義はFDRが優先する。
+正本: `docs/internal/phase1-freeze-decision-record.md` D-26/D-29、`docs/internal/job-network-phase1-spec.md` §7・受入25。本runbookは手順書であり、契約の定義はFDRが優先する。
 
 ## 前提
 

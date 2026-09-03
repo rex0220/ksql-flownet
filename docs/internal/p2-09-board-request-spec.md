@@ -58,7 +58,7 @@
 **一次対応方針の明示的変更**: `INTERRUPTED`の一次対応を「二次対応者へ連絡」から**「まずボードからリラン要求を1回。要求のresult_codeがOK以外・再中断・繰り返す場合は二次対応者へ連絡」**へ変更する。根拠: 中断Runのresumeはensure-runの裁定で保護され(結果確定できない場合はUNKNOWNで停止)、安全側に倒れる。ただし**常に完走するとは限らない**(UNKNOWN裁定時はresolve-nodeが必要 — m6実機で確認済みの挙動)ため、エスカレーション条件を文言に含める。
 
 - [p2-08-activity-plugin-spec.md](./p2-08-activity-plugin-spec.md) §2.1の`INTERRUPTED`一次対応列 → 上記へ改訂
-- [ops-first-response.md](./ops-first-response.md) の`INTERRUPTED`行と操作手順 → 同上+「ボードから起票(推奨)/操作要求アプリ直接(従来)」の2経路化。あわせて**STOPしたRunの表示移動を1行説明**: 「止めた直後は上のブロック(黄)、ノード境界で完全に止まると下の要対応ブロック(CANCELLED)へ移る」(第2巡指摘5)
+- [ops-first-response.md](../ops-first-response.md) の`INTERRUPTED`行と操作手順 → 同上+「ボードから起票(推奨)/操作要求アプリ直接(従来)」の2経路化。あわせて**STOPしたRunの表示移動を1行説明**: 「止めた直後は上のブロック(黄)、ノード境界で完全に止まると下の要対応ブロック(CANCELLED)へ移る」(第2巡指摘5)
 - P2-08 §4「書込みゼロ(G-09)」→「**実行管理・監査アプリへはGET限定。書込は操作要求アプリへのレコードPOSTのみ**(cursor・Bulk・PUT/DELETEは引き続き禁止)」、受入4を同範囲で再定義
 
 ## 6. 受入基準(実機E2E)
