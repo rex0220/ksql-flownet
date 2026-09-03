@@ -1,5 +1,7 @@
 # kSQL-FlowNet
 
+English | [日本語](./README.ja.md)
+
 kSQL-FlowNet is the Control Plane CLI for defining and validating kSQL-Flow job
 networks. Phase 1 accepts DAGs such as branches and joins, but executes every
 eligible node sequentially in a stable topological order.
