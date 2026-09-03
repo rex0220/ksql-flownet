@@ -429,6 +429,61 @@ test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", a
     blocked_run_ids: [],
   });
 
+  for (const inputCode of ["INPUT_FILE_MISSING", "INPUT_FILE_MUTATED"]) {
+    await runRunNetworkCommand(
+      ["network.yaml", "--resume-run", "run-input", "--json"],
+      {
+        profile: "prod",
+        requestedBy: "tester",
+        host: "host",
+        async invoke() {
+          return {
+            outcome: "RESUME",
+            run: { value: { run_id: "run-input" } },
+            invocation: { value: { invocation_id: "invoke-input" } },
+            blockedBy: [],
+            businessKey: "net@input",
+            bundleBytes: Buffer.from("bundle"),
+            async close() {},
+          };
+        },
+        async schedule() {
+          return {
+            aggregateStatus: "FAILED",
+            invocationResultCode: inputCode,
+            retryBrakeNodeIds: [],
+          };
+        },
+      },
+    );
+    assert.equal(JSON.parse(stdout.pop()).invocation_result_code, inputCode);
+  }
+
+  await runRunNetworkCommand(
+    ["network.yaml", "--resume-run", "run-expired", "--json"],
+    {
+      profile: "prod",
+      requestedBy: "tester",
+      host: "host",
+      async invoke() {
+        const error = new Error(
+          "create a new Run with a correction business key",
+        );
+        error.code = "INPUT_RETENTION_EXPIRED";
+        throw error;
+      },
+    },
+  );
+  assert.deepEqual(JSON.parse(stdout.pop()), {
+    outcome: "REJECTED",
+    run_id: "run-expired",
+    invocation_id: null,
+    aggregate_status: null,
+    invocation_result_code: "INPUT_RETENTION_EXPIRED",
+    retry_brake_node_ids: [],
+    blocked_run_ids: [],
+  });
+
   await runRunNetworkCommand(
     ["network.yaml", "--resume-run", "run-2", "--json"],
     {

@@ -8,6 +8,11 @@ import { stableTopologicalSort } from "../dag/topological-sort.js";
 import { loadNetworkDefinitionSource } from "../domain/load-network.js";
 import type { NetworkDefinition } from "../domain/network-definition.js";
 import { InputPathError, resolveNodeInputs } from "../io/io-path.js";
+import {
+  inputBaselinesEqual,
+  parseInputBaseline,
+  serializeInputBaseline,
+} from "../io/input-baseline.js";
 import type {
   CancelRequest,
   NetworkRun,
@@ -144,6 +149,8 @@ export async function runSequentialScheduler(
   let closeInput: SchedulerCloseInput | null = null;
   let reconciliationRequired = false;
   let adjudicationReason: string | undefined;
+  let inputFailureResultCode:
+    "INPUT_FILE_MISSING" | "INPUT_FILE_MUTATED" | null = null;
 
   input.leaseMonitor.start?.();
   try {
@@ -349,7 +356,7 @@ export async function runSequentialScheduler(
       }
 
       const attemptId = `attempt_${uuid()}`;
-      const attempt = await input.repository.createAttempt({
+      let attempt = await input.repository.createAttempt({
         node_state: state,
         node_attempt_id: attemptId,
         invocation_id: input.invocation.value.invocation_id,
@@ -379,6 +386,31 @@ export async function runSequentialScheduler(
                 businessKey: input.run.value.business_key,
                 profile: input.profile,
               });
+        if (
+          imports.length > 0 &&
+          shouldComparePreviousBaseline(
+            input.invocation.value.mode,
+            selected,
+            nodeId,
+            attempts,
+          )
+        ) {
+          const previous = latestInputBaseline(attempts, nodeId);
+          if (previous !== null && !inputBaselinesEqual(previous, imports)) {
+            throw new InputPathError(
+              "INPUT_FILE_MUTATED",
+              `input baseline changed for node '${nodeId}'; restore the original file or create a new correction business key`,
+            );
+          }
+        }
+        if (imports.length > 0) {
+          attempt = await persistInputBaseline(
+            input.repository,
+            attempt,
+            serializeInputBaseline(imports),
+            runControlPlaneOperation,
+          );
+        }
         outcome = await input.attemptExecutor.execute({
           attempt,
           nodeState: state,
@@ -416,6 +448,11 @@ export async function runSequentialScheduler(
         );
       }
       state = outcome.nodeState;
+      if (
+        outcome.invocationResultCode === "INPUT_FILE_MISSING" ||
+        outcome.invocationResultCode === "INPUT_FILE_MUTATED"
+      )
+        inputFailureResultCode = outcome.invocationResultCode;
       states.set(nodeId, state);
       results.set(
         nodeId,
@@ -462,7 +499,9 @@ export async function runSequentialScheduler(
       const terminal = invocationOutcome(aggregateStatus);
       closeInput = finalization(
         terminal.status,
-        terminal.resultCode,
+        terminal.status === "FAILED" && inputFailureResultCode !== null
+          ? inputFailureResultCode
+          : terminal.resultCode,
         selected,
         preserved,
         blocked,
@@ -533,6 +572,75 @@ export async function runSequentialScheduler(
     input.leaseMonitor.stop?.();
     if (extracted !== null)
       await rm(extracted.directory, { recursive: true, force: true });
+  }
+}
+
+function shouldComparePreviousBaseline(
+  mode: RunInvocation["mode"],
+  selected: ReadonlySet<string>,
+  nodeId: string,
+  attempts: readonly Versioned<NodeAttempt>[],
+): boolean {
+  if (mode === "RERUN_FROM") return selected.has(nodeId);
+  if (mode !== "RESUME") return false;
+  const latest = attempts
+    .filter(({ value }) => value.node_id === nodeId)
+    .sort((left, right) => right.value.attempt_no - left.value.attempt_no)[0];
+  return (
+    latest?.value.status === "FAILED" || latest?.value.status === "CANCELLED"
+  );
+}
+
+function latestInputBaseline(
+  attempts: readonly Versioned<NodeAttempt>[],
+  nodeId: string,
+) {
+  for (const attempt of attempts
+    .filter(({ value }) => value.node_id === nodeId)
+    .sort((left, right) => right.value.attempt_no - left.value.attempt_no)) {
+    const baseline = parseInputBaseline(attempt.value.error_message);
+    if (baseline !== null) return baseline;
+  }
+  return null;
+}
+
+async function persistInputBaseline(
+  repository: PersistenceRepository,
+  attempt: Versioned<NodeAttempt>,
+  summary: string,
+  controlPlane: <T>(operation: () => Promise<T>) => Promise<T>,
+): Promise<Versioned<NodeAttempt>> {
+  try {
+    return await controlPlane(() =>
+      repository.setAttemptInputBaseline(
+        attempt.value.node_attempt_id,
+        attempt.revision,
+        { error_message: summary },
+      ),
+    );
+  } catch (error) {
+    if (
+      !(error instanceof RepositoryError) ||
+      (error.code !== "REVISION_CONFLICT" && error.code !== "AMBIGUOUS_WRITE")
+    )
+      throw error;
+    const matches = (
+      await controlPlane(() => repository.getAttempts(attempt.value.run_id))
+    ).filter(
+      ({ value }) => value.node_attempt_id === attempt.value.node_attempt_id,
+    );
+    if (
+      matches.length === 1 &&
+      matches[0]!.value.status === "RUNNING" &&
+      matches[0]!.value.execution_started_at === null &&
+      matches[0]!.value.error_message === summary
+    )
+      return matches[0]!;
+    throw new RepositoryError(
+      "AMBIGUOUS_WRITE",
+      "input baseline write could not be uniquely confirmed",
+      error,
+    );
   }
 }
 

@@ -1,5 +1,5 @@
 import { spawn as nodeSpawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 
 export interface RunRequest {
@@ -17,6 +17,7 @@ export interface RunImport {
   readonly name: string;
   readonly path: string;
   readonly sha256: string;
+  readonly bytes: number;
 }
 
 export interface ProcessExit {
@@ -48,7 +49,6 @@ export interface RunSubprocessOptions {
   readonly gracePeriodMs: number;
   readonly forcedExitWaitMs?: number;
   readonly spawn?: RunSpawn;
-  readonly uniqueId?: () => string;
 }
 
 export interface SubprocessRunResult {
@@ -63,7 +63,6 @@ export interface SubprocessRunResult {
 
 export class RunSubprocess {
   private readonly spawn: RunSpawn;
-  private readonly uniqueId: () => string;
 
   constructor(private readonly options: RunSubprocessOptions) {
     if (!isAbsolute(options.executionDirectory))
@@ -76,7 +75,6 @@ export class RunSubprocess {
     )
       throw new Error("timeoutMs and gracePeriodMs must be non-negative");
     this.spawn = options.spawn ?? spawnRunProcess;
-    this.uniqueId = options.uniqueId ?? randomUUID;
   }
 
   async run(request: RunRequest): Promise<SubprocessRunResult> {
@@ -89,9 +87,14 @@ export class RunSubprocess {
     ] as const)
       if (!/^[A-Za-z0-9._:-]{1,128}$/.test(value))
         throw new Error(`${name} must match ^[A-Za-z0-9._:-]{1,128}$`);
-    const resultJsonPath = join(
+    const metadataDirectory = join(
       resolve(this.options.executionDirectory),
-      `${safeSegment(request.attemptId)}-${safeSegment(this.uniqueId())}.json`,
+      "metadata",
+    );
+    await mkdir(metadataDirectory, { recursive: true });
+    const resultJsonPath = join(
+      metadataDirectory,
+      `${safeSegment(request.attemptId)}.json`,
     );
     const contractArgs = [
       "run",

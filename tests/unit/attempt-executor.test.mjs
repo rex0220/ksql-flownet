@@ -176,6 +176,67 @@ test("D-09順序でSUCCESS結果をAttempt確定後にNode Stateへ反映する"
   assert.equal(outcome.nodeState.value.active_attempt_id, null);
 });
 
+test("input_filesをpreflightと二重照合し安全な監査要約へ反映する", async () => {
+  const setup = await prepared();
+  const value = executionResult({
+    input_files: [
+      {
+        name: "sales",
+        sha256: "a".repeat(64),
+        bytes: 123,
+        rows: 7,
+        encoding: "utf8",
+      },
+    ],
+  });
+  const outcome = await executor(setup, value).execute({
+    ...executionInput,
+    ...setup,
+    imports: [
+      {
+        name: "sales",
+        path: "C:\\private\\sales.csv",
+        sha256: "a".repeat(64),
+        bytes: 123,
+      },
+    ],
+  });
+  assert.equal(outcome.attempt.value.status, "SUCCESS");
+  assert.match(outcome.attempt.value.error_message, /"rows":7/);
+  assert.match(outcome.attempt.value.error_message, /"encoding":"utf8"/);
+  assert.equal(outcome.attempt.value.error_message.includes("private"), false);
+});
+
+test("input_filesがpreflightと不一致ならINVALID_EXECUTION_RESULTでUNKNOWNにする", async () => {
+  const setup = await prepared();
+  const value = executionResult({
+    input_files: [
+      {
+        name: "sales",
+        sha256: "b".repeat(64),
+        bytes: 123,
+        rows: 7,
+        encoding: "utf8",
+      },
+    ],
+  });
+  const outcome = await executor(setup, value).execute({
+    ...executionInput,
+    ...setup,
+    imports: [
+      {
+        name: "sales",
+        path: "C:\\private\\sales.csv",
+        sha256: "a".repeat(64),
+        bytes: 123,
+      },
+    ],
+  });
+  assert.equal(outcome.classification.kind, "INVALID_RESULT");
+  assert.equal(outcome.attempt.value.status, "UNKNOWN");
+  assert.equal(outcome.attempt.value.result_code, "INVALID_EXECUTION_RESULT");
+});
+
 test("LOCK_CONFLICTをPREPARE_FAILED Attempt + WAITING Stateにしattempt番号を保持する", async () => {
   const setup = await prepared();
   const value = executionResult({

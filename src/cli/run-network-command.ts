@@ -385,7 +385,9 @@ function productionDependencies(
             )
           ) {
             ioConfig = loadIoConfig();
+            return ioConfig;
           }
+          return undefined;
         },
         bundleStore: {
           upload: (zipBytes) =>

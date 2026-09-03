@@ -3,7 +3,8 @@ import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 
-export type InputPathErrorCode = "INPUT_PATH_REJECTED" | "INPUT_FILE_MISSING";
+export type InputPathErrorCode =
+  "INPUT_PATH_REJECTED" | "INPUT_FILE_MISSING" | "INPUT_FILE_MUTATED";
 
 export class InputPathError extends Error {
   constructor(

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   mkdtempSync,
   mkdirSync,
@@ -17,6 +18,7 @@ import {
 import { InMemoryPersistenceRepository } from "../../dist/persistence/in-memory-repository.js";
 import { RepositoryError } from "../../dist/persistence/repository.js";
 import { changeCancelRequest } from "../../dist/orchestration/cancel-request.js";
+import { serializeInputBaseline } from "../../dist/io/input-baseline.js";
 
 const T0 = "2026-08-30T01:02:03.004Z";
 
@@ -194,7 +196,7 @@ function harness(repository = new CapturingRepository(), overrides = {}) {
   const executor = {
     async capabilities() {
       events.push("capabilities");
-      return capabilities();
+      return overrides.capabilities ?? capabilities();
     },
     async describeProfile() {
       events.push("profile");
@@ -854,6 +856,152 @@ test("--rerun-fromはPREPARE_FAILEDだけでもattempt済み非冪等ノード�
   );
   assert.deepEqual(
     await h.repository.getNodeStates(created.run.value.run_id),
+    before,
+  );
+});
+
+test("入力Runのresume保持期限は90日と最終分を許容し、超過はInvocation前に拒否する", async (context) => {
+  const { networkPath } = fixture(context);
+  addInputs(networkPath);
+  const h = harness(undefined, {
+    capabilities: {
+      ...capabilities(),
+      features: { ...capabilities().features, importCsv: true },
+    },
+  });
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+
+  const boundary = new Date(Date.parse(T0) + 90 * 86_400_000 + 59_000);
+  const resumed = await ensureRun(
+    input(networkPath, h, {
+      resume: true,
+      ioRetentionDays: 90,
+      now: () => boundary,
+    }),
+  );
+  await resumed.close({ status: "CANCELLED", resultCode: "BOUNDARY_OK" });
+  const invocationCount = (
+    await h.repository.getInvocations(created.run.value.run_id)
+  ).length;
+
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, {
+        resume: true,
+        ioRetentionDays: 90,
+        now: () => new Date(Date.parse(T0) + 90 * 86_400_000 + 60_000),
+      }),
+    ),
+    (error) => {
+      assert.equal(error.code, "INPUT_RETENTION_EXPIRED");
+      assert.match(error.message, /correction business key/);
+      return true;
+    },
+  );
+  assert.equal(
+    (await h.repository.getInvocations(created.run.value.run_id)).length,
+    invocationCount,
+  );
+});
+
+test("resume対象importの差替えはInvocation作成前にINPUT_FILE_MUTATEDで拒否する", async (context) => {
+  const { networkPath } = fixture(context);
+  addInputs(networkPath);
+  const ioRoot = mkdtempSync(join(tmpdir(), "ksql-flownet-ensure-io-"));
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  mkdirSync(join(ioRoot, "in"));
+  writeFileSync(join(ioRoot, "in", "sales_net%40one_prod.csv"), "changed");
+  const h = harness(undefined, {
+    capabilities: {
+      ...capabilities(),
+      features: { ...capabilities().features, importCsv: true },
+    },
+  });
+  const created = await ensureRun(input(networkPath, h));
+  await created.close({ status: "CANCELLED", resultCode: "SEED" });
+
+  let state = (await h.repository.getNodeStates(created.run.value.run_id))[0];
+  let attempt = await h.repository.createAttempt({
+    node_state: state,
+    node_attempt_id: "attempt_old_input",
+    invocation_id: created.invocation.value.invocation_id,
+  });
+  const original = "old";
+  attempt = await h.repository.setAttemptInputBaseline(
+    attempt.value.node_attempt_id,
+    attempt.revision,
+    {
+      error_message: serializeInputBaseline([
+        {
+          name: "sales",
+          sha256: createHash("sha256").update(original).digest("hex"),
+          bytes: Buffer.byteLength(original),
+        },
+      ]),
+    },
+  );
+  state = await h.repository.upsertNodeState({
+    expected_revision: state.revision,
+    value: {
+      ...state.value,
+      status: "RUNNING",
+      latest_attempt_no: attempt.value.attempt_no,
+      active_attempt_id: attempt.value.node_attempt_id,
+    },
+  });
+  await h.repository.finalizeAttempt(
+    attempt.value.node_attempt_id,
+    attempt.revision,
+    {
+      status: "FAILED",
+      result_code: "SQL_ERROR",
+      runner_execution_started_at: T0,
+      execution_id: "exec_old_input",
+      finished_at: T0,
+      duration_sec: 0,
+      error_message: attempt.value.error_message,
+      read_count: 0,
+      written_count: 0,
+      last_successful_chunk_no: null,
+      last_written_key: null,
+    },
+  );
+  await h.repository.upsertNodeState({
+    expected_revision: state.revision,
+    value: {
+      ...state.value,
+      status: "FAILED",
+      active_attempt_id: null,
+      status_reason: "SQL_ERROR",
+    },
+  });
+  const before = (await h.repository.getInvocations(created.run.value.run_id))
+    .length;
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, { resume: true, ioRoot, ioRetentionDays: 90 }),
+    ),
+    (error) => error.code === "INPUT_FILE_MUTATED",
+  );
+  assert.equal(
+    (await h.repository.getInvocations(created.run.value.run_id)).length,
+    before,
+  );
+
+  await assert.rejects(
+    ensureRun(
+      input(networkPath, h, {
+        resume: true,
+        rerunFrom: "one",
+        ioRoot,
+        ioRetentionDays: 90,
+      }),
+    ),
+    (error) => error.code === "INPUT_FILE_MUTATED",
+  );
+  assert.equal(
+    (await h.repository.getInvocations(created.run.value.run_id)).length,
     before,
   );
 });

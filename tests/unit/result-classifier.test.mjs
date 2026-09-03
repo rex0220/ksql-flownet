@@ -165,3 +165,27 @@ test("未知resultCodeはstatus/Exit整合時に保存し、矛盾時はUNKNOWN�
     "INVALID_RESULT",
   );
 });
+
+test("input_filesのrows/encoding付き安全receiptを受理し不正shapeを拒否する", () => {
+  const value = success();
+  value.input_files = [
+    {
+      name: "sales",
+      sha256: "a".repeat(64),
+      bytes: 123,
+      rows: 7,
+      encoding: "utf8",
+    },
+  ];
+  assert.equal(classifyResult(value, context(value)).kind, "VALID_RESULT");
+  for (const input_files of [
+    [{ ...value.input_files[0], sha256: "bad" }],
+    [{ ...value.input_files[0], rows: -1 }],
+    [{ ...value.input_files[0], name: "C:\\secret\\sales.csv" }],
+  ]) {
+    assert.equal(
+      classifyResult({ ...value, input_files }, context(value)).kind,
+      "INVALID_RESULT",
+    );
+  }
+});

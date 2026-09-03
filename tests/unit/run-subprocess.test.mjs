@@ -13,7 +13,7 @@ const request = {
   expectedJobId: "job_a",
 };
 
-test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/stderrを保持する", async () => {
+test("contract引数とattempt由来の決定的metadata pathをspawnへ渡しstdout/stderrを保持する", async () => {
   const calls = [];
   const runner = new RunSubprocess({
     command: "ksql-flow",
@@ -21,7 +21,6 @@ test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/
     executionDirectory: "C:\\exec",
     timeoutMs: 100,
     gracePeriodMs: 10,
-    uniqueId: () => "unique-1",
     spawn: (call) => {
       calls.push(call);
       call.onStdout("human output");
@@ -34,7 +33,7 @@ test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/
     },
   });
   const outcome = await runner.run(request);
-  assert.equal(outcome.resultJsonPath, "C:\\exec\\attempt_1-unique-1.json");
+  assert.equal(outcome.resultJsonPath, "C:\\exec\\metadata\\attempt_1.json");
   assert.equal(outcome.stdout, "human output");
   assert.equal(outcome.stderr, "diagnostic");
   assert.deepEqual(calls[0].args, [
@@ -103,8 +102,18 @@ test("CSV inputsをsource名順のimport/hashペアとしてargvへ渡す", asyn
   await runner.run({
     ...request,
     imports: [
-      { name: "zeta", path: "C:\\io\\in\\z.csv", sha256: "b".repeat(64) },
-      { name: "alpha", path: "C:\\io\\in\\a.csv", sha256: "a".repeat(64) },
+      {
+        name: "zeta",
+        path: "C:\\io\\in\\z.csv",
+        sha256: "b".repeat(64),
+        bytes: 20,
+      },
+      {
+        name: "alpha",
+        path: "C:\\io\\in\\a.csv",
+        sha256: "a".repeat(64),
+        bytes: 10,
+      },
     ],
   });
   assert.deepEqual(calls[0].args.slice(-8), [

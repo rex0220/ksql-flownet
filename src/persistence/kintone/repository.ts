@@ -13,6 +13,7 @@ import type {
 } from "../../domain/persistence-model.js";
 import type {
   AttemptExecutionStart,
+  AttemptInputBaselineWrite,
   AttemptFinalization,
   CreateAttemptInput,
   Inconsistency,
@@ -919,6 +920,34 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     });
     return {
       value: { ...current.value, ...start },
+      revision: expectedRevision + 1,
+    };
+  }
+
+  async setAttemptInputBaseline(
+    attemptId: string,
+    expectedRevision: number,
+    write: AttemptInputBaselineWrite,
+  ): Promise<Versioned<NodeAttempt>> {
+    const key = `ATT:${attemptId}`;
+    const current = await this.requiredByRecordKey(
+      this.audit,
+      key,
+      decodeAttempt,
+    );
+    if (
+      current.value.status !== "RUNNING" ||
+      current.value.execution_started_at !== null
+    )
+      throw new RepositoryError(
+        "ATTEMPT_LIFECYCLE_VIOLATION",
+        "input baseline must be recorded before execution starts",
+      );
+    await this.put(this.audit, key, expectedRevision, {
+      error_message: field(write.error_message),
+    });
+    return {
+      value: { ...current.value, error_message: write.error_message },
       revision: expectedRevision + 1,
     };
   }

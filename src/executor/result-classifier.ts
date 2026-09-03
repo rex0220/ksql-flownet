@@ -13,6 +13,14 @@ export interface ExecutionError {
   readonly detailsTruncated: boolean;
 }
 
+export interface ExecutionInputFile {
+  readonly name: string;
+  readonly sha256: string;
+  readonly bytes: number;
+  readonly rows: number;
+  readonly encoding: string;
+}
+
 export interface ExecutionResult {
   readonly formatVersion: 1;
   readonly kind: "EXECUTION_RESULT";
@@ -39,6 +47,7 @@ export interface ExecutionResult {
   readonly ksqlFlowVersion: string;
   readonly engineVersion: string;
   readonly error: ExecutionError | null;
+  readonly input_files?: readonly ExecutionInputFile[];
 }
 
 export interface ClassificationContext {
@@ -200,11 +209,56 @@ function validateShape(value: unknown): string[] {
     errors.push("lastWrittenKey must be string or null");
   if (!(value.error === null || isExecutionError(value.error)))
     errors.push("error must be a contract error object or null");
+  if (
+    value.input_files !== undefined &&
+    !isExecutionInputFiles(value.input_files)
+  )
+    errors.push("input_files must contain safe input receipt entries");
   if (value.status === "SUCCESS" && value.error !== null)
     errors.push("SUCCESS requires error=null");
   if (value.status !== "SUCCESS" && value.error === null)
     errors.push("non-success result requires an error object");
   return errors;
+}
+
+function isExecutionInputFiles(
+  value: unknown,
+): value is readonly ExecutionInputFile[] {
+  if (!Array.isArray(value)) return false;
+  const names = new Set<string>();
+  for (const item of value) {
+    if (
+      !isRecord(item) ||
+      typeof item.name !== "string" ||
+      !isSafeSourceName(item.name) ||
+      names.has(item.name) ||
+      typeof item.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(item.sha256) ||
+      !Number.isSafeInteger(item.bytes) ||
+      (item.bytes as number) < 0 ||
+      !Number.isSafeInteger(item.rows) ||
+      (item.rows as number) < 0 ||
+      typeof item.encoding !== "string" ||
+      !/^[A-Za-z0-9._-]{1,32}$/u.test(item.encoding)
+    )
+      return false;
+    names.add(item.name);
+  }
+  return true;
+}
+
+function isSafeSourceName(value: string): boolean {
+  return (
+    value.length >= 1 &&
+    value.length <= 128 &&
+    value !== "__net__" &&
+    !value.includes(":") &&
+    !value.includes("=") &&
+    ![...value].some((character) => {
+      const code = character.codePointAt(0)!;
+      return code <= 0x1f || code === 0x7f;
+    })
+  );
 }
 
 function isStatusExitCompatible(

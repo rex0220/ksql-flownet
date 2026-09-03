@@ -83,6 +83,10 @@ export interface AttemptExecutionStart {
   execution_started_at: string;
 }
 
+export interface AttemptInputBaselineWrite {
+  error_message: string;
+}
+
 export interface AttemptFinalization {
   status: Exclude<NodeAttemptStatus, "RUNNING">;
   result_code: string;
@@ -150,6 +154,11 @@ export interface PersistenceRepository {
   getResolutions(runId: string): Promise<Versioned<AttemptResolution>[]>;
   upsertNodeState(write: NodeStateWrite): Promise<Versioned<NodeState>>;
   createAttempt(input: CreateAttemptInput): Promise<Versioned<NodeAttempt>>;
+  setAttemptInputBaseline(
+    attemptId: string,
+    expectedRevision: number,
+    write: AttemptInputBaselineWrite,
+  ): Promise<Versioned<NodeAttempt>>;
   setAttemptExecutionStarted(
     attemptId: string,
     expectedRevision: number,
