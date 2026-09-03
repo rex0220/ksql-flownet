@@ -81,9 +81,61 @@ kSQL-FlowNet 自体はカレンダースケジュール、cron 式、常駐ポ�
 
 Control Plane と Execution Plane の CLI 境界は [kSQL-Flow Execution Contract v1](./execution-contract-v1.md) に従う。
 
-## 2. kintone アプリ構成
+## 2. 動作環境
 
-### 2.1 アプリ一覧
+### 2.1 kintone
+
+| 項目 | 要件 |
+| --- | --- |
+| サービス | cybozu.com 上の kintone。アプリの API トークン、プラグイン、関連レコード(REFERENCE_TABLE)、アプリテンプレートを使用する |
+| アプリ | 実行管理・監査履歴・操作要求(本製品が管理)。JOBログアプリは kSQL-Flow が所有し、本製品は参照のみ行う。作成はアプリテンプレートのインポート、または [templates/](../templates/README.md) の Console スクリプトで行う |
+| プラグイン | PC(デスクトップ)画面向け。実行管理アプリのカスタマイズビュー「00_Run状況」とレコード詳細画面で動作する。モバイル画面は対象外 |
+| ブラウザ | kintone が対応する PC ブラウザ |
+
+API トークンに必要な権限:
+
+| アプリ | 用途 | 権限 |
+| --- | --- | --- |
+| 実行管理 | CLI・ポーラー | レコード追加・閲覧・編集 |
+| 監査履歴 | CLI・ポーラー | レコード追加・閲覧・編集 |
+| 操作要求 | ポーラー | レコード閲覧・編集(追加・削除は付けない) |
+| JOBログ | CLI(Attempt 照合) | レコード閲覧 |
+
+レコード削除権限はどのトークンにも不要である。ロック解放は削除ではなく UPDATE(tombstone)で行う。
+
+### 2.2 実行サーバー(VPS 等)
+
+CLI・cron・ポーラーを動かすサーバーを 1 台用意する。kintone へ HTTPS で発信できれば足り、受信ポートの開放は不要である。
+
+| 項目 | 要件 |
+| --- | --- |
+| OS | Linux(本番実績: VPS + cron)。開発・検証は Windows でも動作する |
+| ランタイム | Node.js 22 以上 |
+| 導入物 | kSQL-FlowNet(本リポジトリのビルド)と kSQL-Flow CLI(実行プレーン。`KSQL_FLOW_BIN` で指定) |
+| スケジューラ | cron 2 本: 定期実行の `run-network --resume --scheduled-for …` と、5 分間隔の `poll-requests` |
+| 設定ファイル | 操作要求 allowlist(YAML・絶対パスで配置)、kSQL-Flow の接続設定 |
+
+主な環境変数(すべて実行サーバー側。トークン値はリポジトリ・文書へ書かない):
+
+| 変数 | 内容 |
+| --- | --- |
+| `KSQL_FLOWNET_BASE_URL` / `KSQL_FLOWNET_PROFILE` | kintone ベース URL とプロファイル名 |
+| `KSQL_FLOWNET_STATE_APP_ID` / `KSQL_FLOWNET_STATE_API_TOKEN` | 実行管理アプリ |
+| `KSQL_FLOWNET_AUDIT_APP_ID` / `KSQL_FLOWNET_AUDIT_API_TOKEN` | 監査履歴アプリ |
+| `KSQL_FLOWNET_REQUEST_APP_ID` / `KSQL_FLOWNET_REQUEST_API_TOKEN` / `KSQL_FLOWNET_REQUEST_ALLOWLIST_PATH` | ポーラー(操作要求アプリと allowlist) |
+| `KSQL_FLOW_BIN` / `KSQL_FLOW_BIN_ARGS` / `KSQL_FLOW_CONFIG` / `KSQL_FLOW_WORKDIR` | kSQL-Flow CLI の起動方法・設定・作業ディレクトリ |
+| `KSQL_FLOW_LOG_APP_ID` / `KSQL_FLOW_LOG_API_TOKEN` | JOBログアプリ(閲覧) |
+| 任意: `KSQL_FLOWNET_REQUESTED_BY` / `KSQL_FLOWNET_HOST` / `KSQL_FLOWNET_OWNER_INSTANCE_ID` / `KSQL_FLOW_GRACE_PERIOD_MS` / `KSQL_FLOWNET_REQUEST_HEARTBEAT_INTERVAL_MS` / `KSQL_FLOWNET_REQUEST_STALE_AFTER_MS` | 相関表示・ロック所有者識別・停止猶予・ポーラー間隔の上書き |
+
+運用上の注意:
+
+- トークンを含む環境ファイルはサーバー管理者のみ読める権限(例: root 所有 0600)で置く
+- Windows から環境ファイルへ追記すると CRLF が混入し、allowlist 読込失敗の原因になる(実測)。LF で保存する
+- cron の発火時刻はサーバーのタイムゾーンに従う。`scheduled_for` からの期間キー導出は network 定義の `timezone`(例: Asia/Tokyo)で行われるため、サーバーのタイムゾーンには依存しない
+
+## 3. kintone アプリ構成
+
+### 3.1 アプリ一覧
 
 | アプリ | 所有者 | 用途 | 主な書込主体 |
 | --- | --- | --- | --- |
@@ -94,7 +146,7 @@ Control Plane と Execution Plane の CLI 境界は [kSQL-Flow Execution Contrac
 
 JOBログアプリは kSQL-FlowNet から参照するだけであり、kSQL-FlowNet のテンプレート用 Console スクリプトでは作成しない。
 
-### 2.2 実行管理アプリ
+### 3.2 実行管理アプリ
 
 実行管理アプリは複数のレコード種別を `record_type` で区別する。
 `record_key` は重複禁止の文字列1行フィールドである。
@@ -122,7 +174,7 @@ JOBログアプリは kSQL-FlowNet から参照するだけであり、kSQL-Flow
 Run の状態は `CREATED` / `RUNNING` / `SUCCESS` / `FAILED` / `CANCELLED` / `UNKNOWN` である。
 Node State はこれに `WAITING` / `BLOCKED` / `SKIPPED` を加えた集合を使用する。
 
-### 2.3 監査履歴アプリ
+### 3.3 監査履歴アプリ
 
 監査履歴アプリも `record_type` でレコード種別を区別する。
 
@@ -137,7 +189,7 @@ Node State はこれに `WAITING` / `BLOCKED` / `SKIPPED` を加えた集合を�
 `selected_node_ids`、`preserved_node_ids`、`blocked_node_ids` は JSON 配列文字列として保存する。
 運用監査の詳細は `reason` に JSON 文字列として保存する種別がある。
 
-### 2.4 操作要求アプリ
+### 3.4 操作要求アプリ
 
 テンプレートが追加する全業務フィールドは次のとおりである。
 kintone の `$id`、`$revision`、`作成者`、`作成日時` もポーラーの識別、競合制御、相関、処理順に使用する。
@@ -161,7 +213,7 @@ kintone の `$id`、`$revision`、`作成者`、`作成日時` もポーラー�
 `run_id`、`network_id`、`business_key`、`rerun_from_node`、`result_code` の入力上限は 128 Unicode 文字である。
 `reason` と `result_message` は 65,535 Unicode 文字、`claimed_host` は 256 Unicode 文字まで検証する。
 
-### 2.5 テンプレート配布と関連レコード
+### 3.5 テンプレート配布と関連レコード
 
 本番配布は、実行管理、監査履歴、操作要求、JOBログの4アプリをまとめた kintone アプリテンプレートを使用する。
 アプリテンプレートのインポート時にはアプリ間参照が移行先のアプリへ張り替わる。
@@ -177,9 +229,9 @@ kintone の `$id`、`$revision`、`作成者`、`作成日時` もポーラー�
 プラグインはこの3フィールドの `relatedApp.app` をフォームフィールド API で読み、アプリ ID を自動検出する。
 設定画面で ID を明示した場合は明示値を優先する。
 
-## 3. network 定義
+## 4. network 定義
 
-### 3.1 YAML の全体形
+### 4.1 YAML の全体形
 
 ```yaml
 schema_version: 1
@@ -206,7 +258,7 @@ nodes:
 未知プロパティは禁止する。YAML の重複キーもエラーにする。
 `retry`、timeout、並列度など、このスキーマにないノードフィールドは指定できない。
 
-### 3.2 ルートフィールド
+### 4.2 ルートフィールド
 
 | フィールド | 必須 | 型・値 | 意味 |
 | --- | --- | --- | --- |
@@ -221,7 +273,7 @@ nodes:
 識別子は1〜128文字で、`:`、NUL、予約値 `__net__` を禁止する。
 ロックキー生成時は NFC 正規化後の Unicode コードポイント数も128以下でなければならない。
 
-### 3.3 業務キーポリシー
+### 4.3 業務キーポリシー
 
 | `type` | 必須フィールド | 入力規則 |
 | --- | --- | --- |
@@ -236,14 +288,14 @@ nodes:
 | `day` | `{yyyy}`, `{MM}`, `{dd}` | 未対応プレースホルダー |
 | `month` | `{yyyy}`, `{MM}` | `{dd}`、未対応プレースホルダー |
 
-### 3.4 Network ロック
+### 4.4 Network ロック
 
 | フィールド | 規則 |
 | --- | --- |
 | `lease_duration_sec` | 1以上の整数 |
 | `heartbeat_interval_sec` | 1以上の整数、lease 未満、かつ lease の3分の1以下 |
 
-### 3.5 ノード
+### 4.5 ノード
 
 | フィールド | 必須 | 型・値 | 意味 |
 | --- | --- | --- | --- |
@@ -257,7 +309,7 @@ nodes:
 自己依存、依存の重複、未知 Node への依存、循環を禁止する。
 `validate` は参照 SQL が読める通常ファイルであることも確認する。
 
-### 3.6 業務キー導出
+### 4.6 業務キー導出
 
 | policy | CLI 入力 | 採用結果 |
 | --- | --- | --- |
@@ -277,9 +329,9 @@ Run の正準キー生成ではさらに `:`、NUL、予約値 `__net__` を禁�
 `run-network` の新規手動実行だけは例外として、`--resume`、`--resume-run`、`--business-key`、`--scheduled-for` のいずれもない場合に `<network_id>@manual-<UTC timestamp>` を生成し、明示 business key として上記関数へ渡す。
 `plan` はこの補完を行わない。
 
-## 4. CLI コマンド
+## 5. CLI コマンド
 
-### 4.1 コマンド一覧
+### 5.1 コマンド一覧
 
 | コマンド | 引数・オプション | 動作 |
 | --- | --- | --- |
@@ -296,7 +348,7 @@ Run の正準キー生成ではさらに `:`、NUL、予約値 `__net__` を禁�
 全コマンドは成功時 exit code 0、引数不正または処理失敗時 1 を返す。
 `--help` / `-h` はヘルプ、`--version` / `-V` は package version を表示する。
 
-### 4.2 run-network
+### 5.2 run-network
 
 | オプション | 規則 |
 | --- | --- |
@@ -318,7 +370,7 @@ Run の正準キー生成ではさらに `:`、NUL、予約値 `__net__` を禁�
 `--rerun-from` は指定ノードとその子孫を対象にする。
 対象内に未解決 `UNKNOWN`、または実行済み `idempotent: false` がある場合は拒否する。
 
-### 4.3 ensure-run の裁定
+### 5.3 ensure-run の裁定
 
 | 結果・コード | 条件 | 挙動 |
 | --- | --- | --- |
@@ -332,7 +384,7 @@ Run の正準キー生成ではさらに `:`、NUL、予約値 `__net__` を禁�
 
 同一 Run の最終一意性は `profile + network_id + business_key` から作る正準 `record_key` の重複禁止 INSERT で裁定する。
 
-### 4.4 run-network の JSON 出力
+### 5.4 run-network の JSON 出力
 
 ```json
 {
@@ -350,7 +402,7 @@ Run の正準キー生成ではさらに `:`、NUL、予約値 `__net__` を禁�
 `PREPARE_FAILED` の `CANCELLED` はこの連続数に含めない。
 JSON モードでは事前拒否も stdout に上記スキーマで返し、process exit code は 1 になる。
 
-### 4.5 status と JSON 出力
+### 5.5 status と JSON 出力
 
 `--run-id` と `--business-key` は相互排他である。
 どちらも省略すると Run 一覧の要約、指定すると1件の詳細を返す。
@@ -388,7 +440,7 @@ JSON モードでは事前拒否も stdout に上記スキーマで返し、proc
 
 activity は未終端 Run だけに付き、停止 hold があれば `STOPPED`、有効 lease の owner Invocation が当該 Run に属すれば `LIVE`、未開始なら `IDLE`、それ以外は `INTERRUPTED` となる。
 
-### 4.6 運用コマンドの必須引数
+### 5.6 運用コマンドの必須引数
 
 | コマンド | 必須引数 | 任意引数・補足 |
 | --- | --- | --- |
@@ -399,9 +451,9 @@ activity は未終端 Run だけに付き、停止 hold があれば `STOPPED`�
 
 これらのコマンドと `validate`、`plan`、`poll-requests` は `--json` を実装していない。
 
-## 5. 操作要求とポーラー
+## 6. 操作要求とポーラー
 
-### 5.1 状態機械
+### 6.1 状態機械
 
 | 現在状態 | 遷移 | 主体 | 条件 |
 | --- | --- | --- | --- |
@@ -417,7 +469,7 @@ activity は未終端 Run だけに付き、停止 hold があれば `STOPPED`�
 ポーラーは `REQUESTED` を作成日時、レコード ID の昇順で既定100件まで取得する。
 claim は取得時 revision を使うため、多重起動時も1台だけが処理を取得する。
 
-### 5.2 heartbeat と stale
+### 6.2 heartbeat と stale
 
 子プロセスの実行中は既定60秒ごとに `claim_heartbeat_at` を更新する。
 heartbeat 更新に失敗しても子プロセスを kill せず、警告を記録して結果を待つ。
@@ -427,7 +479,7 @@ RERUN / STOP / RELEASE は対象 Run、START は再導出した業務キーで R
 status を取得できない、Run を一意に照合できない、LIVE の可能性がある場合は更新しない。
 STALE は実行有無と結果が不明という意味であり、自動再実行しない。
 
-### 5.3 request_type 別の受理条件と処理
+### 6.3 request_type 別の受理条件と処理
 
 | 種別 | 受理条件 | 実行内容 | 成功側の代表 code |
 | --- | --- | --- | --- |
@@ -439,7 +491,7 @@ STALE は実行有無と結果が不明という意味であり、自動再実�
 STOP は実行中 SQL を中断しない。現在のノード完走後、次ノード境界で hold を受理する。
 RELEASE は hold を解除するだけであり、その場で Run を再開しない。次回の外部 cron は再開し得る。
 
-### 5.4 START の三重ゲート
+### 6.4 START の三重ゲート
 
 | ゲート | 判定場所 | 必須条件 |
 | --- | --- | --- |
@@ -451,7 +503,7 @@ RELEASE は hold を解除するだけであり、その場で Run を再開し�
 `app_start: false` でも、その network の既存 Run に対する RERUN / STOP / RELEASE は allowlist 検索対象になる。
 START は network 定義を準備時と子起動直前に再読込し、gate から起動までの差を狭める。
 
-### 5.5 START のキー規則
+### 6.5 START のキー規則
 
 | network policy / 用途 | `business_key` | `scheduled_for` | ポーラーの処理 |
 | --- | --- | --- | --- |
@@ -464,7 +516,7 @@ START は network 定義を準備時と子起動直前に再読込し、gate か
 `scheduled_for` は offset 付きの実在日時として正規化する。
 プラグインの datetime-local 入力は日本時間として扱い、分単位の UTC ISO 文字列へ変換する。
 
-### 5.6 allowlist YAML
+### 6.6 allowlist YAML
 
 ```yaml
 networks:
@@ -480,7 +532,7 @@ networks:
 各 entry で許可するキーは `network_id`、`definition_path`、`app_start` だけである。
 network ID は重複不可、definition path は絶対パス、定義内の network ID と一致させる。
 
-### 5.7 result_code 一覧
+### 6.7 result_code 一覧
 
 | code | 意味 |
 | --- | --- |
@@ -519,15 +571,15 @@ network ID は重複不可、definition path は絶対パス、定義内の netw
 Invocation が作成された run-network の結果では、上表以外の `invocation_result_code` もそのまま `result_code` に保存する。
 要求の `DONE` は要求処理の終端を表し、Run の `SUCCESS` を意味しない。
 
-## 6. ボードプラグイン
+## 7. ボードプラグイン
 
-### 6.1 対象と基本動作
+### 7.1 対象と基本動作
 
 Run状況プラグインはデスクトップ専用である。mobile bundle はない。
 実行管理アプリのカスタマイズビュー `00_Run状況` と `NETWORK_RUN` 詳細画面を拡張する。
 画面は補助表示であり、判定不能または競合時は `status --json` を正として確認する。
 
-### 6.2 `00_Run状況` のセクション
+### 7.2 `00_Run状況` のセクション
 
 | セクション | 対象 | 上限・表示 |
 | --- | --- | --- |
@@ -539,7 +591,7 @@ Run状況プラグインはデスクトップ専用である。mobile bundle は
 ツールバーには `新規実行`、処理待ち START 件数へのリンク、判定時刻、再読込を表示する。
 操作要求アプリ ID が解決できない場合は新規実行、操作ボタン、pending 表示を無効にする。
 
-### 6.3 activity と操作ボタン
+### 7.3 activity と操作ボタン
 
 | Run 状態・activity | 表示する操作 |
 | --- | --- |
@@ -559,7 +611,7 @@ RERUN / STOP / RELEASE ダイアログは理由を必須とし、確認画面を
 FAILED / CANCELLED の詳細画面だけ `rerun_from_node` の上級入力を表示する。
 STOP では実行中 SQL が完走すること、RELEASE では停止要求者・理由と次回 cron が再開し得ることを表示する。
 
-### 6.4 新規実行ダイアログ
+### 7.4 新規実行ダイアログ
 
 | 入力モード | 画面ラベル | 必須入力 |
 | --- | --- | --- |
@@ -579,13 +631,13 @@ business key テンプレートがある補正・任意キーモードでは、n
 候補取得失敗時も自由入力できる。
 起票前の重複キー照合では、kintone クエリ結果を JavaScript の完全一致で再判定する。
 
-### 6.5 詳細画面
+### 7.5 詳細画面
 
 NETWORK_RUN 詳細では activity または `終端(activityなし)`、状態根拠、エラー概要、操作導線を表示する。
 非SUCCESS終端では JOBログを優先してエラー本文を組み立てる。
 JOBログ未設定、GET失敗、該当なしの場合は Node Attempt の result code と Node State の status reason にフォールバックする。
 
-### 6.6 設定画面
+### 7.6 設定画面
 
 | タブ | 設定 |
 | --- | --- |
@@ -615,7 +667,7 @@ START許可CSVは全体4,000文字、1行128文字以内で、空行を除いて
 有効時は plugin config 保存後にアプリのデプロイを要求し、最大30秒待つ。
 無効時、アプリ ID 取得不能、失敗、タイムアウト時はアプリ設定画面での手動更新を案内する。
 
-### 6.7 runtime の API 境界
+### 7.7 runtime の API 境界
 
 | 対象 | 許可する runtime 操作 |
 | --- | --- |
@@ -628,9 +680,9 @@ START許可CSVは全体4,000文字、1行128文字以内で、空行を除いて
 runtime は API token、cursor API、Bulk Request、PUT、DELETE を使用しない。
 POST は正確に1回だけ行い、作成後に単票を GET して正本 parser で検証する。自動 POST 再試行は行わない。
 
-## 7. セキュリティと運用境界
+## 8. セキュリティと運用境界
 
-### 7.1 人と機械の書込分離
+### 8.1 人と機械の書込分離
 
 - 実行管理アプリと監査履歴アプリは機械専用である。人は状態、revision、ロック、監査を編集しない。
 - 通常の運用担当者には実行管理、監査履歴、JOBログの閲覧だけを許可する。
@@ -638,7 +690,7 @@ POST は正確に1回だけ行い、作成後に単票を GET して正本 parse
 - 操作要求の `request_state`、claim3フィールド、result2フィールドは機械所有であり、人に編集させない。
 - テスト清掃用の削除権限は本番 runtime token と分離する。
 
-### 7.2 API token 権限
+### 8.2 API token 権限
 
 | token | 必要権限 | 不要な権限 |
 | --- | --- | --- |
@@ -650,19 +702,19 @@ POST は正確に1回だけ行い、作成後に単票を GET して正本 parse
 プラグインはログインユーザーの kintone 権限で動作し、API token を保存しない。
 token 値、password、cookie、Authorization header、秘密鍵は Run snapshot、文書、Console 出力、リポジトリへ書かない。
 
-### 7.3 要求者相関
+### 8.3 要求者相関
 
 要求者の真正性は自己申告欄ではなく kintone システムフィールド `作成者.code` を使用する。
 ポーラーは子プロセスの `KSQL_FLOWNET_REQUESTED_BY` を `app-request:<request_id>:<percent-encoded creatorCode>` に上書きする。
 この値が Invocation、停止要求、監査の `requested_by` を要求レコードへ相関させる。
 
-### 7.4 手動フィールド編集
+### 8.4 手動フィールド編集
 
 機械所有フィールドを人が編集した要求は、状態との整合を検証し、`REQUEST_INVALID` として拒否するか識別不能としてスキップする。
 Run や監査レコードの直接修正は通常運用では行わない。
 復旧が必要な場合は証跡必須の CLI コマンドと revision fencing を使用する。
 
-## 8. 制限事項と既知の制約
+## 9. 制限事項と既知の制約
 
 | 制約 | 影響・扱い |
 | --- | --- |
@@ -685,7 +737,7 @@ Run や監査レコードの直接修正は通常運用では行わない。
 | 候補一覧は許可表ではない | プラグインの START CSV と過去候補は入力支援。最終許可はサーバー側 allowlist |
 | claim 後の不明結果は自動再実行しない | `STALE` を記録し、Run と監査を照合してから次の操作を判断 |
 
-## 9. 運用文書への参照
+## 10. 運用文書への参照
 
 | 文書 | 用途 |
 | --- | --- |
