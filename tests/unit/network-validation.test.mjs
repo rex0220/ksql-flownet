@@ -287,7 +287,7 @@ test("stable topological order uses definition order for serial, branch/join, an
 
 test("every YAML definition in job-network-examples.md passes pure validation", () => {
   const markdown = readFileSync(
-    new URL("../../docs/job-network-examples.md", import.meta.url),
+    new URL("../../docs/internal/job-network-examples.md", import.meta.url),
     "utf8",
   );
   const yamlBlocks = [...markdown.matchAll(/```yaml\r?\n([\s\S]*?)```/g)].map(
