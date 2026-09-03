@@ -45,7 +45,7 @@ Phase 1のJOBログ相関(`attempt_id`等)はkSQL-Flow M1で追加済み。旧sc
 FlowNet運用を停止して旧運用へ戻す場合:
 
 1. 外部スケジューラのエントリを旧`run-all`へ戻す。
-2. 実行中のNetwork Runがあれば完走を待つか、`status --json`で状態確認→必要なら復旧runbook(`docs/runbook-phase1-recovery.md`)の手順でUNKNOWN解決まで終わらせる。未完了Runを放置したまま旧運用を再開しない(Job lockはkSQL-Flow所有のため旧運用と競合しないが、業務の二重実行判断が壊れる)。
+2. 実行中のNetwork Runがあれば完走を待つか、`status --json`で状態確認→必要なら復旧runbook(`docs/runbook-recovery.md`)の手順でUNKNOWN解決まで終わらせる。未完了Runを放置したまま旧運用を再開しない(Job lockはkSQL-Flow所有のため旧運用と競合しないが、業務の二重実行判断が壊れる)。
 3. FlowNetのstate/auditアプリは削除せず監査として保持する(resume_allowedをfalse化する運用は任意)。
 4. 再切替時は手順1(未完了0件確認)からやり直す。
 

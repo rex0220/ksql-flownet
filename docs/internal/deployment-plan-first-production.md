@@ -3,7 +3,7 @@
 - 文書状態: **PLAN**(Dq-4決定の記録と切替手順)
 - 決定日: 2026-08-31(ユーザー承認)
 - 対象業務: **月次案件集計バッチ**(my-ksql-jobs `jobs/` 3ジョブ) — PRE-05棚卸し([pre-05-inventory.md](./pre-05-inventory.md))で全ノード冪等を確認済み
-- 手順の正本: [移行runbook](./runbook-phase1-migration.md)(切替・切戻し)、[復旧runbook](../runbook-phase1-recovery.md)(障害時)、[一次対応1ページ](../ops-first-response.md)
+- 手順の正本: [移行runbook](./runbook-phase1-migration.md)(切替・切戻し)、[復旧runbook](../runbook-recovery.md)(障害時)、[一次対応1ページ](../ops-first-response.md)
 
 ## 1. Dq-4の最終決定(記録)
 

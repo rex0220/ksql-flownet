@@ -236,7 +236,7 @@ M3は単体試験で代用しない。全fixtureと要求recordをcleanupし、c
 | `docs/p2-01-app-rerun-spec.md` | START分岐、非resume、allowlist direct解決、結果境界が実装・試験と一致することを最終確認し、必要な補足だけ反映する。 |
 | `docs/p2-09-board-request-spec.md` | D-3のheader button、START guard、pending表示、API境界、受入結果を反映する。 |
 | `docs/ops-first-response.md` | 直接起票とdialogの入力例、correctionは2欄必須、最大5分、DONEの意味、NOOP/同一キー/MAX/LOCK案内、START STALE時の確認手順を追記する。 |
-| `docs/runbook-phase1-recovery.md` | START拒否・STALE・blocker・定義deploy中のポーラー停止と二次対応手順を追記する。 |
+| `docs/runbook-recovery.md` | START拒否・STALE・blocker・定義deploy中のポーラー停止と二次対応手順を追記する。 |
 | `templates/README.md` | 本番schema、権限、allowlist反映順、check手順を確定する。 |
 | `plugin/README.md` | 新規実行button、要求app設定依存、install/rollback/smokeを追記する。 |
 | `docs/README.md` | P2-11仕様・計画・受入証跡への索引を追加する。 |

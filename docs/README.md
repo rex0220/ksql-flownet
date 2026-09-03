@@ -6,7 +6,7 @@
 | --- | --- |
 | [統合仕様書](./specification.md) | 現在の実装の仕様。アーキテクチャ、kintoneアプリ構成、network定義、CLI、操作要求とポーラー(RERUN/STOP/RELEASE/START)、ボードプラグイン、セキュリティ境界、既知の制約 |
 | [一次対応1ページ](./ops-first-response.md) | ボードの見方と操作要求の起票手順。状態別の一次対応 |
-| [復旧runbook](./runbook-phase1-recovery.md) | 障害時の復旧手順。STALE・ロック・UNKNOWNの決着、定義デプロイ時の手順 |
+| [復旧runbook](./runbook-recovery.md) | 障害時の復旧手順。STALE・ロック・UNKNOWNの決着、定義デプロイ時の手順 |
 | [Execution Contract v1](./execution-contract-v1.md) | kSQL-Flow(実行プレーン)とのCLI境界契約 |
 
 セットアップ・配布物:

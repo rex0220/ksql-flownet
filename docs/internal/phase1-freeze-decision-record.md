@@ -6,7 +6,7 @@
 - Accepted への昇格条件: 本書「12. 凍結ゲート」をすべて満たすこと(2026-08-31全項目充足)
 - version記録: 実装 `@rex0220/ksql-flownet` 0.1.0 / レコード構成 schema_version 1 / JOBログ相関 kSQL-Flow M1(対応表: `templates/README.md`)
 - 受入試験結果: `docs/acceptance-phase1.md`(28/28)、証跡 `docs/test-results/`(m3〜m7ゲート)
-- 復旧訓練記録: m6-04実機ドリル(`docs/test-results/m6-gate-20260830/`)、手順正本 `docs/runbook-phase1-recovery.md`・`docs/runbook-phase1-migration.md`
+- 復旧訓練記録: m6-04実機ドリル(`docs/test-results/m6-gate-20260830/`)、手順正本 `docs/runbook-recovery.md`・`docs/runbook-phase1-migration.md`
 - 凍結後の変更: 実装都合で本書・仕様を黙って変更せず、FDR再審議手続きによる(記録: 「13. 凍結後の再審議記録」)
 - 読み方の注意: 本文中の日付付き追記にある「`PROPOSED`を維持する」等の文言は**追記時点の履歴**であり、各判断の現在状態は「2. 判断の一覧」表と本ヘッダが正である
 - 関連仕様: [ジョブネット管理仕様書](./job-network-phase1-spec.md)
@@ -242,7 +242,7 @@ force-unlockの初回実行は`--stop-evidence-ref`欠落により「停止証�
 
 「正常な長時間Run」は、lease 6秒 / heartbeat 2秒の縮小値と5.2768794秒の疑似subprocessによる実測で代替した。この限定を受容し、実運用値の決定、実Cloud Run照会、複数ホスト、実運用スケールの長時間Run、実subprocess drain、schema v2専用フィールド、回収後Attempt照合を後続管理する条件で、プロトコル全測定分岐の成立をもってD-29を`DECIDED`とする。D-14は未実施のままであり、本判断では変更しない。Supersededはない。
 
-2026-08-30の追記(M6ゲート実機判定)。参照: `docs/test-results/m6-gate-20260830/`(公式実行6/6合格)、`docs/runbook-phase1-recovery.md`。
+2026-08-30の追記(M6ゲート実機判定)。参照: `docs/test-results/m6-gate-20260830/`(公式実行6/6合格)、`docs/runbook-recovery.md`。
 
 M6ゲートE2E(devenxyfi実機、実kSQL-Flow subprocess、実process tree kill)で次を確定した。
 
@@ -252,7 +252,7 @@ M6ゲートE2E(devenxyfi実機、実kSQL-Flow subprocess、実process tree kill)
 4. **回収後Attempt照合とUNKNOWN化(残余リスク8)を実装・実測した。** resume時、旧invocationの孤児RUNNING Attemptをジョブログ(attempt_id相関、時刻順序比較なし)で突合し、終端ログはその結果を適用、照合不能は`UNKNOWN`(`NO_EXECUTION_RESULT`)、ログ読取失敗は裁定せず停止する。kill→lease生存中拒否→失効→owner不一致拒否→`local_pid`停止確認(ESRCH)→tombstone回収→`NETWORK_LOCK_FORCE_RELEASED`監査→孤児UNKNOWN化→resolve-node→resume完走、をstatusの復旧識別子のみで通した(復旧runbook経路の成立)。
 5. 実測環境値: API呼出~35ms/call(devenxyfi)、kSQLバッチ上限は20文・temp table 16個(長時間ジョブの構成制約)。
 
-残余リスク1(実運用値)・2(実Cloud Run照会)・3(複数ホスト)・6(schema v2)は変更なし。4・5は「実process kill・実subprocess・実kintone」で上書きされた(実運用スケールの長時間Runのみ未実施)。8は解消。復旧手順の正本は`docs/runbook-phase1-recovery.md`とする。
+残余リスク1(実運用値)・2(実Cloud Run照会)・3(複数ホスト)・6(schema v2)は変更なし。4・5は「実process kill・実subprocess・実kintone」で上書きされた(実運用スケールの長時間Runのみ未実施)。8は解消。復旧手順の正本は`docs/runbook-recovery.md`とする。
 
 2026-08-31の追記(QA-01実機判定)。参照: `docs/acceptance-phase1.md`(受入28/28済)、`docs/test-results/m7-qa01-20260831/`。
 
@@ -1114,7 +1114,7 @@ D-11のcontract testを実施し、旧・新キー移行方式を検証する。
 - [x] 現行status移行fixtureの全ケースに合格 (本実装unitで全14ケース+fail-closed 5ケースを毎PR実行: tests/unit/status-migration.test.mjs)
 - [x] ensure-runの0件／未完了1件／完了1件／複数件試験に合格 (unit+M3/M4ゲート+m6-01実機)
 - [x] snapshot破損・取得不能時のfail-closed試験に合格 (bundle tamper unit+m7-01b実機、受入5/6)
-- [x] stale検知から旧保持者停止確認、突合、解決、resumeまでの復旧訓練に合格 (2026-08-30 M6ゲートm6-04実機ドリル。`docs/test-results/m6-gate-20260830/`、手順正本は`docs/runbook-phase1-recovery.md`)
+- [x] stale検知から旧保持者停止確認、突合、解決、resumeまでの復旧訓練に合格 (2026-08-30 M6ゲートm6-04実機ドリル。`docs/test-results/m6-gate-20260830/`、手順正本は`docs/runbook-recovery.md`)
 - [x] ジョブネット経由と単体実行経由のNodeロック競合試験に合格 (m5-lock-conflict、受入10/24)
 - [x] 未保証事項と残余リスクを仕様・runbookへ反映 (`docs/acceptance-phase1.md`残余リスク節+runbook 2冊+本書各節の限定事項)
 

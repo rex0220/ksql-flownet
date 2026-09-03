@@ -1,8 +1,8 @@
-# Phase 1 復旧runbook: stale検知から解決・resumeまで
+# 復旧runbook: stale検知から解決・resumeまで
 
-対象: kSQL-FlowNet Phase 1。FlowNetプロセスの異常停止(kill、ホスト障害、電源断)後に、Network lockの回収、実行中Nodeの突合、UNKNOWN解決、Runのresumeを安全に行う手順。
+対象: kSQL-FlowNet。FlowNetプロセスの異常停止(kill、ホスト障害、電源断)後に、Network lockの回収、実行中Nodeの突合、UNKNOWN解決、Runのresumeを安全に行う手順。
 
-正本: `docs/internal/phase1-freeze-decision-record.md` D-26/D-29、`docs/internal/job-network-phase1-spec.md` §7・受入25。本runbookは手順書であり、契約の定義はFDRが優先する。
+現在の動作仕様は[統合仕様書](./specification.md)を参照。設計判断の経緯は `docs/internal/phase1-freeze-decision-record.md` D-26/D-29、`docs/internal/job-network-phase1-spec.md` §7・受入25 に記録がある。
 
 ## 前提
 
@@ -158,12 +158,12 @@ allowlistからnetworkを除去、または`app_start`を無効化した後に�
 
 ## 運用上の注意(2026-08-31追記)
 
-- **ノード実行時間の上限**は現状kSQL-Flow側の`batch_timeout_sec`と、FlowNetのrun-subprocessのgraceful→forced kill経路に依存する。FlowNet側のノード単位上限時間はPhase 2(P2-04)。ハング疑い時は`status --json`のlock heartbeatとジョブログで生存を判別する。
-- **決定的に失敗するノードの定期resume**はattemptを蓄積し続ける(連続失敗ブレーキはPhase 2=P2-03)。cron等で`--resume`を定期実行する構成では、失敗が継続するRunを検知したらcron側で一時停止するか、当該Runの`resume_allowed`をfalse化して蓄積を止める。
+- **ノード実行時間の上限**は現状kSQL-Flow側の`batch_timeout_sec`と、FlowNetのrun-subprocessのgraceful→forced kill経路に依存する。FlowNet側のノード単位上限時間は未実装(backlog: docs/internal/implementation-plan.md P2-04)。ハング疑い時は`status --json`のlock heartbeatとジョブログで生存を判別する。
+- **決定的に失敗するノードの定期resume**はattemptを蓄積し続ける(連続失敗ブレーキは未実装 — backlog: P2-03)。cron等で`--resume`を定期実行する構成では、失敗が継続するRunを検知したらcron側で一時停止するか、当該Runの`resume_allowed`をfalse化して蓄積を止める。
 
 ## 残余リスク(FDR記載の再掲)
 
 - lock照合から状態更新までのTOCTOU窓(D-29)。Job lockが最終防波堤だが、Network集約の整合はfencing頼み。
 - local_pidのPID再利用窓。確認時刻を監査detailに記録して緩和。
 - 解放成功直後の監査追記失敗窓(上記手順3の補完手順で回復)。
-- 実Cloud Run Executionの照会はPhase 1では判定表のmock検証のみ(FDR D-29限定事項)。
+- 実Cloud Run Executionの照会は現状mock検証のみで実機照会は未実装(経緯: docs/internal/phase1-freeze-decision-record.md D-29)。

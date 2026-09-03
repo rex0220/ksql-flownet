@@ -243,7 +243,7 @@ FDRで決定したkintone構成をrepository interfaceの背後へ実装する�
 - `status`がロックや実行状態を変更せず、force-unlock／resolve-nodeに必要な識別子を返す。
 - Cloud Run Execution照会の権限不足、通信失敗、RUNNING／PENDING／未知状態でfail-closedになる。
 
-判定(2026-08-30): 実機E2E 6/6合格でM6完了。証跡は`docs/test-results/m6-gate-20260830/`、復旧runbookは`docs/runbook-phase1-recovery.md`。Cloud Run照会ゲートはunit判定表+CLI fail-closed実機で判定(実GCP照会はD-29限定事項のままM7以降)。実機判定が製品バグ4件(DATETIME分精度round-trip×3、release×heartbeat競走)と機能ギャップ1件(受入25の孤児RUNNING裁定)を捕捉し、修正・回帰固定済み(FDR D-29の2026-08-30追記参照)。
+判定(2026-08-30): 実機E2E 6/6合格でM6完了。証跡は`docs/test-results/m6-gate-20260830/`、復旧runbookは`docs/runbook-recovery.md`。Cloud Run照会ゲートはunit判定表+CLI fail-closed実機で判定(実GCP照会はD-29限定事項のままM7以降)。実機判定が製品バグ4件(DATETIME分精度round-trip×3、release×heartbeat競走)と機能ギャップ1件(受入25の孤児RUNNING裁定)を捕捉し、修正・回帰固定済み(FDR D-29の2026-08-30追記参照)。
 
 ### M7: 受入、移行、凍結
 

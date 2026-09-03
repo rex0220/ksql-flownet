@@ -295,7 +295,7 @@ P2-01は、次の3点をDRAFT仕様へ反映してから実装に進めば、Flo
 
 - `README.md`: command概要と設定入口
 - `docs/README.md`: P2-01仕様・計画・E2E証跡への索引
-- `docs/runbook-phase1-recovery.md`: アプリRERUN、RETRY_BRAKE、STALE照合、SSHへ上げる条件
+- `docs/runbook-recovery.md`: アプリRERUN、RETRY_BRAKE、STALE照合、SSHへ上げる条件
 - `docs/ops-first-response.md`: RERUN/STOP/RELEASE、次ノード境界、再要求禁止条件
 - `templates/README.md`: 本番作成・ACL・token権限・一覧/リマインダー
 - `.env.example`: request appとpoller設定の変数名

@@ -742,7 +742,7 @@ Run や監査レコードの直接修正は通常運用では行わない。
 | 文書 | 用途 |
 | --- | --- |
 | [一次対応手順](./ops-first-response.md) | ボード確認、START、RERUN、STOP、RELEASE、結果コードの一次判断 |
-| [復旧 runbook](./runbook-phase1-recovery.md) | UNKNOWN、stale lock、手動解決、強制解放、復旧判断 |
+| [復旧 runbook](./runbook-recovery.md) | UNKNOWN、stale lock、手動解決、強制解放、復旧判断 |
 | [kSQL-Flow Execution Contract v1](./execution-contract-v1.md) | subprocess、Execution Result、exit code、耐久開始証跡の境界 |
 | [アプリテンプレート手順](../templates/README.md) | アプリ作成、関連レコード、ACL、token、配布・反映 |
 | [Run状況プラグイン手順](../plugin/README.md) | build、pack、インストール、設定、更新、切戻し |

@@ -103,4 +103,4 @@ RERUN/STOP/RELEASE要求が`REJECTED / STALE`なら、実行済みか未実行�
 
 ---
 
-(二次対応者向けメモ: 復旧手順の正本は `runbook-phase1-recovery.md`、切替・切戻しは `runbook-phase1-migration.md`。CLI: `status --json`のactivityでLIVE/INTERRUPTED/STOPPEDを判別。本ページはPRE-04成果物であり、01/02/03一覧は`templates/add-triage-views.console.js`で追加する)
+(二次対応者向けメモ: 復旧手順の正本は `runbook-recovery.md`、切替・切戻しは `runbook-phase1-migration.md`。CLI: `status --json`のactivityでLIVE/INTERRUPTED/STOPPEDを判別。本ページはPRE-04成果物であり、01/02/03一覧は`templates/add-triage-views.console.js`で追加する)
