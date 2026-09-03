@@ -324,7 +324,7 @@ FlowNetは `<KSQL_FLOWNET_IO_DIR>/out`配下へ同じallowlist規則で解決し
 | --- | --- | ---: |
 | M0 | C-1/C-2/C-3証跡固定、Contract/API設計、X-1〜X-6確定 | 1〜2人日 |
 | engine前提 | `/flow` named import source公開API、型、test、publish | 2〜4人日 — ****公開済み(v3.75.0、2026-09-03 npm registry確認)**。ただしkSQL-Flow側計画が`input_files[].rows`用のreceipt公開APIの不足を検出 — **B178(additive callback)をengineへ追加依頼**(これが揃うまでkSQL-Flowはfeatures.importCsvを出さない)** |
-| 段階1 kSQL-Flow | CLI/flow配線、capability、Execution Result、contract test、IMPORT文書 | 4〜7人日 |
+| 段階1 kSQL-Flow | CLI/flow配線、capability、Execution Result、contract test、IMPORT文書 | 4〜7人日 — **実装完了(2026-09-04、v0.8.0準備・fc74844・全312テスト。B178 receipt配線+importCsv公開+仕様§3.9)。npm publishのみ残** |
 | 段階1 FlowNet schema/security | inputs schema、placeholder、IO env、allowlist、symlink/traversal | 3〜5人日 |
 | 段階1 FlowNet監査/X-4 | Node Attempt baseline要約、revision競合・応答消失対応、result JSON索引、hash照合、resume/rerun | **4〜7人日** |
 | 段階1回復・結合 | MISSING/MUTATED/期限、RETRY_BRAKE、途中クラッシュE2E | 3〜5人日 |
