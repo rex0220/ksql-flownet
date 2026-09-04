@@ -162,7 +162,7 @@ CLI・cron・ポーラーを動かすサーバーを 1 台用意する。kintone
 | `KSQL_FLOWNET_REQUEST_APP_ID` / `KSQL_FLOWNET_REQUEST_API_TOKEN` / `KSQL_FLOWNET_REQUEST_ALLOWLIST_PATH` | ポーラー(操作要求アプリと allowlist) |
 | `KSQL_FLOW_BIN` / `KSQL_FLOW_BIN_ARGS` / `KSQL_FLOW_CONFIG` / `KSQL_FLOW_WORKDIR` | kSQL-Flow CLI の起動方法・設定・作業ディレクトリ |
 | `KSQL_FLOW_LOG_APP_ID` / `KSQL_FLOW_LOG_API_TOKEN` | JOBログアプリ(閲覧) |
-| `KSQL_FLOWNET_IO_DIR` / `KSQL_FLOWNET_IO_RETENTION_DAYS` | CSV 入出力の IO ルート(絶対パス。`inputs` / `outputs` を持つ network で必須)と入力ファイルの保持日数(既定 90)。§4.5、[CSV入出力の運用](./csv-io-operations.md) |
+| `KSQL_FLOWNET_IO_DIR` / `KSQL_FLOWNET_IO_RETENTION_DAYS` | CSV 入出力の IO ルート(絶対パス。YAML の `nodes[].inputs` または `nodes[].outputs` を持つ network で必須。入力ファイルは `<IO_DIR>/in`、出力ファイルは `<IO_DIR>/out` 配下)と、入力ファイルの保持日数(既定 90)。§4.5、[CSV入出力の運用](./csv-io-operations.md) |
 | 任意: `KSQL_FLOWNET_REQUESTED_BY` / `KSQL_FLOWNET_HOST` / `KSQL_FLOWNET_OWNER_INSTANCE_ID` / `KSQL_FLOW_GRACE_PERIOD_MS` / `KSQL_FLOWNET_REQUEST_HEARTBEAT_INTERVAL_MS` / `KSQL_FLOWNET_REQUEST_STALE_AFTER_MS` | 相関表示・ロック所有者識別・停止猶予・ポーラー間隔の上書き |
 
 運用上の注意:
@@ -228,7 +228,16 @@ stateDiagram-v2
   SUCCESS --> [*]
 ```
 
-Run の状態はノード状態の集約で決まり、優先順は `UNKNOWN` > `RUNNING` > `FAILED` / `BLOCKED` > `CANCELLED` > 全件 `SUCCESS` である(いずれにも当てはまらなければ未開始は `CREATED`、開始済みは `RUNNING`)。resume 後の状態もこの集約で再計算される。
+Run の状態はノード状態の集約で決まる(上の行ほど優先)。resume 後の状態もこの集約で再計算される。
+
+| Node State の条件 | Run の状態 |
+| --- | --- |
+| `UNKNOWN` のノードがある | `UNKNOWN` |
+| `RUNNING` のノードがある | `RUNNING` |
+| `FAILED` または `BLOCKED` のノードがある | `FAILED` |
+| `CANCELLED` のノードがある | `CANCELLED` |
+| 全ノードが `SUCCESS` | `SUCCESS` |
+| いずれでもない(`WAITING` / `SKIPPED` のみ) | 未開始なら `CREATED`、開始済みなら `RUNNING` |
 
 STOP(停止 hold)は Run の状態を変えない。次ノード境界で Invocation が `CANCELLED / STOP_REQUESTED` として閉じ、Run は `RUNNING` のまま activity が `STOPPED` になる(§5.5)。`SUCCESS` は終端であり、同じ Run を再実行できない(§9)。
 
@@ -275,6 +284,8 @@ kintone の `$id`、`$revision`、`作成者`、`作成日時` もポーラー�
 
 本番配布は、実行管理、監査履歴、操作要求、JOBログの4アプリをまとめた kintone アプリテンプレートを使用する。
 アプリテンプレートのインポート時にはアプリ間参照が移行先のアプリへ張り替わる。
+
+**所有と配布は別である。** JOBログアプリの所有者(スキーマの正・書込主体)は kSQL-Flow であり、本製品の Console スクリプトは JOBログを作成しない(§2.1・§3.1)。それでも配布テンプレートに JOBログを含めるのは、実行管理アプリの関連レコード `related_job_logs` が JOBログを参照しており、4アプリを1テンプレートでインポートすることで参照が自動で張り替わるためである。既存の JOBログアプリを使う場合は、インポート後に関連レコードの参照先をそのアプリへ付け替える。
 
 実行管理アプリの `NETWORK_RUN` 詳細には次の関連レコード一覧を配置する。
 
@@ -324,7 +335,7 @@ nodes:
 | `network_id` | 必須 | 識別子 | network の論理 ID |
 | `description` | 任意 | 文字列 | 説明 |
 | `business_key_policy` | 必須 | object | 業務キー規則 |
-| `max_active_runs` | 任意 | 1以上の整数、既定 `1` | 異なる業務キーの未完了 Run を許す数 |
+| `max_active_runs` | 任意 | 1以上の整数、既定 `1` | 異なる業務キーの未完了 Run を保持できる数。**同時実行の並列度ではない** — Network ロックは profile・network 単位なので、複数 Run が存在しても Invocation は常に直列実行される |
 | `network_lock` | 必須 | object | Network lease の時間設定 |
 | `nodes` | 必須 | 1件以上の配列 | DAG ノード |
 
@@ -395,6 +406,8 @@ nodes:
 | `scheduled_period` | business key のみ | 指定値をそのまま採用 |
 | `scheduled_period` | 両方 | **指定 business key を採用**。scheduled-for は Run の `as_of` に保持 |
 | `scheduled_period` | 両方なし | 拒否 |
+
+この表は CLI 共通のキー導出規則である。操作要求アプリからの START には、対象期間を監査可能にするため §6.5 の追加制約を適用し、`scheduled_period` で business key を明示する場合(補正キー)は `scheduled_for` も必須とする(欠けると `AS_OF_UNDEFINED`)。CLI ではこの組合せを許可する。
 
 `--scheduled-for` は実在する ISO 8601 日時で、`Z` または明示 offset が必要である。
 秒は省略でき、秒を指定する場合は0〜59、offset は最大 `+14:00` / `-14:00` である。
@@ -553,6 +566,17 @@ networks:
 | `RUN_ON_HOLD` | `CANCEL_REQUEST` が `REQUESTED` または `ACCEPTED` | resume を拒否 |
 
 同一 Run の最終一意性は `profile + network_id + business_key` から作る正準 `record_key` の重複禁止 INSERT で裁定する。
+
+NEW の作成は kintone にトランザクションがないため、次の順序と自己修復で原子性を補う:
+
+| 順序 | 処理 | 途中失敗時 |
+| --- | --- | --- |
+| 1 | bundle(network.yaml・SQL)を添付ファイルとしてアップロード | Run 未作成。一時添付は kintone 側で破棄される |
+| 2 | **Run レコードを重複禁止 INSERT(コミットポイント)** | ここで初めて Run が存在する。以後は「既存 Run」として扱われる |
+| 3 | 添付を読み戻して sha256 を検証し、各ノードの Node State(`WAITING`)を作成 | 不足分は次回起動(NEW 拒否後の `--resume`)時に同じ関数が補完する。既存 Node State が bundle と食い違う場合は `RUN_SNAPSHOT_MISMATCH` で拒否 |
+| 4 | Invocation を作成して実行開始 | Invocation 未作成なら監査に起動記録が残らないが、Run は `CREATED` のまま残る。次回 `--resume` で通常どおり Invocation が作られる |
+
+手順 2 以降で失敗した Run は `status --json` の `reconciliation.inconsistencies[]` で検出でき、`--resume` で続行するか、続行しないなら `resolve-node` / 打ち切り裁定で終端させる。
 
 ### 5.4 run-network の JSON 出力
 
@@ -867,7 +891,7 @@ flowchart LR
 | business_key `sales_import_20260904` | 利用者の入力(CSV 4列目テンプレートで初期値を補助できるが、`{年}{月}{日}` を含むテンプレートが展開されるのは対象期間を持つ補正モードだけ。定期はテンプレート指定不可、任意キーは `{ネットワークID}` だけのテンプレートなら展開) | Run の業務キー(Run 一意性・IO パス `{business_key}` の展開に使用) |
 | 実行される SQL | 画面では選べない | `flownet/sales-import/network.yaml` の `nodes[].sql` 3本を DAG 順に実行 |
 
-実行開始後の進捗はボードの `進行中のRun` に `sales_import_20260904` の Run として現れ、各ノードの結果は Node Attempt と JOBログに記録される。同じ business_key での再起票は重複ガードと ensure-run 裁定により新規 Run にならない(§6.5)。
+実行開始後の進捗はボードの `進行中のRun` に `sales_import_20260904` の Run として現れ、各ノードの結果は Node Attempt と JOBログに記録される。同じ business_key で再起票されても新しい Run は作成されない。処理中(`REQUESTED` / `ACCEPTED`)の要求との重複は起票前ガードが防ぎ、終端後の再起票は ensure-run が既存 Run に基づいて裁定する(成功済みなら `NOOP_ALREADY_SUCCESS`、未完了なら `RUN_ALREADY_EXISTS` — §5.3・§6.7)。
 
 #### 具体例: 月次集計(スケジュールジョブ) — スケジュールとジョブファイルの関係
 
