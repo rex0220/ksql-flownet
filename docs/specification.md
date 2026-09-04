@@ -63,6 +63,8 @@ flowchart LR
     DAG --> Audit
 ```
 
+図は全体像を示す。矢印は主な呼出しと書込の向きであり、各要素の詳細は §3(アプリ)、§5(CLI)、§6(ポーラー)、§7(プラグイン)で説明する。用語は §1.4 を参照。
+
 月次 cron と5分ポーラーの cron は kSQL-FlowNet の外部にある。
 kSQL-FlowNet 自体はカレンダースケジュール、cron 式、常駐ポーリング、未実行期間の自動補完を持たない。
 
@@ -80,6 +82,41 @@ kSQL-FlowNet 自体はカレンダースケジュール、cron 式、常駐ポ�
 | 永続化 | 実行管理、監査履歴、操作要求 | JOBログ、業務データ |
 
 Control Plane と Execution Plane の CLI 境界は [kSQL-Flow Execution Contract v1](./execution-contract-v1.md) に従う。
+
+### 1.4 用語と実行単位の階層
+
+本書で使う主な用語。英字表記(Run、network、Node、Attempt 等)は kintone のレコード種別や CLI 出力と一致させるため、カタカナに置き換えない。
+
+| 用語 | 意味 |
+| --- | --- |
+| profile | kSQL-Flow の接続先環境の名前(例: `prod`)。kSQL-Flow 設定ファイルで定義され、Run の一意性・ジョブロック・Network ロックの各キーの先頭要素になる |
+| network | 複数の kSQL-Flow ジョブを DAG として束ねた定義(1 YAML)。§4 |
+| Node(ノード) | network の 1 ステップ。1 つの SQL ファイルを 1 回の kSQL-Flow ジョブとして実行する単位。§4.5 |
+| 業務キー(business key) | 「どの処理単位の実行か」を表す文字列(例: `monthly_summary@2026-09`)。同じ profile・network・業務キーの Run は 1 つしか存在できず、これが重複実行防止の基礎になる。§4.3 |
+| Run | profile・network・業務キーで一意な実行単位。状態を持ち、失敗しても同じ Run を再開(resume)できる |
+| Invocation | Run に対する CLI の 1 回の起動(cron・ポーラー・手動)。1 つの Run は新規起動と再開で複数の Invocation を持つ |
+| Node State | Run 内の各ノードの最新状態(1 ノードにつき 1 件) |
+| Attempt | ノードの 1 回の実行試行。再試行・再開のたびに増える(1 ノードに複数件) |
+| activity | 未終端 Run が「いま動いているか」の判定: `LIVE`(実行中)/`STOPPED`(停止 hold 中)/`IDLE`(未開始)/`INTERRUPTED`(実行主体が失われた)。§5.5 |
+| Network ロック | profile・network 単位の実行排他。期限付き lease を heartbeat で更新する。§4.4 |
+| ジョブロック | kSQL-Flow 側の profile・job 単位の排他。§1.3 |
+| 操作要求 | 人がアプリのレコードとして出す指示(START / RERUN / STOP / RELEASE)。ポーラーが claim して処理する。§6 |
+| fail-closed | 判定不能・条件未確認のときは実行も更新もしない方針。本製品全体の基本姿勢 |
+
+実行単位の階層:
+
+```mermaid
+flowchart TB
+  NET["network(定義)"] -->|"業務キーごとに"| RUN["Run<br>profile × network × 業務キー"]
+  RUN -->|"起動のたびに"| INV["Invocation<br>NEW / RESUME / RERUN_FROM"]
+  RUN -->|"ノードごとに1件"| NS["Node State<br>最新状態"]
+  NS -->|"実行のたびに"| ATT["Attempt<br>1回の実行試行"]
+  ATT -->|"kSQL-Flow で実行"| JOB["JOBログ<br>1回のジョブ実行"]
+```
+
+Run と Node State は実行管理アプリ、Invocation と Attempt は監査履歴アプリ、JOBログは kSQL-Flow のアプリに保存される(§3)。
+
+読み方の目安: 導入・環境構築は §2・§3、network 定義を書くときは §4、運用と障害対応は §5〜§6 と §10 の運用文書、画面の使い方は §7 を読む。
 
 ## 2. 動作環境
 
@@ -125,6 +162,7 @@ CLI・cron・ポーラーを動かすサーバーを 1 台用意する。kintone
 | `KSQL_FLOWNET_REQUEST_APP_ID` / `KSQL_FLOWNET_REQUEST_API_TOKEN` / `KSQL_FLOWNET_REQUEST_ALLOWLIST_PATH` | ポーラー(操作要求アプリと allowlist) |
 | `KSQL_FLOW_BIN` / `KSQL_FLOW_BIN_ARGS` / `KSQL_FLOW_CONFIG` / `KSQL_FLOW_WORKDIR` | kSQL-Flow CLI の起動方法・設定・作業ディレクトリ |
 | `KSQL_FLOW_LOG_APP_ID` / `KSQL_FLOW_LOG_API_TOKEN` | JOBログアプリ(閲覧) |
+| `KSQL_FLOWNET_IO_DIR` / `KSQL_FLOWNET_IO_RETENTION_DAYS` | CSV 入出力の IO ルート(絶対パス。`inputs` / `outputs` を持つ network で必須)と入力ファイルの保持日数(既定 90)。§4.5、[CSV入出力の運用](./csv-io-operations.md) |
 | 任意: `KSQL_FLOWNET_REQUESTED_BY` / `KSQL_FLOWNET_HOST` / `KSQL_FLOWNET_OWNER_INSTANCE_ID` / `KSQL_FLOW_GRACE_PERIOD_MS` / `KSQL_FLOWNET_REQUEST_HEARTBEAT_INTERVAL_MS` / `KSQL_FLOWNET_REQUEST_STALE_AFTER_MS` | 相関表示・ロック所有者識別・停止猶予・ポーラー間隔の上書き |
 
 運用上の注意:
@@ -173,6 +211,24 @@ JOBログアプリは kSQL-FlowNet から参照するだけであり、kSQL-Flow
 
 Run の状態は `CREATED` / `RUNNING` / `SUCCESS` / `FAILED` / `CANCELLED` / `UNKNOWN` である。
 Node State はこれに `WAITING` / `BLOCKED` / `SKIPPED` を加えた集合を使用する。
+
+Run の状態遷移:
+
+```mermaid
+stateDiagram-v2
+  [*] --> CREATED: ensure-run NEW
+  CREATED --> RUNNING: 最初のノードを開始
+  RUNNING --> SUCCESS: 全ノード SUCCESS
+  RUNNING --> FAILED: ノードが FAILED / BLOCKED
+  RUNNING --> CANCELLED: STOP hold を境界で受理
+  RUNNING --> UNKNOWN: ノード結果が不明(Attempt UNKNOWN)
+  FAILED --> RUNNING: resume / RERUN(冪等ノードを再評価)
+  CANCELLED --> RUNNING: RELEASE 後の resume / RERUN
+  UNKNOWN --> RUNNING: resolve-node で Attempt を解決してから resume
+  SUCCESS --> [*]
+```
+
+Run の状態はノード状態の集約で決まる(`UNKNOWN` のノードがあれば `UNKNOWN`、`FAILED` / `BLOCKED` があれば `FAILED`)。`SUCCESS` は終端であり、同じ Run を再実行できない(§9)。
 
 ### 3.3 監査履歴アプリ
 
@@ -325,6 +381,8 @@ nodes:
 
 出力先の未存在directoryはFlowNetがIO rootから1段ずつ作成し、各段のsymlink/junctionを拒否する。既存の出力fileは正常であり、同一Runの`--rerun-from`でも同一pathをkSQL-Flowへ渡して全量置換する。出力path違反はsubprocessを起動せず、Node Attemptを`FAILED / OUTPUT_PATH_REJECTED`で確定する。
 
+入力fileは最初の読取時にsha256をNode Attemptのbaselineとして記録し、resume時に同一バイトであることを要求する。不一致は`INPUT_FILE_MUTATED`、不在は`INPUT_FILE_MISSING`、保持期限(既定90日)超過は`INPUT_RETENTION_EXPIRED`で拒否する。fileの配置・取り出し手順は[CSV入出力の運用](./csv-io-operations.md)を参照。
+
 ### 4.6 業務キー導出
 
 | policy | CLI 入力 | 採用結果 |
@@ -469,6 +527,16 @@ networks:
 
 `--rerun-from` は指定ノードとその子孫を対象にする。
 対象内に未解決 `UNKNOWN`、または実行済み `idempotent: false` がある場合は拒否する。
+
+再実行の 3 方式の違い:
+
+| 方式 | 同じ Run か | 業務キー | 何を実行するか | 入口 |
+| --- | --- | --- | --- | --- |
+| resume(`--resume` / `--resume-run`) | 同じ Run | 変わらない | 未完了・失敗した部分だけを続行。成功済みノードは保持 | `--resume` 付きの定期 cron、ボードの RERUN 要求、CLI |
+| rerun-from(`--rerun-from <node>`) | 同じ Run | 変わらない | 指定ノードとその子孫を、成功済みでも再実行 | ボードの RERUN 要求(上級入力)、CLI |
+| 補正キー(correction) | **別の Run** | 変わる(例: `…@2026-09-correction-1`) | 全ノードを最初から実行。SUCCESS 済みの期間を再集計したいとき | ボードの新規実行(補正モード)、CLI の `--business-key` + `--scheduled-for` |
+
+`SUCCESS` で終端した Run には resume も rerun-from もできない(§9)。再集計は補正キーで行う。
 
 ### 5.3 ensure-run の裁定
 
@@ -669,7 +737,7 @@ network ID は重複不可、definition path は絶対パス、定義内の netw
 | `STALE` | claim 後の実行有無・結果を確定できない |
 
 Invocation が作成された run-network の結果では、上表以外の `invocation_result_code` もそのまま `result_code` に保存する。
-要求の `DONE` は要求処理の終端を表し、Run の `SUCCESS` を意味しない。
+**要求の `DONE` は要求処理の終端を表し、Run の `SUCCESS` を意味しない。** Run の結果は `result_code`(Invocation の result code)とボードの Run 状態で確認する。
 
 ## 7. ボードプラグイン
 
