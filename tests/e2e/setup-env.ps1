@@ -12,3 +12,6 @@ $env:KSQL_CSV1_TARGET_APP_ID = [Environment]::GetEnvironmentVariable('KSQL_CSV1_
 $env:KSQL_FLOWNET_PROFILE = 'e2e'
 $env:KSQL_FLOW_BIN = 'node.exe'
 $env:KSQL_FLOW_BIN_ARGS = '["C:\\Users\\rex02\\Projects\\ksql-flow\\dist\\cli.js"]'
+
+# CSV取込E2E用のIOルート(ローカル固定。シナリオがscope配下を清掃する)
+$env:KSQL_FLOWNET_IO_DIR = 'C:\Users\rex02\.ksql-flownet\e2e-io'

@@ -24,8 +24,9 @@ function assertPreExecutionFailure(graph, code) {
   const attempt = graph.attempts.at(-1);
   assert.equal(attempt?.status, "FAILED");
   assert.equal(attempt?.resultCode, code);
-  assert.equal(attempt?.executionStartedAt, null);
-  assert.equal(attempt?.runnerExecutionStartedAt, null);
+  // 共有decoderは空DATETIMEを空文字で返す(kintone保存表現)。未起動=空/nullの両表現を許容
+  assert.ok(!attempt?.executionStartedAt, "execution_started_atは未設定であること");
+  assert.ok(!attempt?.runnerExecutionStartedAt, "runner_execution_started_atは未設定であること");
 }
 
 await runCsv1(
