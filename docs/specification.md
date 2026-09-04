@@ -348,18 +348,66 @@ Run の正準キー生成ではさらに `:`、NUL、予約値 `__net__` を禁�
 └── my-ksql-jobs/                      # ジョブ資材リポジトリ(cron・ポーラーのcwd)
     ├── ksql.config.json               # kSQL-Flowプロファイル・logical app定義
     ├── .env                           # kSQL-Flow用トークン(0600・git管理外)
-    ├── jobs/                          # network横断で共用するSQL
+    ├── jobs/                          # network横断で共用するSQL(共用がある場合のみ)
     │   └── 00_intake_count.sql
     ├── flownet/
-    │   ├── network-monthly-summary.yaml   # 共用SQLは sql: ../jobs/… で参照
-    │   └── sales-import/                  # network専用の資材は専用フォルダーへ
-    │       ├── network.yaml               # 専用SQLは sql: jobs/… で参照
+    │   ├── monthly-summary/           # flow 1: 月次集計(3 SQL・1本は共用)
+    │   │   ├── network.yaml           #   network_id: monthly_summary
+    │   │   └── jobs/
+    │   │       ├── 10_test_data_gate.sql
+    │   │       └── 20_deal_summary.sql
+    │   ├── sales-import/              # flow 2: CSV取込→検査→出力(3 SQL)
+    │   │   ├── network.yaml           #   network_id: sales_import
+    │   │   └── jobs/
+    │   │       ├── 00_import.sql
+    │   │       ├── 10_transform.sql
+    │   │       └── 20_report_export.sql
+    │   └── stock-check/               # flow 3: 在庫検査(2 SQL)
+    │       ├── network.yaml           #   network_id: stock_check
     │       └── jobs/
-    │           ├── import.sql
-    │           └── report.sql
-    └── run_flownet.sh                 # 定期実行の起動スクリプト(network毎に用意)
+    │           ├── 00_extract.sql
+    │           └── 10_assert.sql
+    ├── run_monthly_summary.sh         # 定期実行の起動スクリプト(定期flow毎に1本)
+    └── run_stock_check.sh
 /root/.ksql-flownet.env                # FlowNet環境変数(root所有0600)
 /root/flownet-request-allowlist.yaml   # 操作要求allowlist(全networkを絶対パスで列挙)
+```
+
+flow 1 の `network.yaml` のノード参照は次のようになる(専用SQLは `jobs/…`、共用SQLは `../../jobs/…`):
+
+```yaml
+nodes:
+  - id: intake_gate
+    job_id: ms_intake_gate
+    sql: ../../jobs/00_intake_count.sql   # 共用SQL
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: test_data_gate
+    job_id: ms_test_data_gate
+    sql: jobs/10_test_data_gate.sql       # 専用SQL
+    depends_on: [intake_gate]
+    trigger_rule: all_success
+    idempotent: true
+  - id: deal_summary
+    job_id: ms_deal_summary
+    sql: jobs/20_deal_summary.sql
+    depends_on: [test_data_gate]
+    trigger_rule: all_success
+    idempotent: true
+```
+
+allowlist には 3 flow を絶対パスで列挙する:
+
+```yaml
+networks:
+  - network_id: monthly_summary
+    definition_path: /opt/ksql/my-ksql-jobs/flownet/monthly-summary/network.yaml
+  - network_id: sales_import
+    definition_path: /opt/ksql/my-ksql-jobs/flownet/sales-import/network.yaml
+    app_start: true                    # ボードからのSTARTを許可するflowだけ明示
+  - network_id: stock_check
+    definition_path: /opt/ksql/my-ksql-jobs/flownet/stock-check/network.yaml
 ```
 
 配置規則:
