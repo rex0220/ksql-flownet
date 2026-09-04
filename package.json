@@ -1,6 +1,6 @@
 {
   "name": "@rex0220/ksql-flownet",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Control Plane CLI for kSQL-Flow job networks",
   "private": true,
   "license": "MIT",
