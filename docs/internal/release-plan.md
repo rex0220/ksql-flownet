@@ -25,12 +25,12 @@ UI・仕様の変更はR2以降凍結する(発生したらR2からやり直し)
 
 ## R1. リポジトリ・フォルダー整理
 
-- [ ] ルートREADME.mdを公開用に書き直す(製品概要・特徴・docs/への導線・ライセンス)
-- [ ] `spikes/` の扱いを決める(開発アーカイブとして残置 or `docs/internal/spikes/`へ移動。npm配布物には含めない)
-- [ ] `tests/e2e/results/` 等のローカル生成物がgitignoreされていることを確認
-- [ ] `package.json` の `files`(npm同梱物)を確認: dist/のみ同梱、plugin/zip・templates・docs/internalを含めるか決める(推奨: CLIパッケージはdist+README+LICENSE。プラグインzipとテンプレートはGitHub Release添付)
-- [ ] LICENSEファイル(MIT)を追加
-- [ ] 死んだスクリプト・一時ファイルの棚卸し(templates/のconsoleスクリプトは追補用として残置)
+- [x] ルートREADME.mdを公開用に書き直す(2026-09-04: README.ja.mdと同構成の英語版へ刷新。製品概要・kintone+VPS要件・docs/templates/pluginへの導線・ライセンス)
+- [x] `spikes/` の扱い決定(2026-09-04): **開発アーカイブとして残置**。docs/internalから参照されておりnpmには`files` whitelistで元々含まれない — 移動の利得なし
+- [x] `tests/e2e/results/` 等のローカル生成物のgitignore確認(2026-09-04: e2e/integration results・plugin/dist・plugin/zip・.ksql・*.ppk・.env系すべて除外済み)
+- [x] `package.json` の `files`確認(2026-09-04): `dist`+`schemas`(schemasはdistから実行時参照のため必須)+npm自動同梱のREADME/LICENSE。プラグインzip(gitignore済み・未追跡)とテンプレートはGitHub Release添付の方針どおり
+- [x] LICENSEファイル(MIT)を追加(2026-09-04: 名義は(c) 2026 rex0220 — kSQL-Flowと同一名義、ユーザー指定)
+- [x] 死んだスクリプト・一時ファイルの棚卸し(2026-09-04: ルート直下に該当なし。templates/のconsoleスクリプトは追補用として残置)
 
 ## R2. バージョン確定・凍結
 
