@@ -64,12 +64,28 @@
     "engineVersion": { "type": "string", "minLength": 1 },
     "error": {
       "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/error" }]
+    },
+    "output_files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/outputFile" }
     }
   },
   "$defs": {
     "nonNegativeInteger": {
       "type": "integer",
       "minimum": 0
+    },
+    "outputFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256", "bytes", "rows", "encoding"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "bytes": { "$ref": "#/$defs/nonNegativeInteger" },
+        "rows": { "$ref": "#/$defs/nonNegativeInteger" },
+        "encoding": { "enum": ["utf8", "sjis"] }
+      }
     },
     "error": {
       "type": "object",

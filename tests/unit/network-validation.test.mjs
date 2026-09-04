@@ -154,6 +154,51 @@ nodes:
   );
 });
 
+test("outputs accepts output-only placeholders while inputs keeps its own allowlist", () => {
+  const valid = validDefinition();
+  valid.nodes[0].outputs = {
+    report: "daily/{profile}/{business_key}/{run_id}/{node_id}.csv",
+  };
+  assert.deepEqual(validateNetworkDefinition(valid).errors, []);
+  assert.deepEqual(
+    validateNetworkDefinition(valid).definition.nodes[0].outputs,
+    valid.nodes[0].outputs,
+  );
+
+  for (const placeholder of ["run_id", "node_id"]) {
+    const inputDefinition = validDefinition();
+    inputDefinition.nodes[0].inputs = { sales: `{${placeholder}}.csv` };
+    assert.ok(
+      validateNetworkDefinition(inputDefinition).errors.some(
+        (error) => error.code === "INPUT_PATTERN_INVALID",
+      ),
+    );
+  }
+  for (const pattern of [
+    "",
+    "/absolute.csv",
+    "C:\\absolute.csv",
+    "\\\\server\\share\\file.csv",
+    "nul\0.csv",
+    "{unknown}.csv",
+    "{run_id.csv",
+    "node_id}.csv",
+    "./file.csv",
+    "dir/../file.csv",
+  ]) {
+    const definition = validDefinition();
+    definition.nodes[0].outputs = { report: pattern };
+    assert.ok(
+      validateNetworkDefinition(definition).errors.some(
+        (error) =>
+          error.code === "OUTPUT_PATTERN_INVALID" ||
+          error.code === "SCHEMA_INVALID",
+      ),
+      pattern,
+    );
+  }
+});
+
 test("node identity and dependency rules reject all invalid relationships", () => {
   const duplicate = validDefinition();
   duplicate.nodes.push({ ...duplicate.nodes[0] });

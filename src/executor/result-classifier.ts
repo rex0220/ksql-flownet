@@ -21,6 +21,14 @@ export interface ExecutionInputFile {
   readonly encoding: string;
 }
 
+export interface ExecutionOutputFile {
+  readonly name: string;
+  readonly sha256: string;
+  readonly bytes: number;
+  readonly rows: number;
+  readonly encoding: string;
+}
+
 export interface ExecutionResult {
   readonly formatVersion: 1;
   readonly kind: "EXECUTION_RESULT";
@@ -48,6 +56,7 @@ export interface ExecutionResult {
   readonly engineVersion: string;
   readonly error: ExecutionError | null;
   readonly input_files?: readonly ExecutionInputFile[];
+  readonly output_files?: readonly ExecutionOutputFile[];
 }
 
 export interface ClassificationContext {
@@ -211,9 +220,14 @@ function validateShape(value: unknown): string[] {
     errors.push("error must be a contract error object or null");
   if (
     value.input_files !== undefined &&
-    !isExecutionInputFiles(value.input_files)
+    !isExecutionFileReceipts(value.input_files, false)
   )
     errors.push("input_files must contain safe input receipt entries");
+  if (
+    value.output_files !== undefined &&
+    !isExecutionFileReceipts(value.output_files, true)
+  )
+    errors.push("output_files must contain safe output receipt entries");
   if (value.status === "SUCCESS" && value.error !== null)
     errors.push("SUCCESS requires error=null");
   if (value.status !== "SUCCESS" && value.error === null)
@@ -221,14 +235,17 @@ function validateShape(value: unknown): string[] {
   return errors;
 }
 
-function isExecutionInputFiles(
+function isExecutionFileReceipts(
   value: unknown,
-): value is readonly ExecutionInputFile[] {
+  output: boolean,
+): value is readonly (ExecutionInputFile | ExecutionOutputFile)[] {
   if (!Array.isArray(value)) return false;
   const names = new Set<string>();
   for (const item of value) {
     if (
       !isRecord(item) ||
+      (output &&
+        !hasOnlyKeys(item, ["name", "sha256", "bytes", "rows", "encoding"])) ||
       typeof item.name !== "string" ||
       !isSafeSourceName(item.name) ||
       names.has(item.name) ||
@@ -239,12 +256,24 @@ function isExecutionInputFiles(
       !Number.isSafeInteger(item.rows) ||
       (item.rows as number) < 0 ||
       typeof item.encoding !== "string" ||
-      !/^[A-Za-z0-9._-]{1,32}$/u.test(item.encoding)
+      (output
+        ? !["utf8", "sjis"].includes(item.encoding)
+        : !/^[A-Za-z0-9._-]{1,32}$/u.test(item.encoding))
     )
       return false;
     names.add(item.name);
   }
   return true;
+}
+
+function hasOnlyKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  return (
+    JSON.stringify(Object.keys(value).sort()) ===
+    JSON.stringify([...expected].sort())
+  );
 }
 
 function isSafeSourceName(value: string): boolean {

@@ -126,6 +126,24 @@ test("bundle round-trip preserves input patterns without resolving paths", () =>
   assert.doesNotMatch(stored.data.toString("utf8"), /[A-Za-z]:\\|\/tmp\//u);
 });
 
+test("bundle round-trip preserves output patterns without resolving paths", () => {
+  const pattern = "exports/{run_id}/{node_id}/report_{business_key}.csv";
+  const built = buildBundle({
+    networkYamlBytes: Buffer.from(
+      `schema_version: 1\nnodes:\n  - outputs:\n      report: ${pattern}\n`,
+    ),
+    jobs: jobs(),
+  });
+  const network = readStoreZip(built.zipBytes).find(
+    (entry) => entry.name === "network.yaml",
+  );
+  assert.equal(network.data.toString("utf8").includes(pattern), true);
+  assert.equal(
+    network.data.toString("utf8").includes("KSQL_FLOWNET_IO_DIR"),
+    false,
+  );
+});
+
 test("one-byte ZIP tampering is detected fail-closed", () => {
   const built = buildBundle({
     networkYamlBytes: utf8("schema_version: 1\n"),

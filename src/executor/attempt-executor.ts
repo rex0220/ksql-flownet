@@ -25,8 +25,10 @@ import type {
   SubprocessRunResult,
 } from "./run-subprocess.js";
 import {
+  serializeIoAuditSummary,
   serializeInputAuditSummary,
   serializeInputBaseline,
+  serializeOutputAuditSummary,
 } from "../io/input-baseline.js";
 
 export interface AttemptExecutorInput extends RunRequest {
@@ -123,6 +125,47 @@ export class AttemptExecutor {
         };
       }
     }
+    if (
+      classification.kind === "VALID_RESULT" &&
+      (input.exports?.length ?? 0) > 0
+    ) {
+      const receipts = classification.result?.output_files;
+      const expectedNames = [...(input.exports ?? [])]
+        .sort((left, right) =>
+          left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+        )
+        .map(({ name }) => name);
+      const actualNames = (receipts ?? []).map(({ name }) => name);
+      let previousIndex = -1;
+      const matchesConfiguredOutputs = actualNames.every((name) => {
+        const index = expectedNames.indexOf(name);
+        if (index < 0 || index <= previousIndex) return false;
+        previousIndex = index;
+        return true;
+      });
+      if (receipts === undefined || !matchesConfiguredOutputs) {
+        classification = {
+          kind: "INVALID_RESULT",
+          attemptOutcome: "UNKNOWN",
+          resultCode: null,
+          details: ["output_files does not match the configured export sinks"],
+          result: null,
+          invocationResultCode: "INVALID_EXECUTION_RESULT",
+        };
+      }
+    } else if (
+      classification.kind === "VALID_RESULT" &&
+      (classification.result?.output_files?.length ?? 0) > 0
+    ) {
+      classification = {
+        kind: "INVALID_RESULT",
+        attemptOutcome: "UNKNOWN",
+        resultCode: null,
+        details: ["output_files contains an unconfigured export sink"],
+        result: null,
+        invocationResultCode: "INVALID_EXECUTION_RESULT",
+      };
+    }
 
     if (process.forced) {
       classification = {
@@ -201,21 +244,7 @@ export class AttemptExecutor {
           execution_id: result?.executionId ?? marker?.executionId ?? null,
           finished_at: finishedAt,
           duration_sec: result ? result.durationMs / 1000 : null,
-          error_message: input.imports?.length
-            ? result?.input_files === undefined
-              ? serializeInputBaseline(input.imports)
-              : serializeInputAuditSummary(
-                  input.imports,
-                  result.input_files.map((file) => ({
-                    source: file.name,
-                    sha256: file.sha256,
-                    bytes: file.bytes,
-                    rows: file.rows,
-                    encoding: file.encoding,
-                  })),
-                )
-            : (result?.error?.message ??
-              (classification.details.join("; ") || null)),
+          error_message: auditSummary(input, result, classification),
           read_count: result?.readCount ?? 0,
           written_count: result?.writtenCount ?? 0,
           last_successful_chunk_no: result?.lastSuccessfulChunkNo ?? null,
@@ -267,6 +296,46 @@ export class AttemptExecutor {
       return undefined;
     }
   }
+}
+
+function auditSummary(
+  input: AttemptExecutorInput,
+  result: ResultClassification["result"],
+  classification: ResultClassification,
+): string | null {
+  const imports = input.imports ?? [];
+  const exports = input.exports ?? [];
+  if (result !== null && imports.length > 0 && exports.length > 0) {
+    return serializeIoAuditSummary(
+      imports,
+      (result.input_files ?? []).map((file) => ({
+        source: file.name,
+        sha256: file.sha256,
+        bytes: file.bytes,
+        rows: file.rows,
+        encoding: file.encoding,
+      })),
+      result.output_files ?? [],
+    );
+  }
+  if (result !== null && exports.length > 0) {
+    return serializeOutputAuditSummary(result.output_files ?? []);
+  }
+  if (imports.length > 0) {
+    return result?.input_files === undefined
+      ? serializeInputBaseline(imports)
+      : serializeInputAuditSummary(
+          imports,
+          result.input_files.map((file) => ({
+            source: file.name,
+            sha256: file.sha256,
+            bytes: file.bytes,
+            rows: file.rows,
+            encoding: file.encoding,
+          })),
+        );
+  }
+  return result?.error?.message ?? (classification.details.join("; ") || null);
 }
 
 function assertPrepared(input: AttemptExecutorInput): void {

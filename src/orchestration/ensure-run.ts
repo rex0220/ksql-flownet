@@ -188,12 +188,18 @@ export async function ensureRun(
 
   // Contract 9.1: capability failure must not acquire the Network lock.
   const capabilities = await input.executor.capabilities();
-  validateCapabilities(
-    capabilities,
-    definition.nodes.some((node) => Object.keys(node.inputs ?? {}).length > 0)
+  validateCapabilities(capabilities, [
+    ...(definition.nodes.some(
+      (node) => Object.keys(node.inputs ?? {}).length > 0,
+    )
       ? ["importCsv"]
-      : [],
-  );
+      : []),
+    ...(definition.nodes.some(
+      (node) => Object.keys(node.outputs ?? {}).length > 0,
+    )
+      ? ["resultCsv"]
+      : []),
+  ]);
   const configuredIo = await input.beforeLock?.(definition);
   const ioRoot = configuredIo?.root ?? input.ioRoot;
   const ioRetentionDays =

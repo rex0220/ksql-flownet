@@ -33,6 +33,24 @@ test("additive unknown fields are accepted", () => {
   assertValid({ ...success, futureDiagnostic: { source: "fixture" } });
 });
 
+test("output_files receipt is additive but each item is strict and path-free", () => {
+  const receipt = {
+    name: "report",
+    sha256: "a".repeat(64),
+    bytes: 123,
+    rows: 4,
+    encoding: "utf8",
+  };
+  assertValid({ ...success, output_files: [receipt] });
+  for (const output_files of [
+    [{ ...receipt, sha256: "bad" }],
+    [{ ...receipt, encoding: "utf-8" }],
+    [{ ...receipt, path: "C:\\private\\report.csv" }],
+  ]) {
+    assert.equal(validate({ ...success, output_files }), false);
+  }
+});
+
 test("unknown result codes with a consistent status and exit code are accepted", () => {
   assertValid({ ...failure, resultCode: "FUTURE_CODE" });
 });

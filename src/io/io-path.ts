@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
+import { lstat, mkdir, open, realpath } from "node:fs/promises";
+import { dirname, isAbsolute, relative, resolve, sep, win32 } from "node:path";
 
 export type InputPathErrorCode =
   "INPUT_PATH_REJECTED" | "INPUT_FILE_MISSING" | "INPUT_FILE_MUTATED";
@@ -17,6 +17,15 @@ export class InputPathError extends Error {
   }
 }
 
+export class OutputPathError extends Error {
+  readonly code = "OUTPUT_PATH_REJECTED" as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "OutputPathError";
+  }
+}
+
 export interface InputBaseline {
   readonly name: string;
   readonly path: string;
@@ -29,6 +38,56 @@ export interface ResolveNodeInputsInput {
   readonly patterns: Readonly<Record<string, string>>;
   readonly businessKey: string;
   readonly profile: string;
+}
+
+export interface ResolvedOutput {
+  readonly name: string;
+  readonly path: string;
+}
+
+export interface ResolveNodeOutputsInput {
+  readonly ioRoot: string;
+  readonly patterns: Readonly<Record<string, string>>;
+  readonly businessKey: string;
+  readonly profile: string;
+  readonly runId: string;
+  readonly nodeId: string;
+}
+
+export async function resolveNodeOutputs(
+  input: ResolveNodeOutputsInput,
+): Promise<readonly ResolvedOutput[]> {
+  const substitutedPatterns = Object.keys(input.patterns)
+    .sort(compareText)
+    .map((name) => {
+      const pattern = substituteOutputPattern(input.patterns[name]!, {
+        business_key: input.businessKey,
+        profile: input.profile,
+        run_id: input.runId,
+        node_id: input.nodeId,
+      });
+      assertRelativeOutputPattern(pattern);
+      return { name, pattern };
+    });
+  const ioRoot = resolve(input.ioRoot);
+  await requireOutputDirectory(ioRoot, "IO root");
+  const canonicalRoot = await outputRealpath(ioRoot, "IO root");
+  const outputRoot = resolve(ioRoot, "out");
+  assertOutputContained(ioRoot, outputRoot);
+  await ensureOutputDirectories(ioRoot, outputRoot);
+
+  const outputs: ResolvedOutput[] = [];
+  for (const { name, pattern } of substitutedPatterns) {
+    const candidate = resolve(outputRoot, pattern);
+    assertOutputContained(outputRoot, candidate);
+    const parent = dirname(candidate);
+    await ensureOutputDirectories(ioRoot, parent);
+    const canonicalParent = await outputRealpath(parent, "output parent");
+    assertOutputContained(canonicalRoot, canonicalParent, true);
+    await inspectOutputTarget(candidate, canonicalRoot);
+    outputs.push({ name, path: candidate });
+  }
+  return outputs;
 }
 
 export async function resolveNodeInputs(
@@ -111,6 +170,130 @@ function substitutePattern(
     /\{(business_key|profile)\}/gu,
     (_match, key: keyof typeof values) => percentEncodePathSegment(values[key]),
   );
+}
+
+function substituteOutputPattern(
+  pattern: string,
+  values: Readonly<
+    Record<"business_key" | "profile" | "run_id" | "node_id", string>
+  >,
+): string {
+  return pattern.replace(
+    /\{(business_key|profile|run_id|node_id)\}/gu,
+    (_match, key: keyof typeof values) => percentEncodePathSegment(values[key]),
+  );
+}
+
+function assertRelativeOutputPattern(pattern: string): void {
+  if (
+    pattern.length === 0 ||
+    pattern.includes("\0") ||
+    isAbsolute(pattern) ||
+    win32.isAbsolute(pattern) ||
+    /^[A-Za-z]:/u.test(pattern) ||
+    pattern.split(/[\\/]/u).some((part) => part === "." || part === "..")
+  ) {
+    throw new OutputPathError(
+      "output pattern does not resolve to an allowed relative path",
+    );
+  }
+}
+
+async function ensureOutputDirectories(
+  root: string,
+  targetDirectory: string,
+): Promise<void> {
+  assertOutputContained(root, targetDirectory, true);
+  const rel = relative(root, targetDirectory);
+  const parts = rel === "" ? [] : rel.split(sep);
+  let current = root;
+  await requireOutputDirectory(current, "IO root");
+  for (const part of parts) {
+    current = resolve(current, part);
+    try {
+      await mkdir(current);
+    } catch (error) {
+      if (fsErrorCode(error) !== "EEXIST") {
+        throw new OutputPathError("output directory could not be created", {
+          cause: error,
+        });
+      }
+    }
+    await requireOutputDirectory(current, "output path component");
+  }
+}
+
+async function inspectOutputTarget(
+  candidate: string,
+  canonicalRoot: string,
+): Promise<void> {
+  let stat;
+  try {
+    stat = await lstat(candidate);
+  } catch (error) {
+    if (fsErrorCode(error) === "ENOENT") return;
+    throw new OutputPathError("output target could not be inspected", {
+      cause: error,
+    });
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new OutputPathError(
+      "output target is not a regular file or is a symbolic link or junction",
+    );
+  }
+  const canonicalCandidate = await outputRealpath(candidate, "output target");
+  assertOutputContained(canonicalRoot, canonicalCandidate);
+}
+
+async function requireOutputDirectory(
+  path: string,
+  label: string,
+): Promise<void> {
+  let stat;
+  try {
+    stat = await lstat(path);
+  } catch (error) {
+    throw new OutputPathError(`${label} is unavailable`, { cause: error });
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new OutputPathError(
+      `${label} is not a regular directory or is a symbolic link or junction`,
+    );
+  }
+}
+
+async function outputRealpath(path: string, label: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch (error) {
+    throw new OutputPathError(`${label} could not be resolved`, {
+      cause: error,
+    });
+  }
+}
+
+function assertOutputContained(
+  root: string,
+  candidate: string,
+  allowRoot = false,
+): void {
+  const rel = relative(root, candidate);
+  if (
+    (!allowRoot && rel === "") ||
+    rel === ".." ||
+    rel.startsWith(`..${sep}`) ||
+    isAbsolute(rel)
+  ) {
+    throw new OutputPathError(
+      "output path is outside the configured output root",
+    );
+  }
+}
+
+function fsErrorCode(error: unknown): string {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String(error.code)
+    : "";
 }
 
 function assertRelativePattern(pattern: string): void {

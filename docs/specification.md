@@ -305,9 +305,15 @@ nodes:
 | `depends_on` | 必須 | 識別子配列 | 依存する Node ID |
 | `trigger_rule` | 必須 | `all_success` | `none_failed` と `all_done` は予約済みだが現在は拒否 |
 | `idempotent` | 必須 | boolean | 自動再試行、RERUN、START の安全判定に使用 |
+| `inputs` | 任意 | source名から相対patternへのobject | `<KSQL_FLOWNET_IO_DIR>/in` 配下のCSV入力 |
+| `outputs` | 任意 | sink名から相対patternへのobject | `<KSQL_FLOWNET_IO_DIR>/out` 配下のCSV出力 |
 
 自己依存、依存の重複、未知 Node への依存、循環を禁止する。
 `validate` は参照 SQL が読める通常ファイルであることも確認する。
+
+`inputs`のplaceholderは`{business_key}`と`{profile}`だけ、`outputs`はそれらに加えて`{run_id}`と`{node_id}`を許可する。validatorの許可集合は文脈別であり、出力専用placeholderを入力へ使用できない。patternは絶対path、NUL、`.` / `..` segment、未知または未閉じplaceholderを拒否する。解決値はUTF-8 percent encodingした単一path segmentとして扱う。
+
+出力先の未存在directoryはFlowNetがIO rootから1段ずつ作成し、各段のsymlink/junctionを拒否する。既存の出力fileは正常であり、同一Runの`--rerun-from`でも同一pathをkSQL-Flowへ渡して全量置換する。出力path違反はsubprocessを起動せず、Node Attemptを`FAILED / OUTPUT_PATH_REJECTED`で確定する。
 
 ### 4.6 業務キー導出
 

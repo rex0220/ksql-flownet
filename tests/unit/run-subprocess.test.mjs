@@ -128,6 +128,49 @@ test("CSV inputsをsource名順のimport/hashペアとしてargvへ渡す", asyn
   ]);
 });
 
+test("CSV outputsをsink名順のexport引数としてinputsの後へ渡す", async () => {
+  const calls = [];
+  const runner = new RunSubprocess({
+    command: "ksql-flow",
+    executionDirectory: "C:\\exec",
+    timeoutMs: null,
+    gracePeriodMs: 1,
+    spawn: (call) => {
+      calls.push(call);
+      return {
+        completion: Promise.resolve({ exitCode: 0 }),
+        gracefulStop() {},
+        forceStop() {},
+      };
+    },
+  });
+  await runner.run({
+    ...request,
+    imports: [
+      {
+        name: "source",
+        path: "C:\\io\\in\\source.csv",
+        sha256: "a".repeat(64),
+        bytes: 1,
+      },
+    ],
+    exports: [
+      { name: "zeta", path: "C:\\io\\out\\z.csv" },
+      { name: "alpha", path: "C:\\io\\out\\a.csv" },
+    ],
+  });
+  assert.deepEqual(calls[0].args.slice(-8), [
+    "--import-csv",
+    "source=C:\\io\\in\\source.csv",
+    "--expected-import-sha256",
+    `source=${"a".repeat(64)}`,
+    "--export-csv",
+    "alpha=C:\\io\\out\\a.csv",
+    "--export-csv",
+    "zeta=C:\\io\\out\\z.csv",
+  ]);
+});
+
 test("timeoutはgraceful signal後のCANCELLED終了を待つ", async () => {
   let graceful = 0;
   let finish;

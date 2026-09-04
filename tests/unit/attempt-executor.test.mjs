@@ -237,6 +237,100 @@ test("input_filesがpreflightと不一致ならINVALID_EXECUTION_RESULTでUNKNOW
   assert.equal(outcome.attempt.value.result_code, "INVALID_EXECUTION_RESULT");
 });
 
+test("output_filesをsinkと照合しfull sha256をpath非含有の監査要約へ反映する", async () => {
+  const setup = await prepared();
+  const sha256 = "c".repeat(64);
+  const value = executionResult({
+    output_files: [
+      { name: "report", sha256, bytes: 456, rows: 8, encoding: "utf8" },
+    ],
+  });
+  const outcome = await executor(setup, value).execute({
+    ...executionInput,
+    ...setup,
+    exports: [{ name: "report", path: "C:\\private\\report.csv" }],
+  });
+  assert.equal(outcome.attempt.value.status, "SUCCESS");
+  const summary = JSON.parse(outcome.attempt.value.error_message);
+  assert.equal(summary.kind, "KSQL_FLOWNET_OUTPUT_AUDIT");
+  assert.equal(summary.output_files[0].sha256, sha256);
+  assert.equal(summary.output_files[0].sink, "report");
+  assert.equal(outcome.attempt.value.error_message.includes("private"), false);
+  assert.equal(
+    outcome.attempt.value.error_message.includes("report.csv"),
+    false,
+  );
+});
+
+test("inputsとoutputsのreceiptを一つの安全な要約へ保存しbaselineを維持する", async () => {
+  const setup = await prepared();
+  const value = executionResult({
+    input_files: [
+      {
+        name: "sales",
+        sha256: "a".repeat(64),
+        bytes: 123,
+        rows: 7,
+        encoding: "utf8",
+      },
+    ],
+    output_files: [
+      {
+        name: "report",
+        sha256: "b".repeat(64),
+        bytes: 456,
+        rows: 8,
+        encoding: "sjis",
+      },
+    ],
+  });
+  const outcome = await executor(setup, value).execute({
+    ...executionInput,
+    ...setup,
+    imports: [
+      {
+        name: "sales",
+        path: "C:\\private\\sales.csv",
+        sha256: "a".repeat(64),
+        bytes: 123,
+      },
+    ],
+    exports: [{ name: "report", path: "C:\\private\\report.csv" }],
+  });
+  const summary = JSON.parse(outcome.attempt.value.error_message);
+  assert.equal(summary.kind, "KSQL_FLOWNET_IO_AUDIT");
+  assert.equal(summary.baseline[0].sha256, "a".repeat(64));
+  assert.equal(summary.output_files[0].sha256, "b".repeat(64));
+  assert.equal(outcome.attempt.value.error_message.includes("private"), false);
+});
+
+test("output_filesの未設定sinkや欠落をINVALID_EXECUTION_RESULTにする", async () => {
+  for (const output_files of [
+    undefined,
+    [
+      {
+        name: "other",
+        sha256: "d".repeat(64),
+        bytes: 1,
+        rows: 1,
+        encoding: "utf8",
+      },
+    ],
+  ]) {
+    const setup = await prepared();
+    const value = executionResult(
+      output_files === undefined ? {} : { output_files },
+    );
+    const outcome = await executor(setup, value).execute({
+      ...executionInput,
+      ...setup,
+      exports: [{ name: "report", path: "C:\\private\\report.csv" }],
+    });
+    assert.equal(outcome.classification.kind, "INVALID_RESULT");
+    assert.equal(outcome.attempt.value.status, "UNKNOWN");
+  }
+});
+
 test("LOCK_CONFLICTをPREPARE_FAILED Attempt + WAITING Stateにしattempt番号を保持する", async () => {
   const setup = await prepared();
   const value = executionResult({

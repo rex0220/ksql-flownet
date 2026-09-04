@@ -282,6 +282,29 @@ node tests\e2e\csv1-04-10k-measure.mjs
 
 途中失敗hookはkSQL-Flowのorchestrator `run`子プロセスだけに作用し、対象fixtureアプリへの2回目のrecords POST/PUTだけをHTTP 400にします。FlowNetのstate/audit通信、capability/inspection、他アプリには作用しません。各ケースは結果を`tests/e2e/results/`へ保存し、終了時にstate/audit、要求（該当時）、IO root、専用アプリの書込レコードを清掃します。10,000件はflatな2列fixtureのgateであり、サブテーブル有無の比較はこのハーネスの対象外です。
 
+## CSV出力 段階2 E2E
+
+CSV段階2は段階1と同じ専用fixtureアプリ、`KSQL_CSV1_TARGET_*`、`KSQL_FLOWNET_IO_DIR`を使用します。`setup-env.ps1`が指定する隣接`C:\Users\rex02\Projects\ksql-flow\dist\cli.js`（v0.9.0 / engine 3.77.0、main 0a66c35のbuild）以外はpreflightで拒否します。実機では先に`cli-kintone`をPATHへ追加し、`cli-kintone record import`が利用できることを確認してください。認証は`KSQL_CSV1_TARGET_API_TOKEN`を`--api-token`引数へ渡しますが、token値は標準出力、エラー、結果JSONへ保存しません。
+
+安全なfail-closed系から始め、次の順序で必ず直列実行します。
+
+```powershell
+. .\tests\e2e\setup-env.ps1
+node tests\e2e\csv2-04-failclosed.mjs
+node tests\e2e\csv2-01-export-run.mjs
+node tests\e2e\csv2-02-roundtrip.mjs
+node tests\e2e\csv2-03-clikintone.mjs
+```
+
+| スクリプト           | 実測内容                                                                                                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `csv2-04-failclosed` | 受入15・16。temp table実体化後の後続文失敗で既存file不変・一時fileなし、U+301Cを含むSJIS exportで完成fileなし。受入14の単体/contract test参照も結果へ記録                 |
+| `csv2-01-export-run` | CSV取込→変換検査→UTF-8 exportの3 Node SUCCESS、`output_files`のsha256/rows/encoding、完成bytes、監査へのin/out絶対path・セル値非漏出                                      |
+| `csv2-02-roundtrip`  | 受入1・17。UTF-8/SJIS（ASCII data）のexport bytesを`out/`からimport専用`in/`境界へ無変更コピーし、`BY NAME`で別キー空間へ取込。同一Runの`--rerun-from`でexport sha256一致 |
+| `csv2-03-clikintone` | 受入3。kSQL UTF-8 exportを公式`cli-kintone record import --update-key test_key`で専用アプリの別キー空間へ取込                                                             |
+
+SJISケースではE2E専用`csv2-encoding-wrapper.mjs`が、同じ`KSQL_FLOW_BIN`と`KSQL_FLOW_BIN_ARGS`へexport実行時だけ`--export-encoding sjis`を追加します。これは現行FlowNetの`outputs`定義がpathだけを持ちencodingを持たないためです。各スクリプトは自分が作成した`KSQL_FLOW_TEST_`キーのレコード、scope固有IO `in/`・`out/`、一時network/configを`finally`で清掃し、state/audit fixtureは共通E2E gateが清掃します。業務アプリは読取もしません。
+
 ## SQL文法の根拠
 
 - `C:\Users\rex02\Projects\ksql-flow\docs\ksql_flow_spec.md` 3.1〜3.3: dialect 1ヘッダ、`SELECT COUNT(*)`、`ASSERT (<scalar subquery>) <comparison>, 'message'`。
