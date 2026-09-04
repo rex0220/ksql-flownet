@@ -8,6 +8,7 @@
 | [一次対応1ページ](./ops-first-response.md) | ボードの見方と操作要求の起票手順。状態別の一次対応 |
 | [復旧runbook](./runbook-recovery.md) | 障害時の復旧手順。STALE・ロック・UNKNOWNの決着、定義デプロイ時の手順 |
 | [CSV入出力の運用](./csv-io-operations.md) | 入力CSVをサーバーへ置く/出力CSVを取り出す構成と手順。パス規約・不変条件・エラー早見 |
+| [スケジュール連携の運用パターン](./scheduling-patterns.md) | 本体がスケジューラを持たない理由と、network 間の順序・即時連鎖・営業日判定を外部で実現するパターン |
 | [Execution Contract v1](./execution-contract-v1.md) | kSQL-Flow(実行プレーン)とのCLI境界契約 |
 
 セットアップ・配布物:
