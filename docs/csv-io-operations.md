@@ -4,22 +4,25 @@ network定義の `nodes[].inputs` / `nodes[].outputs` を使うCSV取込・出�
 
 ## 1. 構成
 
+**取込(CSV → kintone)**
+
 ```mermaid
 flowchart LR
-  PC["担当者PC"]
-  subgraph VPS["実行サーバー(VPS) — 受信ポートの追加開放なし"]
-    IN["KSQL_FLOWNET_IO_DIR/in/<br>入力CSV(人が置く)"]
-    OUT["KSQL_FLOWNET_IO_DIR/out/<br>出力CSV(FlowNetが書く)"]
-    FN["kSQL-FlowNet + kSQL-Flow<br>run-network / poll-requests(cron・START要求)"]
-  end
-  KT["kintone<br>IMPORT先 / EXPORT元アプリ"]
-  PC -->|"SCP/SFTP(SSH・WinSCP等)で配置"| IN
-  IN -->|取込| FN
-  FN <-->|"IMPORT / EXPORT"| KT
-  FN -->|出力| OUT
-  OUT -->|"SCP/SFTP(SSH)で取得"| PC
-  OUT -.->|"cli-kintone record import(VPS上から直接取込)"| KT
+  PC["担当者PC"] -->|"① SCP/SFTPで配置<br>(SSH・WinSCP等)"| IN["VPS<br>KSQL_FLOWNET_IO_DIR/<br>in/…/input.csv"]
+  IN -->|"② cron定期実行 or<br>ボードのSTART要求"| FN["kSQL-FlowNet<br>+ kSQL-Flow"]
+  FN -->|"③ IMPORT"| KT["kintone<br>取込先アプリ"]
 ```
+
+**出力(kintone → CSV)**
+
+```mermaid
+flowchart LR
+  KT["kintone<br>出力元アプリ"] -->|"① EXPORT"| FN["kSQL-FlowNet<br>+ kSQL-Flow"]
+  FN -->|"② 完成CSVを書出し"| OUT["VPS<br>KSQL_FLOWNET_IO_DIR/<br>out/…/report.csv"]
+  OUT -->|"③ SCP/SFTPで取得<br>(SSH・WinSCP等)"| PC["担当者PC"]
+```
+
+出力CSVをそのまま別のkintoneアプリへ取り込むだけなら、③で取り出さずにVPS上から`cli-kintone record import`で直接取り込める(§4)。
 
 - ファイル転送路は**既存のSSHだけ**を使う。本製品の設計方針(受信ポート開放なし・常駐サービスなし)を維持する
 - SSHでの配置・取り出しは**二次対応者(サーバー管理者)の作業**。一次対応者はkintoneボードでの起票・状態確認のみを行う(既存の役割分担どおり)
