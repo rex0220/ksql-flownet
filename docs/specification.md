@@ -146,10 +146,13 @@ CLI・cron・ポーラーを動かすサーバーを 1 台用意する。kintone
 
 **通信は実行サーバーから kintone への発信のみ**で、kintone から実行サーバーへの接続は一切ない。Webhook・プラグインからのサーバー呼出し・常駐 API はなく、操作要求も「ポーラーが kintone を読みに行く」pull 方式である。したがって実行サーバーはインターネットから到達不能(SSH 以外閉)のままでよく、固定 IP・ドメイン・証明書も不要である。
 
+**実行サーバー上の仕組みの構築・変更はすべて SSH で行う。** FlowNet と kSQL-Flow の導入、環境ファイル、allowlist、cron、network 定義・SQL の配置、CSV の授受(csv-io-operations.md)は、サーバー管理者(二次対応者)が SSH で接続して実施する。kintone 側の画面から実行サーバーの設定を変更する手段はない。
+
 ```mermaid
 flowchart LR
+  Admin["サーバー管理者<br>(二次対応者)"] -->|"SSH<br>導入・設定・配置"| VPS["実行サーバー(VPS)<br>CLI / cron / ポーラー"]
   Browser["利用者のブラウザ<br>(ボードプラグイン)"] -->|"HTTPS"| KT["kintone"]
-  VPS["実行サーバー(VPS)<br>CLI / cron / ポーラー"] -->|"HTTPS 発信のみ<br>(REST API・API トークン)"| KT
+  VPS -->|"HTTPS 発信のみ<br>(REST API・API トークン)"| KT
   KT -.->|"接続なし"| VPS
 ```
 
