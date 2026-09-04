@@ -329,7 +329,7 @@ FlowNetは `<KSQL_FLOWNET_IO_DIR>/out`配下へ同じallowlist規則で解決し
 | 段階1 FlowNet監査/X-4 | Node Attempt baseline要約、revision競合・応答消失対応、result JSON索引、hash照合、resume/rerun | **4〜7人日** |
 | 段階1回復・結合 | MISSING/MUTATED/期限、RETRY_BRAKE、途中クラッシュE2E | 3〜5人日 |
 | 1万件gate | UTF-8/SJIS、サブテーブル有無、測定・文書化 | 2〜3人日 |
-| **段階1合計** | M0とengine前提を含む | **19〜33人日** |
+| **段階1合計** | M0とengine前提を含む | **19〜33人日** — **✅完了(2026-09-04)**: engine v3.75.0/v3.76.0公開・kSQL-Flow v0.8.0公開・FlowNet実装(main 2871fc9)・実機受入4本+1万件gate合格([証跡](./test-results/csv1-20260904/README.md)。UTF-8 65.4s/RSS130MB) |
 | 段階2 engine | serializer、値表現6項目、C-1(b)、名前付きsink、temp+rename | 7〜12人日 |
 | 段階2 kSQL-Flow | CLI/flow配線、Contract/capability/result、文書 | 3〜5人日 |
 | 段階2 FlowNet | outputs schema、path、argv、Execution Result保存・監査要約、`output_files` | 3〜5人日 |
