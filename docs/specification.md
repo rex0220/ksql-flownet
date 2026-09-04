@@ -747,6 +747,48 @@ flowchart LR
 - どの SQL が動くかは、allowlist の `definition_path` が指す `network.yaml` の `nodes[].sql`(§4.7 のフォルダー構成)で決まる。ダイアログ側には SQL の情報は存在しない
 - したがって新しい flow を画面から起動できるようにする手順は、(1) VPS へ network.yaml と SQL を配置(§4.7)、(2) allowlist へ `app_start: true` で登録、(3) プラグイン設定の CSV へ表示行を追加 — の3点セットになる。CSV と allowlist の `network_id` が一致していることを必ず確認する
 
+#### 具体例: 「売上取込」を画面から実行する
+
+§4.7 の flow 2(`sales_import`・3 SQL)を例にする。プラグイン設定の START 許可 CSV に次の行があるとする:
+
+```
+売上取込, sales_import, 任意キー
+```
+
+利用者がダイアログで「売上取込」を選び、business key(例: `sales_import_20260904`)を入力して起票すると、次の対応で VPS 上の 3 本の SQL が順に実行される:
+
+```mermaid
+flowchart LR
+  subgraph KT["kintone"]
+    DLG["ダイアログ<br>選択: 『売上取込』<br>business_key: sales_import_20260904<br>(利用者が入力)"]
+    REQ["STARTレコード<br>network_id: sales_import<br>business_key: sales_import_20260904"]
+  end
+  subgraph VPS["VPS(/opt/ksql/my-ksql-jobs)"]
+    AL["allowlist entry<br>sales_import<br>→ flownet/sales-import/network.yaml<br>app_start: true"]
+    subgraph NET["network.yaml の DAG(§4.7 flow 2)"]
+      N1["node: import_csv<br>jobs/00_import.sql"]
+      N2["node: transform_gate<br>jobs/10_transform.sql"]
+      N3["node: report_export<br>jobs/20_report_export.sql"]
+      N1 --> N2 --> N3
+    end
+  end
+  DLG -->|"① 起票"| REQ
+  REQ -->|"② ポーラーがclaim・照合"| AL
+  AL -->|"③ YAML読込"| N1
+```
+
+画面の入力と VPS 側の実体の対応:
+
+| 画面での選択・入力 | 決めている場所 | VPS 側で対応する実体 |
+| --- | --- | --- |
+| 選択肢名「売上取込」 | プラグイン CSV 1列目(表示専用) | なし(表示名は VPS に存在しない) |
+| network | CSV 2列目 `sales_import` | allowlist の `network_id: sales_import` entry |
+| 入力モード「任意キー」が初期選択 | CSV 3列目 | network.yaml の `business_key_policy: explicit` と一致している必要がある(§6.5) |
+| business_key `sales_import_20260904` | 利用者の入力(CSV 4列目テンプレートで初期値を補助できるが、`{年}{月}{日}` は対象期間を持つ定期・補正モードでのみ展開される) | Run の業務キー(Run 一意性・IO パス `{business_key}` の展開に使用) |
+| 実行される SQL | 画面では選べない | `flownet/sales-import/network.yaml` の `nodes[].sql` 3本を DAG 順に実行 |
+
+実行開始後の進捗はボードの `進行中のRun` に `sales_import_20260904` の Run として現れ、各ノードの結果は Node Attempt と JOBログに記録される。同じ business_key での再起票は重複ガードと ensure-run 裁定により新規 Run にならない(§6.5)。
+
 ### 7.5 詳細画面
 
 NETWORK_RUN 詳細では activity または `終端(activityなし)`、状態根拠、エラー概要、操作導線を表示する。
