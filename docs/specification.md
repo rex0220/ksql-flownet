@@ -251,7 +251,17 @@ Run の状態はノード状態の集約で決まる(上の行ほど優先)。re
 | 全ノードが `SUCCESS` | `SUCCESS` |
 | いずれでもない(`WAITING` / `SKIPPED` のみ) | 未開始なら `CREATED`、開始済みなら `RUNNING` |
 
-STOP(停止 hold)は Run の状態を変えない。次ノード境界で Invocation が `CANCELLED / STOP_REQUESTED` として閉じ、Run は `RUNNING` のまま activity が `STOPPED` になる(§5.5)。`SUCCESS` は終端であり、同じ Run を再実行できない(§9)。
+STOP(停止 hold)は Run の状態を変えない。次ノード境界で Invocation が `CANCELLED / STOP_REQUESTED` として閉じ、Run は `RUNNING` のまま activity が `STOPPED` になる(§5.5)。
+
+「終端」と「再開可否」は別の概念であり、本書では次の意味で使う:
+
+| 用語 | 意味 | 該当する状態 |
+| --- | --- | --- |
+| 終端 | 今回の実行結果が確定した状態。activity は付かず(§5.5)、STOP は `RUN_TERMINAL` で受け付けない | `SUCCESS` / `FAILED` / `CANCELLED` / `UNKNOWN` |
+| 再開可能 | 終端のうち、同じ Run を resume / RERUN で続行できる状態 | `FAILED` / `CANCELLED` で `lifecycle_status = ACTIVE` かつ `resume_allowed = true`。`UNKNOWN` は `resolve-node` 後 |
+| 最終終了 | 同じ Run を二度と実行しない状態 | `SUCCESS`(resume は NOOP)。または `ARCHIVED` / `resume_allowed = false` |
+
+`lifecycle_status`(`ACTIVE` / `ARCHIVED`)は運用上の保管区分、`resume_allowed` は再開の許可フラグであり、Run の `status` とは独立に持つ。ボードの「終了済み・対応が必要なRun」(§7.2)は「再開可能な終端」に当たる。
 
 ### 3.3 監査履歴アプリ
 
@@ -498,6 +508,7 @@ allowlist には 3 flow を絶対パスで列挙する:
 networks:
   - network_id: monthly_summary
     definition_path: /opt/ksql/my-ksql-jobs/flownet/monthly-summary/network.yaml
+    app_start: true                    # cronの定期実行に加え、ボードから補正STARTも行う(§7.4の例)
   - network_id: sales_import
     definition_path: /opt/ksql/my-ksql-jobs/flownet/sales-import/network.yaml
     app_start: true                    # ボードからのSTARTを許可するflowだけ明示
@@ -811,6 +822,8 @@ Run状況プラグインはデスクトップ専用である。mobile bundle は
 | 判定材料不正・不整合 | 操作を出さず CLI status を案内 |
 
 同じ Run に `REQUESTED/ACCEPTED` の要求があれば、操作ボタンの代わりに最古要求への pending リンクを表示する。
+
+STOP 要求後に実行中の SQL が失敗して Run が `FAILED` になると、停止 hold が残ったまま activity が付かない状態になる。この場合ボードは「リラン要求」を表示するが、RERUN は `RUN_ON_HOLD` で拒否され、アプリからの RELEASE も `RUN_NOT_ON_HOLD` で拒否されるため、**二次対応者が CLI `cancel-run --run-id <run_id> --release` で hold を解除してからリランする**(§9・復旧runbook)。
 pending GET に失敗した場合は警告を出すが、起票直前にも重複確認する。
 
 RERUN / STOP / RELEASE ダイアログは理由を必須とし、確認画面を経て単票 POST する。
@@ -903,7 +916,7 @@ flowchart LR
 | business_key `sales_import_20260904` | 利用者の入力(CSV 4列目テンプレートで初期値を補助できるが、`{年}{月}{日}` を含むテンプレートが展開されるのは対象期間を持つ補正モードだけ。定期はテンプレート指定不可、任意キーは `{ネットワークID}` だけのテンプレートなら展開) | Run の業務キー(Run 一意性・IO パス `{business_key}` の展開に使用) |
 | 実行される SQL | 画面では選べない | `flownet/sales-import/network.yaml` の `nodes[].sql` 3本を DAG 順に実行 |
 
-実行開始後の進捗はボードの `進行中のRun` に `sales_import_20260904` の Run として現れ、各ノードの結果は Node Attempt と JOBログに記録される。同じ business_key で再起票されても新しい Run は作成されない。処理中(`REQUESTED` / `ACCEPTED`)の要求との重複は起票前ガードが防ぎ、終端後の再起票は ensure-run が既存 Run に基づいて裁定する(成功済みなら `NOOP_ALREADY_SUCCESS`、未完了なら `RUN_ALREADY_EXISTS` — §5.3・§6.7)。
+実行開始後の進捗はボードの `進行中のRun` に `sales_import_20260904` の Run として現れ、各ノードの結果は Node Attempt と JOBログに記録される。同じ business_key で再起票されても新しい Run は作成されない。起票前ガードは既存の処理中(`REQUESTED` / `ACCEPTED`)要求への重複起票を抑止するが、別ブラウザからの同時起票による重複要求は残り得る。要求レコードが重複しても Run の重複作成は ensure-run が防ぎ、後続の要求は既存 Run に基づいて裁定される(成功済みなら `NOOP_ALREADY_SUCCESS`、未完了なら `RUN_ALREADY_EXISTS` — §5.3・§6.7)。
 
 #### 具体例: 月次集計(スケジュールジョブ) — スケジュールとジョブファイルの関係
 
@@ -1041,6 +1054,7 @@ Run や監査レコードの直接修正は通常運用では行わない。
 | START は全ノード冪等のみ | 非冪等 network の新規実行は直接 CLI の運用判断に限定 |
 | STOP は境界停止 | 実行中 SQL は完走し、次ノードを開始しない |
 | RELEASE は起動しない | hold 解除後の再開は別の RERUN または外部 cron が行う |
+| 終端 Run に残った hold はアプリから解除できない | STOP 後に実行中 SQL が失敗すると `FAILED` + hold 残留になる。activity が付かないため RERUN は `RUN_ON_HOLD`、RELEASE は `RUN_NOT_ON_HOLD` で拒否。二次対応者が CLI `cancel-run --release` で解除する(backlog P2-15) |
 | SUCCESS の同一業務キーは再利用不可 | 通常起動は NOOP。補正実行は別 business key を使う |
 | Run snapshot は外部データを固定しない | network、SQL、解決済み非秘密 profile は固定するが、kintone 業務データの時点再現は保証しない |
 | plugin はデスクトップ専用 | mobile 画面にはボード・操作ダイアログを提供しない |

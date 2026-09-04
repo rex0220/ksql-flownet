@@ -126,6 +126,12 @@ ksql-flownet run-network <network.yamlのパス> --resume-run <run_id> ...
 | `STOP` | `run_id`、理由 | 要求が`DONE`になり、Runが次ノード境界で停止 | 実行中のSQLは途中停止しない |
 | `RELEASE` | `run_id`、理由 | 要求が`DONE`になりholdが解除 | RELEASE自身はRunを再開しない。ただし定期`--resume`が次回起動時に再開し得る |
 
+**停止要求後にRunがFAILEDになった場合**(実行中のSQLが失敗)、holdが残ったままボードには「リラン要求」が出るが、RERUNは`RUN_ON_HOLD`、解除要求は`RUN_NOT_ON_HOLD`で拒否される。二次対応者がCLIでholdを解除してからリランする:
+
+```
+ksql-flownet cancel-run --run-id <run_id> --release --reason-file <理由ファイル>
+```
+
 ### START要求(P2-11)
 
 STARTは未作成の業務実行単位を作る要求であり、既存Runの再開には使わない。ボードの「新規実行」または操作要求アプリへの直接追加で起票する。`DONE`は要求処理の完了であってRun成功ではないため、必ず実行管理アプリのNETWORK_RUNとボードで成否を追跡する。

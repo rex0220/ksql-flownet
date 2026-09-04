@@ -13,3 +13,14 @@
 | 7 | 集約説明に `BLOCKED` が混在 | 採用 | §3.2 の集約規則を条件→Run状態の対応表へ |
 | 8 | 「同じ business key での再起票」の表現 | 採用 | §7.4 を「新しい Run は作られない。処理中要求との重複は起票前ガード、終端後は ensure-run が NOOP / RUN_ALREADY_EXISTS で裁定」へ |
 | 構成 | 規範仕様・構築ガイド・操作ガイドへの分割 | 保留 | 現段階は仕様確定用に一冊集約を維持(レビュー自身も「今すぐ分割必須ではない」)。R4 導入手順書(docs/installation.md)が構築ガイドの受け皿になる |
+
+## 再評価(同日・9.1/10)の採否
+
+前回の重大論点3件は評価側が撤回(記述不足・照合事項へ引き下げ)。新たな4点:
+
+| # | 指摘 | 採否 | 根拠・反映 |
+| --- | --- | --- | --- |
+| ① | 「終端」の意味が章で曖昧(activity・STOP受付・再開可否・lifecycle/resume_allowed) | 採用 | run-activity.ts(終端4状態はactivity null)、poller(STOPはRUN_TERMINAL)、ensure-run(resume条件)から、§3.2に「終端/再開可能/最終終了」の用語表と lifecycle_status・resume_allowed の位置づけを追加 |
+| ② | STOP後にFAILEDになるとholdが残り、ボードから操作不能になり得る | 採用(制約明記+backlog) | **実装確認で実在**: 終端Runはactivity nullのためRERUNはensure-run `RUN_ON_HOLD`、アプリRELEASEはpoller `RUN_NOT_ON_HOLD`で拒否。CLI `cancel-run --release`のみ。R2凍結のためコードは触らず、§7.3・§9・runbookに手順を明記し P2-15 を起票 |
+| ③ | §7.4の月次補正例に対し§4.7 allowlistのmonthly_summaryに`app_start: true`がない | 採用 | §4.7の例へ`app_start: true`を追加(コメント付き) |
+| ④ | 起票前ガードは同時起票を完全には防げない | 採用 | §7.4を「既存の処理中要求への重複起票を抑止。同時起票の重複要求は残り得るがRunの重複はensure-runが防ぐ」へ(要求の重複とRunの重複を分離) |
