@@ -19,8 +19,8 @@ UI・仕様の変更はR2以降凍結する(発生したらR2からやり直し)
 
 ## R0. 本番適用の完了(前提)
 
-- [ ] P2-11の本番適用(本番要求アプリへの3欄追補 → プラグイン更新 → VPSコード更新 → allowlist `app_start: true` → 当月補正smoke)
-- [ ] 本番適用記録をinternal/test-resultsへ追記
+- [x] P2-11の本番適用(2026-09-04: 3欄追補 → プラグインv1更新 → VPSをbc25b3fへ更新 → allowlist `app_start: true` → 当月補正smoke合格。発見2件=ポーラーcronのenv不足修正・E2E側誤起票清掃)
+- [x] 本番適用記録をinternal/test-resultsへ追記([r0-p2-11-production-20260904](./test-results/r0-p2-11-production-20260904/README.md))
 - 判断: リリース作業と並行可だが、テンプレート作成(R3)前に本番のアプリschemaを最終形にしておく
 
 ## R1. リポジトリ・フォルダー整理
