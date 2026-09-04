@@ -22,11 +22,11 @@ flowchart LR
   OUT -->|"③ SCP/SFTPで取得<br>(SSH・WinSCP等)"| PC["担当者PC"]
 ```
 
-出力CSVをそのまま別のkintoneアプリへ取り込むだけなら、③で取り出さずにVPS上から`cli-kintone record import`で直接取り込める(§4)。
+kintoneアプリ間のデータ移送はCSVを経由せず、SQLで直接行える(SELECT→取込先アプリへのUPSERT)。CSV出力は**ファイルとして外部システム・取引先・手元の表計算へ渡す用途**のためのものである。
 
 - ファイル転送路は**既存のSSHだけ**を使う。本製品の設計方針(受信ポート開放なし・常駐サービスなし)を維持する
 - SSHでの配置・取り出しは**二次対応者(サーバー管理者)の作業**。一次対応者はkintoneボードでの起票・状態確認のみを行う(既存の役割分担どおり)
-- 出力CSVをkintoneへ戻す用途なら、ファイルを手元へ取り出さず**VPS上から`cli-kintone record import`で直接取り込む**経路もある(実機検証済み — §4)
+- kintoneアプリ間の移送が目的ならCSVを使わずSQLで直接行う(§1の注記)。CSV入出力は外部とのファイル授受のための機能
 
 ## 2. サーバー準備(初回のみ)
 
@@ -107,15 +107,7 @@ flowchart LR
    ```
 
 4. 内容の照合が必要な場合、Node Attempt要約の`output_files`(sha256・行数・encoding)と突き合わせる。同一Runの`--rerun-from`では同一sha256になることを実測済み
-5. **kintoneへ戻すのが目的なら**、取り出さずにVPS上で取り込める:
-
-   ```sh
-   cli-kintone record import --base-url https://<subdomain>.cybozu.com \
-     --app <アプリID> --api-token $TOKEN --update-key <一意キー> \
-     --file-path /opt/ksql/io/out/.../report.csv
-   ```
-
-   (kSQLのUTF-8出力はcli-kintone互換の値表現で出力される — 実機検証済み)
+5. 出力先(取引先システム等)が`cli-kintone`でkintoneへ取り込む場合もそのまま使える — kSQLのUTF-8出力は`cli-kintone record import`互換の値表現で出力される(実機検証済み)。なお**自環境のkintoneアプリ間の移送ならCSVを経由せずSQLで直接行う**(§1)
 6. 取得済みの出力ファイルの削除は任意。`out/`はFlowNetが上書きしないパス設計(`{run_id}`使用時)なら削除せず残してもよい
 
 ## 5. 安全規則とエラー早見
