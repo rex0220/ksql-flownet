@@ -4,17 +4,21 @@ network定義の `nodes[].inputs` / `nodes[].outputs` を使うCSV取込・出�
 
 ## 1. 構成
 
-```
-[担当者PC]
-   │  SCP/SFTP(SSH経由。WinSCP等)         ※受信ポートの追加開放はしない
-   ▼
-[実行サーバー(VPS)]
-   KSQL_FLOWNET_IO_DIR/
-     in/  … 入力CSVの配置先(人が置く)
-     out/ … 出力CSVの生成先(FlowNetが書く)
-   │  run-network / poll-requests(cron・START要求)
-   ▼
-[kintone] IMPORT先アプリ / EXPORT元アプリ
+```mermaid
+flowchart LR
+  PC["担当者PC"]
+  subgraph VPS["実行サーバー(VPS) — 受信ポートの追加開放なし"]
+    IN["KSQL_FLOWNET_IO_DIR/in/<br>入力CSV(人が置く)"]
+    OUT["KSQL_FLOWNET_IO_DIR/out/<br>出力CSV(FlowNetが書く)"]
+    FN["kSQL-FlowNet + kSQL-Flow<br>run-network / poll-requests(cron・START要求)"]
+  end
+  KT["kintone<br>IMPORT先 / EXPORT元アプリ"]
+  PC -->|"SCP/SFTP(SSH・WinSCP等)で配置"| IN
+  IN -->|取込| FN
+  FN <-->|"IMPORT / EXPORT"| KT
+  FN -->|出力| OUT
+  OUT -->|"SCP/SFTP(SSH)で取得"| PC
+  OUT -.->|"cli-kintone record import(VPS上から直接取込)"| KT
 ```
 
 - ファイル転送路は**既存のSSHだけ**を使う。本製品の設計方針(受信ポート開放なし・常駐サービスなし)を維持する
