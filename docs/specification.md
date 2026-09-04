@@ -335,6 +335,42 @@ Run の正準キー生成ではさらに `:`、NUL、予約値 `__net__` を禁�
 `run-network` の新規手動実行だけは例外として、`--resume`、`--resume-run`、`--business-key`、`--scheduled-for` のいずれもない場合に `<network_id>@manual-<UTC timestamp>` を生成し、明示 business key として上記関数へ渡す。
 `plan` はこの補完を行わない。
 
+### 4.7 サーバー上のフォルダー構成(複数 network)
+
+`nodes[].sql` は **network YAML のあるディレクトリからの相対パス**で解決される。ジョブ資材(network 定義・SQL・kSQL-Flow 設定)は 1 つの git リポジトリにまとめ、サーバーへ clone して配置する(本番実績構成)。複数 network を運用する場合の推奨レイアウト:
+
+```
+/opt/ksql/
+├── ksql-flownet/                      # kSQL-FlowNet本体(clone+build)
+├── io/                                # KSQL_FLOWNET_IO_DIR(CSV入出力 — csv-io-operations.md)
+│   ├── in/
+│   └── out/
+└── my-ksql-jobs/                      # ジョブ資材リポジトリ(cron・ポーラーのcwd)
+    ├── ksql.config.json               # kSQL-Flowプロファイル・logical app定義
+    ├── .env                           # kSQL-Flow用トークン(0600・git管理外)
+    ├── jobs/                          # network横断で共用するSQL
+    │   └── 00_intake_count.sql
+    ├── flownet/
+    │   ├── network-monthly-summary.yaml   # 共用SQLは sql: ../jobs/… で参照
+    │   └── sales-import/                  # network専用の資材は専用フォルダーへ
+    │       ├── network.yaml               # 専用SQLは sql: jobs/… で参照
+    │       └── jobs/
+    │           ├── import.sql
+    │           └── report.sql
+    └── run_flownet.sh                 # 定期実行の起動スクリプト(network毎に用意)
+/root/.ksql-flownet.env                # FlowNet環境変数(root所有0600)
+/root/flownet-request-allowlist.yaml   # 操作要求allowlist(全networkを絶対パスで列挙)
+```
+
+配置規則:
+
+- **1 network = 1 YAML。** ボード・ポーラーから使う network はすべて allowlist へ `definition_path`(絶対パス)で登録する
+- **SQL の置き場所は参照範囲で決める。** 複数 network で共用する SQL は共有 `jobs/` に置き `../jobs/…` で参照する。その network 専用の SQL は network フォルダー配下の `jobs/` に置き、他 network から参照しない(変更影響を network 内に閉じる)
+- **`job_id` は profile 内で名前空間を共有する**(ジョブロック `{profile}:{job_id}`・64 UTF-16 単位以内 — §9)。別 network に同じ `job_id` を与えると同一ロックを取り合う。同じ SQL・同じ書込先を共有する意図がある場合以外は network ごとに一意にする
+- **cron は network ごとに 1 行**(定期実行の起動スクリプト)。`poll-requests` のポーラーは 1 本で全 network を担当する
+- cron・ポーラーはジョブ資材リポジトリを cwd として起動する(`KSQL_FLOW_CONFIG` が相対パスのため)
+- 定義・SQL の変更は git 経由で配置する(サーバー上で直接編集しない)。resume は Run 作成時に保存された bundle(`source_bundle_attachment` — §3.2)の SQL を再実行するため、配置後の変更は既存 Run に影響しない
+
 ## 5. CLI コマンド
 
 ### 5.1 コマンド一覧
