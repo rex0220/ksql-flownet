@@ -1,5 +1,5 @@
 import { spawn as nodeSpawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 
 export interface RunRequest {
@@ -10,6 +10,14 @@ export interface RunRequest {
   readonly correlationId: string;
   readonly attemptId: string;
   readonly expectedJobId: string;
+  readonly imports?: readonly RunImport[];
+}
+
+export interface RunImport {
+  readonly name: string;
+  readonly path: string;
+  readonly sha256: string;
+  readonly bytes: number;
 }
 
 export interface ProcessExit {
@@ -41,7 +49,6 @@ export interface RunSubprocessOptions {
   readonly gracePeriodMs: number;
   readonly forcedExitWaitMs?: number;
   readonly spawn?: RunSpawn;
-  readonly uniqueId?: () => string;
 }
 
 export interface SubprocessRunResult {
@@ -56,7 +63,6 @@ export interface SubprocessRunResult {
 
 export class RunSubprocess {
   private readonly spawn: RunSpawn;
-  private readonly uniqueId: () => string;
 
   constructor(private readonly options: RunSubprocessOptions) {
     if (!isAbsolute(options.executionDirectory))
@@ -69,7 +75,6 @@ export class RunSubprocess {
     )
       throw new Error("timeoutMs and gracePeriodMs must be non-negative");
     this.spawn = options.spawn ?? spawnRunProcess;
-    this.uniqueId = options.uniqueId ?? randomUUID;
   }
 
   async run(request: RunRequest): Promise<SubprocessRunResult> {
@@ -82,9 +87,14 @@ export class RunSubprocess {
     ] as const)
       if (!/^[A-Za-z0-9._:-]{1,128}$/.test(value))
         throw new Error(`${name} must match ^[A-Za-z0-9._:-]{1,128}$`);
-    const resultJsonPath = join(
+    const metadataDirectory = join(
       resolve(this.options.executionDirectory),
-      `${safeSegment(request.attemptId)}-${safeSegment(this.uniqueId())}.json`,
+      "metadata",
+    );
+    await mkdir(metadataDirectory, { recursive: true });
+    const resultJsonPath = join(
+      metadataDirectory,
+      `${safeSegment(request.attemptId)}.json`,
     );
     const contractArgs = [
       "run",
@@ -105,6 +115,31 @@ export class RunSubprocess {
       "--expected-job-id",
       request.expectedJobId,
     ];
+    for (const input of [...(request.imports ?? [])].sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    )) {
+      if (
+        input.name.length === 0 ||
+        input.name.includes(":") ||
+        input.name.includes("=") ||
+        [...input.name].some((character) => {
+          const code = character.codePointAt(0)!;
+          return code <= 0x1f || code === 0x7f;
+        }) ||
+        !isAbsolute(input.path) ||
+        !/^[a-f0-9]{64}$/u.test(input.sha256)
+      ) {
+        throw new Error(
+          "import source must have a safe name, absolute path, and SHA-256",
+        );
+      }
+      contractArgs.push(
+        "--import-csv",
+        `${input.name}=${input.path}`,
+        "--expected-import-sha256",
+        `${input.name}=${input.sha256}`,
+      );
+    }
     const args = [...(this.options.binArgs ?? []), ...contractArgs];
     let stdout = "";
     let stderr = "";

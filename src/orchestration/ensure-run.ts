@@ -14,8 +14,15 @@ import {
   loadNetworkDefinitionSource,
 } from "../domain/load-network.js";
 import type { NetworkDefinition } from "../domain/network-definition.js";
+import {
+  inputBaselinesEqual,
+  parseInputBaseline,
+  type StoredInputBaseline,
+} from "../io/input-baseline.js";
+import { InputPathError, resolveNodeInputs } from "../io/io-path.js";
 import type {
   NetworkRun,
+  NodeAttempt,
   NodeState,
   ResolvedProfileSnapshot,
   RunInvocation,
@@ -64,6 +71,8 @@ export type EnsureRunErrorCode =
   | "RERUN_FROM_DAG_INVALID"
   | "RERUN_FROM_UNKNOWN_STATE"
   | "RERUN_FROM_NON_IDEMPOTENT"
+  | "INPUT_FILE_MUTATED"
+  | "INPUT_RETENTION_EXPIRED"
   | "ENSURE_RUN_FAILED";
 
 export class EnsureRunError extends Error {
@@ -113,6 +122,14 @@ export interface EnsureRunInput {
   readonly lockManager: EnsureRunLockManager;
   readonly executor: EnsureRunExecutor;
   readonly bundleStore: EnsureRunBundleStore;
+  readonly beforeLock?: (
+    definition: NetworkDefinition,
+  ) =>
+    | { readonly root: string; readonly retentionDays: number }
+    | void
+    | Promise<{ readonly root: string; readonly retentionDays: number } | void>;
+  readonly ioRoot?: string;
+  readonly ioRetentionDays?: number;
   readonly now?: () => Date;
   readonly uuid?: () => string;
 }
@@ -171,7 +188,16 @@ export async function ensureRun(
 
   // Contract 9.1: capability failure must not acquire the Network lock.
   const capabilities = await input.executor.capabilities();
-  validateCapabilities(capabilities);
+  validateCapabilities(
+    capabilities,
+    definition.nodes.some((node) => Object.keys(node.inputs ?? {}).length > 0)
+      ? ["importCsv"]
+      : [],
+  );
+  const configuredIo = await input.beforeLock?.(definition);
+  const ioRoot = configuredIo?.root ?? input.ioRoot;
+  const ioRetentionDays =
+    configuredIo?.retentionDays ?? input.ioRetentionDays ?? 90;
 
   let lock: NetworkLockReference | null = null;
   let invocation: Versioned<RunInvocation> | null = null;
@@ -269,7 +295,12 @@ export async function ensureRun(
         );
       }
       outcome = "RESUME";
-      if (input.rerunFrom === undefined) {
+      if (
+        input.rerunFrom === undefined &&
+        !definition.nodes.some(
+          (node) => Object.keys(node.inputs ?? {}).length > 0,
+        )
+      ) {
         invocation = await createInvocation(input, run, outcome, now, uuid);
       }
       if (!(input.rerunFrom !== undefined && run.value.status === "SUCCESS")) {
@@ -283,6 +314,12 @@ export async function ensureRun(
       );
       verifyBundle(bundleBytes, { zipSha256: run.value.source_bundle_sha256 });
       const snapshotDefinition = definitionFromBundle(bundleBytes, run.value);
+      assertInputRetention(
+        run.value,
+        snapshotDefinition,
+        ioRetentionDays,
+        now(),
+      );
       await ensureNodeStates(
         input.repository,
         run.value.run_id,
@@ -300,6 +337,15 @@ export async function ensureRun(
           snapshotDefinition,
           input.rerunFrom,
           now,
+          (selectedIds) =>
+            verifyExistingInputBaselines(
+              input.repository,
+              run!.value,
+              snapshotDefinition,
+              new Set(selectedIds),
+              ioRoot,
+              input.profile,
+            ),
         );
         invocation = await createInvocation(
           input,
@@ -309,6 +355,26 @@ export async function ensureRun(
           uuid,
           selectedNodeIds,
         );
+      } else if (invocation === null) {
+        const states = await input.repository.getNodeStates(run.value.run_id);
+        const resumeTargets = new Set(
+          states
+            .filter(
+              ({ value }) =>
+                value.idempotent &&
+                (value.status === "FAILED" || value.status === "CANCELLED"),
+            )
+            .map(({ value }) => value.node_id),
+        );
+        await verifyExistingInputBaselines(
+          input.repository,
+          run.value,
+          snapshotDefinition,
+          resumeTargets,
+          ioRoot,
+          input.profile,
+        );
+        invocation = await createInvocation(input, run, outcome, now, uuid);
       }
     }
 
@@ -706,6 +772,7 @@ async function prepareRerunFrom(
   definition: NetworkDefinition,
   nodeId: string,
   now: () => Date,
+  beforeTransitions?: (selectedNodeIds: readonly string[]) => Promise<void>,
 ): Promise<readonly string[]> {
   let selected: readonly string[];
   try {
@@ -763,6 +830,8 @@ async function prepareRerunFrom(
     );
   }
 
+  await beforeTransitions?.(selected);
+
   const at = now().toISOString();
   for (const state of selectedStates) {
     await repository.upsertNodeState({
@@ -779,6 +848,95 @@ async function prepareRerunFrom(
     });
   }
   return selected;
+}
+
+function assertInputRetention(
+  run: NetworkRun,
+  definition: NetworkDefinition,
+  retentionDays: number,
+  now: Date,
+): void {
+  if (
+    !definition.nodes.some((node) => Object.keys(node.inputs ?? {}).length > 0)
+  )
+    return;
+  if (!Number.isSafeInteger(retentionDays) || retentionDays <= 0)
+    throw new EnsureRunError(
+      "INPUT_RETENTION_EXPIRED",
+      "input retention period configuration is invalid; create a new Run only after correcting it",
+    );
+  const createdAt = Date.parse(run.created_at);
+  if (!Number.isFinite(createdAt))
+    throw new EnsureRunError(
+      "RUN_SNAPSHOT_MISMATCH",
+      "stored Run creation time is invalid",
+    );
+  const expiresAt = createdAt + retentionDays * 86_400_000;
+  // kintone DATETIME values may lose seconds; allow the full final minute.
+  if (now.getTime() <= expiresAt + 59_999) return;
+  throw new EnsureRunError(
+    "INPUT_RETENTION_EXPIRED",
+    `input retention period (${retentionDays} days from Run creation) has expired; create a new Run with a correction business key`,
+  );
+}
+
+async function verifyExistingInputBaselines(
+  repository: PersistenceRepository,
+  run: NetworkRun,
+  definition: NetworkDefinition,
+  targetNodeIds: ReadonlySet<string>,
+  ioRoot: string | undefined,
+  profile: string,
+): Promise<void> {
+  if (targetNodeIds.size === 0 || ioRoot === undefined) return;
+  const attempts = await repository.getAttempts(run.run_id);
+  for (const node of definition.nodes) {
+    const patterns = node.inputs ?? {};
+    if (!targetNodeIds.has(node.id) || Object.keys(patterns).length === 0)
+      continue;
+    const previous = latestStoredBaseline(attempts, node.id);
+    if (previous === null) continue;
+    let current;
+    try {
+      current = await resolveNodeInputs({
+        ioRoot,
+        patterns,
+        businessKey: run.business_key,
+        profile,
+      });
+    } catch (error) {
+      if (error instanceof InputPathError) continue;
+      throw error;
+    }
+    if (!inputBaselinesEqual(previous, current)) {
+      throw new EnsureRunError(
+        "INPUT_FILE_MUTATED",
+        `input file changed for node '${node.id}'; restore the original file or create a new Run with a correction business key`,
+      );
+    }
+  }
+}
+
+function latestStoredBaseline(
+  attempts: readonly Versioned<NodeAttempt>[],
+  nodeId: string,
+): readonly StoredInputBaseline[] | null {
+  try {
+    for (const attempt of attempts
+      .filter(({ value }) => value.node_id === nodeId)
+      .sort((left, right) => right.value.attempt_no - left.value.attempt_no)) {
+      const baseline = parseInputBaseline(attempt.value.error_message);
+      if (baseline !== null) return baseline;
+    }
+    return null;
+  } catch (error) {
+    throw new EnsureRunError(
+      "INPUT_FILE_MUTATED",
+      `stored input baseline for node '${nodeId}' is invalid; create a new Run with a correction business key`,
+      [],
+      { cause: error },
+    );
+  }
 }
 
 function resolveEnsureBusinessKey(

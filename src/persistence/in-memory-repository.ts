@@ -10,6 +10,7 @@ import type {
 } from "../domain/persistence-model.js";
 import type {
   AttemptExecutionStart,
+  AttemptInputBaselineWrite,
   AttemptFinalization,
   CreateAttemptInput,
   Inconsistency,
@@ -377,6 +378,27 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
       );
     }
     return next(stored, { ...stored.value, ...start });
+  }
+
+  async setAttemptInputBaseline(
+    attemptId: string,
+    expectedRevision: number,
+    write: AttemptInputBaselineWrite,
+  ): Promise<Versioned<NodeAttempt>> {
+    const stored = this.attemptById(attemptId);
+    assertRevision(stored, expectedRevision);
+    if (
+      stored.value.status !== "RUNNING" ||
+      stored.value.execution_started_at !== null
+    )
+      throw new RepositoryError(
+        "ATTEMPT_LIFECYCLE_VIOLATION",
+        "input baseline must be recorded before execution starts",
+      );
+    return next(stored, {
+      ...stored.value,
+      error_message: write.error_message,
+    });
   }
 
   async finalizeAttempt(

@@ -27,7 +27,7 @@ function run(overrides = {}) {
   };
 }
 
-function repositoryFixture() {
+function repositoryFixture(overrides = {}) {
   const writes = [];
   const runs = [
     { value: run(), revision: 1 },
@@ -53,7 +53,7 @@ function repositoryFixture() {
             invocation_id: "invoke_1",
             mode: "RESUME",
             status: "UNKNOWN",
-            result_code: "LEASE_EXPIRED",
+            result_code: overrides.invocationResultCode ?? "LEASE_EXPIRED",
             started_at: T0,
           },
           revision: 1,
@@ -66,7 +66,7 @@ function repositoryFixture() {
           value: {
             node_id: "unknown_node",
             status: "UNKNOWN",
-            status_reason: "result unavailable",
+            status_reason: overrides.nodeResultCode ?? "result unavailable",
             idempotent: false,
             latest_attempt_no: 1,
             active_attempt_id: null,
@@ -96,6 +96,7 @@ function repositoryFixture() {
             node_id: "unknown_node",
             attempt_no: 1,
             status: "UNKNOWN",
+            result_code: overrides.nodeResultCode ?? "NO_EXECUTION_RESULT",
             state_revision_before: 1,
           },
           revision: 1,
@@ -106,6 +107,7 @@ function repositoryFixture() {
             node_id: "active_node",
             attempt_no: 1,
             status: "RUNNING",
+            result_code: "PENDING",
             state_revision_before: 1,
           },
           revision: 1,
@@ -210,6 +212,13 @@ test("specified Run detail is read-only and includes recovery identifiers and ac
     node_attempt_id: "attempt_2",
     attempt_no: 1,
     status: "RUNNING",
+    result_code: "PENDING",
+  });
+  assert.deepEqual(output.runs[0].node_states[0].latest_attempt, {
+    node_attempt_id: "attempt_1",
+    attempt_no: 1,
+    status: "UNKNOWN",
+    result_code: "NO_EXECUTION_RESULT",
   });
   assert.deepEqual(output.runs[0].recovery_identifiers.resolve_node, [
     { run_id: "run_1", node_id: "unknown_node" },
@@ -318,4 +327,31 @@ test("JSON and text modes render from the same status result", async (context) =
     0,
   );
   assert.match(stdout.pop(), /run_id: run_1/);
+});
+
+test("status --jsonは入力失敗のInvocation/Attempt result codeを識別できる", async (context) => {
+  const stdout = [];
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  for (const code of ["INPUT_FILE_MISSING", "INPUT_FILE_MUTATED"]) {
+    assert.equal(
+      await runStatusCommand(
+        ["net", "--profile", "prod", "--run-id", "run_1", "--json"],
+        {
+          repository: repositoryFixture({
+            invocationResultCode: code,
+            nodeResultCode: code,
+          }),
+          lockReader: lockReader(null),
+        },
+      ),
+      0,
+    );
+    const detail = JSON.parse(stdout.pop()).runs[0];
+    assert.equal(detail.invocations[0].result_code, code);
+    assert.equal(detail.node_states[0].status_reason, code);
+    assert.equal(detail.node_states[0].latest_attempt.result_code, code);
+  }
 });

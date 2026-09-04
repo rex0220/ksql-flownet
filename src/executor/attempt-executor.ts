@@ -24,6 +24,10 @@ import type {
   RunSubprocess,
   SubprocessRunResult,
 } from "./run-subprocess.js";
+import {
+  serializeInputAuditSummary,
+  serializeInputBaseline,
+} from "../io/input-baseline.js";
 
 export interface AttemptExecutorInput extends RunRequest {
   readonly attempt: Versioned<NodeAttempt>;
@@ -93,6 +97,32 @@ export class AttemptExecutor {
       },
       this.options.resultFileReader,
     );
+
+    if (
+      classification.kind === "VALID_RESULT" &&
+      (input.imports?.length ?? 0) > 0
+    ) {
+      const receipts = classification.result?.input_files;
+      const actual = [...(receipts ?? [])]
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map(({ name, sha256, bytes }) => ({ name, sha256, bytes }));
+      const expectedWithBytes = [...(input.imports ?? [])]
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map(({ name, sha256, bytes }) => ({ name, sha256, bytes }));
+      if (
+        receipts === undefined ||
+        JSON.stringify(actual) !== JSON.stringify(expectedWithBytes)
+      ) {
+        classification = {
+          kind: "INVALID_RESULT",
+          attemptOutcome: "UNKNOWN",
+          resultCode: null,
+          details: ["input_files does not match the preflight input baseline"],
+          result: null,
+          invocationResultCode: "INVALID_EXECUTION_RESULT",
+        };
+      }
+    }
 
     if (process.forced) {
       classification = {
@@ -171,9 +201,21 @@ export class AttemptExecutor {
           execution_id: result?.executionId ?? marker?.executionId ?? null,
           finished_at: finishedAt,
           duration_sec: result ? result.durationMs / 1000 : null,
-          error_message:
-            result?.error?.message ??
-            (classification.details.join("; ") || null),
+          error_message: input.imports?.length
+            ? result?.input_files === undefined
+              ? serializeInputBaseline(input.imports)
+              : serializeInputAuditSummary(
+                  input.imports,
+                  result.input_files.map((file) => ({
+                    source: file.name,
+                    sha256: file.sha256,
+                    bytes: file.bytes,
+                    rows: file.rows,
+                    encoding: file.encoding,
+                  })),
+                )
+            : (result?.error?.message ??
+              (classification.details.join("; ") || null)),
           read_count: result?.readCount ?? 0,
           written_count: result?.writtenCount ?? 0,
           last_successful_chunk_no: result?.lastSuccessfulChunkNo ?? null,

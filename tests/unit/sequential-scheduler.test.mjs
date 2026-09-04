@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { buildBundle } from "../../dist/bundle/index.js";
@@ -8,6 +12,8 @@ import {
   runSequentialScheduler,
 } from "../../dist/orchestration/sequential-scheduler.js";
 import { InMemoryPersistenceRepository } from "../../dist/persistence/in-memory-repository.js";
+import { serializeInputBaseline } from "../../dist/io/input-baseline.js";
+import { RepositoryError } from "../../dist/persistence/repository.js";
 import {
   KintoneApiError,
   KintoneTransportError,
@@ -36,6 +42,11 @@ function yaml(nodes) {
       "    trigger_rule: all_success",
       `    idempotent: ${node.idempotent ?? true}`,
     );
+    if (node.inputs) {
+      lines.push("    inputs:");
+      for (const [name, pattern] of Object.entries(node.inputs))
+        lines.push(`      ${name}: ${pattern}`);
+    }
   }
   return `${lines.join("\n")}\n`;
 }
@@ -181,9 +192,18 @@ async function seed(nodes, options = {}) {
           active_attempt_id: attempt.value.node_attempt_id,
         },
       });
+      const baseline = options.successfulAttemptBaselines?.[node.id];
+      const preparedAttempt =
+        baseline === undefined
+          ? attempt
+          : await repository.setAttemptInputBaseline(
+              attempt.value.node_attempt_id,
+              attempt.revision,
+              { error_message: baseline },
+            );
       const started = await repository.setAttemptExecutionStarted(
         attempt.value.node_attempt_id,
-        attempt.revision,
+        preparedAttempt.revision,
         { execution_started_at: T0 },
       );
       await repository.finalizeAttempt(
@@ -196,7 +216,7 @@ async function seed(nodes, options = {}) {
           execution_id: `old_exec_${node.id}`,
           finished_at: T0,
           duration_sec: 0,
-          error_message: null,
+          error_message: baseline ?? null,
           read_count: 1,
           written_count: 1,
           last_successful_chunk_no: null,
@@ -383,6 +403,7 @@ async function execute(nodes, options = {}) {
     leaseMonitor: options.monitor ?? heldMonitor(),
     profile: "prod",
     configPath: "C:\\secure\\config.json",
+    ...(options.ioRoot === undefined ? {} : { ioRoot: options.ioRoot }),
     close: async (value) => {
       options.onClose?.();
       closeCalls.push(value);
@@ -404,6 +425,138 @@ async function execute(nodes, options = {}) {
   });
   return { ...seeded, summary, calls, closeCalls, concurrency };
 }
+
+test("到達nodeのinput不在はspawnせずAttempt/StateをFAILEDへ確定する", async (context) => {
+  const ioRoot = mkdtempSync(join(tmpdir(), "ksql-flownet-scheduler-io-"));
+  mkdirSync(join(ioRoot, "in"));
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  const result = await execute(
+    [{ id: "a", dependsOn: [], inputs: { sales: "missing.csv" } }],
+    { ioRoot },
+  );
+  assert.deepEqual(result.calls, []);
+  const attempts = await result.repository.getAttempts("run_1");
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0].value.status, "FAILED");
+  assert.equal(attempts[0].value.result_code, "INPUT_FILE_MISSING");
+  assert.equal(attempts[0].value.execution_started_at, null);
+  const states = await result.repository.getNodeStates("run_1");
+  assert.equal(states[0].value.status, "FAILED");
+  assert.equal(result.summary.invocationResultCode, "INPUT_FILE_MISSING");
+});
+
+test("baseline応答消失は再GET一致時だけ続行する", async (context) => {
+  const ioRoot = mkdtempSync(join(tmpdir(), "ksql-flownet-baseline-"));
+  mkdirSync(join(ioRoot, "in"));
+  writeFileSync(join(ioRoot, "in", "sales.csv"), "id,name\n1,A\n");
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  let writes = 0;
+  const result = await execute(
+    [{ id: "a", dependsOn: [], inputs: { sales: "sales.csv" } }],
+    {
+      ioRoot,
+      afterSeed({ repository }) {
+        const original = repository.setAttemptInputBaseline.bind(repository);
+        repository.setAttemptInputBaseline = async (...args) => {
+          writes += 1;
+          await original(...args);
+          throw new RepositoryError("AMBIGUOUS_WRITE", "response lost");
+        };
+      },
+    },
+  );
+  assert.equal(writes, 1);
+  assert.deepEqual(result.calls, ["a"]);
+});
+
+test("baseline revision競合の再GETが不一致ならfail-closedにする", async (context) => {
+  const ioRoot = mkdtempSync(join(tmpdir(), "ksql-flownet-baseline-conflict-"));
+  mkdirSync(join(ioRoot, "in"));
+  writeFileSync(join(ioRoot, "in", "sales.csv"), "id\n1\n");
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  await assert.rejects(
+    execute([{ id: "a", dependsOn: [], inputs: { sales: "sales.csv" } }], {
+      ioRoot,
+      afterSeed({ repository }) {
+        const original = repository.setAttemptInputBaseline.bind(repository);
+        repository.setAttemptInputBaseline = async (attemptId, revision) => {
+          await original(attemptId, revision, {
+            error_message: serializeInputBaseline([
+              { name: "sales", sha256: "f".repeat(64), bytes: 1 },
+            ]),
+          });
+          throw new RepositoryError("REVISION_CONFLICT", "lost race");
+        };
+      },
+    }),
+    /could not be uniquely confirmed/,
+  );
+});
+
+test("通常resumeはSUCCESS importを照合せず、rerun-from選択時はMUTATEDで止める", async (context) => {
+  const ioRoot = mkdtempSync(join(tmpdir(), "ksql-flownet-rerun-input-"));
+  mkdirSync(join(ioRoot, "in"));
+  writeFileSync(join(ioRoot, "in", "sales.csv"), "changed");
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  const original = "original";
+  const baseline = serializeInputBaseline([
+    {
+      name: "sales",
+      sha256: createHash("sha256").update(original).digest("hex"),
+      bytes: Buffer.byteLength(original),
+    },
+  ]);
+  const nodes = [{ id: "a", dependsOn: [], inputs: { sales: "sales.csv" } }];
+  const resumed = await execute(nodes, {
+    mode: "RESUME",
+    runStatus: "FAILED",
+    successfulAttemptNodeIds: ["a"],
+    successfulAttemptBaselines: { a: baseline },
+    ioRoot,
+  });
+  assert.deepEqual(resumed.calls, []);
+  assert.equal(resumed.summary.nodeResults[0].disposition, "PRESERVED");
+
+  const rerun = await execute(nodes, {
+    mode: "RERUN_FROM",
+    selectedNodeIds: ["a"],
+    runStatus: "FAILED",
+    successfulAttemptNodeIds: ["a"],
+    successfulAttemptBaselines: { a: baseline },
+    initial: { a: "WAITING" },
+    ioRoot,
+  });
+  assert.deepEqual(rerun.calls, []);
+  const attempts = await rerun.repository.getAttempts("run_1");
+  const latest = attempts.sort(
+    (left, right) => right.value.attempt_no - left.value.attempt_no,
+  )[0];
+  assert.equal(latest.value.result_code, "INPUT_FILE_MUTATED");
+  assert.equal(latest.value.execution_started_at, null);
+  assert.equal(rerun.summary.invocationResultCode, "INPUT_FILE_MUTATED");
+});
+
+test("到達しない下流nodeのinputは一律pre-flightしない", async () => {
+  const result = await execute(
+    [
+      { id: "upstream", dependsOn: [] },
+      {
+        id: "downstream",
+        dependsOn: ["upstream"],
+        inputs: { sales: "missing.csv" },
+      },
+    ],
+    { outcomes: { upstream: "FAILED" } },
+  );
+  assert.deepEqual(result.calls, ["upstream"]);
+  assert.equal(result.summary.nodeResults[1].status, "BLOCKED");
+  assert.equal(
+    (await result.repository.getAttempts("run_1")).filter(
+      ({ value }) => value.node_id === "downstream",
+    ).length,
+    0,
+  );
+});
 
 test("retry brake counts equal trailing failures and treats PREPARE_FAILED as transparent", () => {
   const attempt = (attemptNo, status, resultCode) => ({

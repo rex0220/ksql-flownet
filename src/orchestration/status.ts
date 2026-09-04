@@ -89,10 +89,11 @@ interface InvocationOutput {
   readonly result_code: string;
 }
 
-interface ActiveAttemptOutput {
+interface AttemptSummaryOutput {
   readonly node_attempt_id: string;
   readonly attempt_no: number;
   readonly status: NodeAttempt["status"];
+  readonly result_code: string;
 }
 
 interface NodeStateOutput {
@@ -102,7 +103,8 @@ interface NodeStateOutput {
   readonly idempotent: boolean;
   readonly latest_attempt_no: number;
   readonly active_attempt_id: string | null;
-  readonly active_attempt: ActiveAttemptOutput | null;
+  readonly latest_attempt: AttemptSummaryOutput | null;
+  readonly active_attempt: AttemptSummaryOutput | null;
 }
 
 function summary(
@@ -157,6 +159,12 @@ async function detail(
   const attemptsById = new Map(
     attempts.map((attempt) => [attempt.value.node_attempt_id, attempt.value]),
   );
+  const attemptsByNodeAndNumber = new Map(
+    attempts.map((attempt) => [
+      `${attempt.value.node_id}\0${attempt.value.attempt_no}`,
+      attempt.value,
+    ]),
+  );
   return {
     ...summary(
       run.value,
@@ -180,6 +188,12 @@ async function detail(
         value.active_attempt_id === null
           ? undefined
           : attemptsById.get(value.active_attempt_id);
+      const latest =
+        value.latest_attempt_no === 0
+          ? undefined
+          : attemptsByNodeAndNumber.get(
+              `${value.node_id}\0${value.latest_attempt_no}`,
+            );
       return {
         node_id: value.node_id,
         status: value.status,
@@ -187,14 +201,10 @@ async function detail(
         idempotent: value.idempotent,
         latest_attempt_no: value.latest_attempt_no,
         active_attempt_id: value.active_attempt_id,
+        latest_attempt:
+          latest === undefined ? null : attemptSummary(latest),
         active_attempt:
-          active === undefined
-            ? null
-            : {
-                node_attempt_id: active.node_attempt_id,
-                attempt_no: active.attempt_no,
-                status: active.status,
-              },
+          active === undefined ? null : attemptSummary(active),
       };
     }),
     reconciliation: {
@@ -225,6 +235,15 @@ async function detail(
             },
       run_network: { resume_run: runId },
     },
+  };
+}
+
+function attemptSummary(attempt: NodeAttempt): AttemptSummaryOutput {
+  return {
+    node_attempt_id: attempt.node_attempt_id,
+    attempt_no: attempt.attempt_no,
+    status: attempt.status,
+    result_code: attempt.result_code,
   };
 }
 

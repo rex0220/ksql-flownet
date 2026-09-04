@@ -77,7 +77,12 @@
           "trigger_rule": {
             "enum": ["all_success", "none_failed", "all_done"]
           },
-          "idempotent": { "type": "boolean" }
+          "idempotent": { "type": "boolean" },
+          "inputs": {
+            "type": "object",
+            "propertyNames": { "$ref": "#/$defs/sourceIdentifier" },
+            "additionalProperties": { "type": "string", "minLength": 1 }
+          }
         }
       }
     }
@@ -91,6 +96,18 @@
         "anyOf": [
           { "pattern": ":" },
           { "pattern": "\\u0000" },
+          { "const": "__net__" }
+        ]
+      }
+    },
+    "sourceIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "not": {
+        "anyOf": [
+          { "pattern": "[:=]" },
+          { "pattern": "[\\u0000-\\u001f\\u007f]" },
           { "const": "__net__" }
         ]
       }

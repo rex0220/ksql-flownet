@@ -1,0 +1,18 @@
+schema_version: 1
+network_id: csv1_import
+description: CSV stage 1 isolated import fixture
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 120
+  heartbeat_interval_sec: 30
+nodes:
+  - id: import_csv
+    job_id: csv1_import
+    sql: jobs/csv1-import.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+    inputs:
+      source: csv1/{business_key}/{profile}/input.csv

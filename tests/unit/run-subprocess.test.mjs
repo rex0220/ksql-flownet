@@ -13,7 +13,7 @@ const request = {
   expectedJobId: "job_a",
 };
 
-test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/stderrを保持する", async () => {
+test("contract引数とattempt由来の決定的metadata pathをspawnへ渡しstdout/stderrを保持する", async () => {
   const calls = [];
   const runner = new RunSubprocess({
     command: "ksql-flow",
@@ -21,7 +21,6 @@ test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/
     executionDirectory: "C:\\exec",
     timeoutMs: 100,
     gracePeriodMs: 10,
-    uniqueId: () => "unique-1",
     spawn: (call) => {
       calls.push(call);
       call.onStdout("human output");
@@ -34,7 +33,7 @@ test("contract引数とattempt由来の一意result pathをspawnへ渡しstdout/
     },
   });
   const outcome = await runner.run(request);
-  assert.equal(outcome.resultJsonPath, "C:\\exec\\attempt_1-unique-1.json");
+  assert.equal(outcome.resultJsonPath, "C:\\exec\\metadata\\attempt_1.json");
   assert.equal(outcome.stdout, "human output");
   assert.equal(outcome.stderr, "diagnostic");
   assert.deepEqual(calls[0].args, [
@@ -81,6 +80,52 @@ test("timeoutMs nullは外側のbatch timeoutを無効にする", async () => {
   assert.equal(outcome.exitCode, 0);
   assert.equal(outcome.timedOut, false);
   assert.equal(stopped, false);
+});
+
+test("CSV inputsをsource名順のimport/hashペアとしてargvへ渡す", async () => {
+  const calls = [];
+  const runner = new RunSubprocess({
+    command: "ksql-flow",
+    executionDirectory: "C:\\exec",
+    timeoutMs: null,
+    gracePeriodMs: 1,
+    uniqueId: () => "imports",
+    spawn: (call) => {
+      calls.push(call);
+      return {
+        completion: Promise.resolve({ exitCode: 0 }),
+        gracefulStop() {},
+        forceStop() {},
+      };
+    },
+  });
+  await runner.run({
+    ...request,
+    imports: [
+      {
+        name: "zeta",
+        path: "C:\\io\\in\\z.csv",
+        sha256: "b".repeat(64),
+        bytes: 20,
+      },
+      {
+        name: "alpha",
+        path: "C:\\io\\in\\a.csv",
+        sha256: "a".repeat(64),
+        bytes: 10,
+      },
+    ],
+  });
+  assert.deepEqual(calls[0].args.slice(-8), [
+    "--import-csv",
+    "alpha=C:\\io\\in\\a.csv",
+    "--expected-import-sha256",
+    `alpha=${"a".repeat(64)}`,
+    "--import-csv",
+    "zeta=C:\\io\\in\\z.csv",
+    "--expected-import-sha256",
+    `zeta=${"b".repeat(64)}`,
+  ]);
 });
 
 test("timeoutはgraceful signal後のCANCELLED終了を待つ", async () => {

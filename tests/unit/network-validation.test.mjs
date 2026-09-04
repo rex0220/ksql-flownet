@@ -8,6 +8,7 @@ import { parseAllDocuments } from "yaml";
 import { stableTopologicalSort } from "../../dist/dag/topological-sort.js";
 import { MAX_IDENTIFIER_LENGTH } from "../../dist/domain/network-definition.js";
 import { validateNetworkDefinition } from "../../dist/domain/validate-network.js";
+import { loadNetworkDefinitionSource } from "../../dist/domain/load-network.js";
 
 function validDefinition() {
   return {
@@ -89,6 +90,68 @@ test("all required node fields are enforced", () => {
     delete definition.nodes[0][property];
     assertInvalid(definition, new RegExp(property));
   }
+});
+
+test("inputs accepts the two input placeholders and rejects every unsafe form", () => {
+  const valid = validDefinition();
+  valid.nodes[0].inputs = {
+    sales: "daily/{profile}/sales_{business_key}.csv",
+  };
+  assert.deepEqual(validateNetworkDefinition(valid).errors, []);
+  assert.deepEqual(
+    validateNetworkDefinition(valid).definition.nodes[0].inputs,
+    valid.nodes[0].inputs,
+  );
+
+  for (const pattern of [
+    "",
+    "/absolute.csv",
+    "C:\\absolute.csv",
+    "\\\\server\\share\\file.csv",
+    "nul\0.csv",
+    "{unknown}.csv",
+    "{run_id}.csv",
+    "{profile.csv",
+    "profile}.csv",
+    "./file.csv",
+    "dir/../file.csv",
+    "dir\\..\\file.csv",
+  ]) {
+    const definition = validDefinition();
+    definition.nodes[0].inputs = { sales: pattern };
+    assert.ok(
+      validateNetworkDefinition(definition).errors.some(
+        (error) =>
+          error.code === "INPUT_PATTERN_INVALID" ||
+          error.code === "SCHEMA_INVALID",
+      ),
+      pattern,
+    );
+  }
+
+  for (const name of ["", "bad\nname", "bad:name", "bad=name", "__net__"]) {
+    const definition = validDefinition();
+    definition.nodes[0].inputs = { [name]: "sales.csv" };
+    assertInvalid(definition, /inputs/);
+  }
+  const duplicate = loadNetworkDefinitionSource(`schema_version: 1
+network_id: network
+business_key_policy: { type: explicit }
+network_lock: { lease_duration_sec: 3, heartbeat_interval_sec: 1 }
+nodes:
+  - id: one
+    job_id: job_one
+    sql: jobs/one.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+    inputs:
+      sales: a.csv
+      sales: b.csv
+`);
+  assert.ok(
+    duplicate.errors.some((error) => error.code === "YAML_PARSE_ERROR"),
+  );
 });
 
 test("node identity and dependency rules reject all invalid relationships", () => {

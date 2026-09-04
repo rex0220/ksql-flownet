@@ -30,6 +30,7 @@ const P2_01_FIXTURES = new Set([
   "network-drill.yaml",
   "network-p211-explicit.yaml",
   "network-p211-scheduled.yaml",
+  "network-csv1-import.yaml",
 ]);
 const FLOWNET_CLI = fileURLToPath(
   new globalThis.URL("../../dist/cli/index.js", import.meta.url),

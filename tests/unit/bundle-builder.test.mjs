@@ -113,6 +113,19 @@ test("bundle round-trip verifies ZIP hash, canonical manifest hash, byte lengths
   assert.equal(verified.manifestSha256, built.manifestSha256);
 });
 
+test("bundle round-trip preserves input patterns without resolving paths", () => {
+  const network = utf8(
+    "schema_version: 1\nnodes:\n  - inputs:\n      sales: daily/{profile}/sales_{business_key}.csv\n",
+  );
+  const built = buildBundle({ networkYamlBytes: network, jobs: jobs() });
+  verifyBundle(built.zipBytes);
+  const stored = readStoreZip(built.zipBytes).find(
+    (entry) => entry.name === "network.yaml",
+  );
+  assert.deepEqual(stored.data, network);
+  assert.doesNotMatch(stored.data.toString("utf8"), /[A-Za-z]:\\|\/tmp\//u);
+});
+
 test("one-byte ZIP tampering is detected fail-closed", () => {
   const built = buildBundle({
     networkYamlBytes: utf8("schema_version: 1\n"),

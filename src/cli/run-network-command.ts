@@ -12,6 +12,7 @@ import { AttemptExecutor } from "../executor/attempt-executor.js";
 import { KintoneJobLogReader } from "../executor/job-log-reader.js";
 import { KsqlFlowCli } from "../executor/ksql-flow-cli.js";
 import { RunSubprocess } from "../executor/run-subprocess.js";
+import { loadIoConfig } from "../io/io-config.js";
 import {
   ensureRun,
   EnsureRunError,
@@ -160,8 +161,7 @@ export async function runRunNetworkCommand(
         aggregate_status: null,
         invocation_result_code: code,
         retry_brake_node_ids: [],
-        blocked_run_ids:
-          error instanceof EnsureRunError ? error.blockedBy : [],
+        blocked_run_ids: error instanceof EnsureRunError ? error.blockedBy : [],
       });
     } else {
       process.stderr.write(`Error [${code}]: ${message}\n`);
@@ -333,6 +333,7 @@ function productionDependencies(
         repository: KintonePersistenceRepository;
         lockManager: NetworkLockManager;
         configPath: string;
+        ioRoot?: string;
       }
     | undefined;
   return {
@@ -345,6 +346,7 @@ function productionDependencies(
       if (loaded.definition === undefined || loaded.errors.length > 0) {
         throw new Error("network definition is invalid");
       }
+      let ioConfig: ReturnType<typeof loadIoConfig> | undefined;
       const repository = new KintonePersistenceRepository({
         baseUrl,
         stateAppId,
@@ -376,6 +378,17 @@ function productionDependencies(
         repository,
         lockManager,
         executor,
+        beforeLock(definition) {
+          if (
+            definition.nodes.some(
+              (node) => Object.keys(node.inputs ?? {}).length > 0,
+            )
+          ) {
+            ioConfig = loadIoConfig();
+            return ioConfig;
+          }
+          return undefined;
+        },
         bundleStore: {
           upload: (zipBytes) =>
             uploadBundle({ endpoint, zipBytes, fetch, headers }),
@@ -383,7 +396,12 @@ function productionDependencies(
             downloadBundle({ endpoint, fileKey, fetch, headers }),
         },
       });
-      resources = { repository, lockManager, configPath };
+      resources = {
+        repository,
+        lockManager,
+        configPath,
+        ...(ioConfig === undefined ? {} : { ioRoot: ioConfig.root }),
+      };
       return ensured;
     },
     async schedule(result) {
@@ -436,6 +454,7 @@ function productionDependencies(
         profile,
         configPath: resources.configPath,
         executionRoot: executionDirectory,
+        ...(resources.ioRoot === undefined ? {} : { ioRoot: resources.ioRoot }),
         close: (finalization) => result.close(finalization),
       });
     },

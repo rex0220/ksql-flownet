@@ -74,6 +74,17 @@ function semanticErrors(definition: NetworkDefinition): ValidationError[] {
     }
     nodeIds.add(node.id);
 
+    for (const [sourceName, pattern] of Object.entries(node.inputs ?? {})) {
+      const problem = inputPatternProblem(pattern);
+      if (problem !== null) {
+        errors.push({
+          code: "INPUT_PATTERN_INVALID",
+          path: `${nodePath}/inputs/${escapeJsonPointer(sourceName)}`,
+          message: problem,
+        });
+      }
+    }
+
     if (node.trigger_rule !== "all_success") {
       errors.push({
         code: "TRIGGER_RULE_UNSUPPORTED",
@@ -131,6 +142,41 @@ function semanticErrors(definition: NetworkDefinition): ValidationError[] {
     });
   }
   return errors;
+}
+
+const INPUT_PLACEHOLDERS = new Set(["business_key", "profile"]);
+
+function inputPatternProblem(pattern: string): string | null {
+  if (pattern.length === 0) return "input pattern must not be empty";
+  if (pattern.includes("\0")) return "input pattern must not contain NUL";
+  if (
+    pattern.startsWith("/") ||
+    pattern.startsWith("\\") ||
+    /^[A-Za-z]:/u.test(pattern)
+  )
+    return "input pattern must be a relative path without a drive or UNC prefix";
+
+  const literal = pattern.replace(/\{([^{}]*)\}/gu, (_match, name: string) => {
+    return INPUT_PLACEHOLDERS.has(name) ? "placeholder" : `{${name}}`;
+  });
+  if (literal.includes("{") || literal.includes("}")) {
+    return "input pattern contains an unknown or malformed placeholder";
+  }
+  if (pattern.includes("{run_id}")) {
+    return "input pattern placeholder '{run_id}' is not allowed";
+  }
+  if (
+    pattern
+      .split(/[\\/]/u)
+      .some((segment) => segment === "." || segment === "..")
+  ) {
+    return "input pattern must not contain '.' or '..' path segments";
+  }
+  return null;
+}
+
+function escapeJsonPointer(value: string): string {
+  return value.replace(/~/gu, "~0").replace(/\//gu, "~1");
 }
 
 export function validateNetworkDefinition(input: unknown): ValidationResult {
