@@ -789,6 +789,41 @@ flowchart LR
 
 実行開始後の進捗はボードの `進行中のRun` に `sales_import_20260904` の Run として現れ、各ノードの結果は Node Attempt と JOBログに記録される。同じ business_key での再起票は重複ガードと ensure-run 裁定により新規 Run にならない(§6.5)。
 
+#### 具体例: 月次集計(スケジュールジョブ) — スケジュールとジョブファイルの関係
+
+§4.7 の flow 1(`monthly_summary`・scheduled_period 月次)を例にする。スケジュールジョブには **cron(定期)とダイアログ(補正)の2つの入口**があり、どちらも「対象期間 → 業務キー」を決めるだけで、**実行されるジョブファイルは同じ network.yaml の `nodes[].sql`** である:
+
+```mermaid
+flowchart LR
+  CRON["VPS cron(毎月1日 07:00)<br>run_monthly_summary.sh<br>run-network --resume<br>--scheduled-for 2026-09-01T00:00+09:00"]
+  DLG["ダイアログ『月次集計』補正モード<br>対象期間: 2026-09(JST)<br>business_key:<br>monthly_summary@2026-09-correction-1"]
+  KEY1["業務キー導出(§4.6)<br>monthly_summary@2026-09"]
+  KEY2["業務キー(入力値を採用)<br>monthly_summary@2026-09-correction-1"]
+  subgraph NET["flownet/monthly-summary/network.yaml<br>business_key_policy: scheduled_period / month / Asia/Tokyo<br>format: monthly_summary@{yyyy}-{MM}"]
+    N1["intake_gate<br>../../jobs/00_intake_count.sql"]
+    N2["test_data_gate<br>jobs/10_test_data_gate.sql"]
+    N3["deal_summary<br>jobs/20_deal_summary.sql"]
+    N1 --> N2 --> N3
+  end
+  CRON --> KEY1 --> N1
+  DLG --> KEY2 --> N1
+```
+
+スケジュールが決めるもの・決めないもの:
+
+| 項目 | 決まり方 |
+| --- | --- |
+| いつ動くか | VPS の cron 行(`0 7 1 * *` 等)。kSQL-FlowNet 自体はスケジューラを持たない(§1.2) |
+| どの期間の Run か(業務キー) | `--scheduled-for` の日時を network.yaml の `timezone` で暦月に変換し `format` を展開: 2026-09-01 → `monthly_summary@2026-09`。**月が変われば業務キーだけが変わる** |
+| 何を実行するか(SQL) | network.yaml の `nodes[].sql`。**cron 側にも画面側にも SQL の情報はなく、毎月同じファイルが実行される** |
+| SQL が読む期間断面 | 対象期間は Run の `as_of` として保存され kSQL-Flow へ渡る。SQL は `as_of` 基準で対象期間を集計する |
+
+運用上の帰結:
+
+- **同月に cron が再発火しても安全**である。`--resume` 付きのため、完走済み `monthly_summary@2026-09` に対しては NO-OP(Exit 0)になる(本番実測)
+- 月の途中でデータ訂正後に再集計したい場合は、ダイアログの補正モードで同じ対象期間・補正キー(`…@2026-09-correction-1`)を起票する。**定期 Run とは別の Run** として同じ SQL 群が実行される(§6.5)
+- ジョブファイルを更新しても、実行中・失敗中の既存 Run の resume には影響しない(Run 作成時の bundle を再実行 — §4.7)。更新後の SQL は次の新規 Run(翌月分または新しい補正キー)から使われる
+
 ### 7.5 詳細画面
 
 NETWORK_RUN 詳細では activity または `終端(activityなし)`、状態根拠、エラー概要、操作導線を表示する。
