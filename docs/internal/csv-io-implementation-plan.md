@@ -5,6 +5,8 @@
 - 基準: `csv-io-proposal.md` v2、同レビュー X-1〜X-6、Execution Contract v1、Phase 1 凍結仕様、P2-11 三重ゲート
 - 状態: **M0 の設計判断を本書で確定。段階1は代替案比較のユーザー判断と、エンジン `/flow` 公開APIのIMPORT供給ギャップ解消の両方を得てから着手する**
 
+**プロジェクト完了(2026-09-04)**: 段階1・段階2とも実装/実機受入/リリース(engine v3.75.0〜3.77.0、kSQL-Flow v0.8.0/v0.9.0)まで完了。残タスクは利用者向け文書化(リリース準備R4)のみ。
+
 ## 0. 代替案との比較と着手判定
 
 | 選択肢 | 見積り | 監査 | 実行順序 |
@@ -324,7 +326,7 @@ FlowNetは `<KSQL_FLOWNET_IO_DIR>/out`配下へ同じallowlist規則で解決し
 | --- | --- | ---: |
 | M0 | C-1/C-2/C-3証跡固定、Contract/API設計、X-1〜X-6確定 | 1〜2人日 |
 | engine前提 | `/flow` named import source公開API、型、test、publish | 2〜4人日 — ****公開済み(v3.75.0、2026-09-03 npm registry確認)**。ただしkSQL-Flow側計画が`input_files[].rows`用のreceipt公開APIの不足を検出 — **B178(additive callback)をengineへ追加依頼**(これが揃うまでkSQL-Flowはfeatures.importCsvを出さない)** |
-| 段階1 kSQL-Flow | CLI/flow配線、capability、Execution Result、contract test、IMPORT文書 | 4〜7人日 — ****完了・v0.8.0 npm公開済み(2026-09-04)**。Codexダブルレビュー(リリース可判定)・混在回帰テスト込み** |
+| 段階1 kSQL-Flow | CLI/flow配線、capability、Execution Result、contract test、IMPORT文書 | 4〜7人日 — ****完了・v0.8.0/v0.9.0 npm公開済み**。Codexダブルレビュー・混在回帰テスト込み** |
 | 段階1 FlowNet schema/security | inputs schema、placeholder、IO env、allowlist、symlink/traversal | 3〜5人日 |
 | 段階1 FlowNet監査/X-4 | Node Attempt baseline要約、revision競合・応答消失対応、result JSON索引、hash照合、resume/rerun | **4〜7人日** |
 | 段階1回復・結合 | MISSING/MUTATED/期限、RETRY_BRAKE、途中クラッシュE2E | 3〜5人日 |
@@ -334,7 +336,7 @@ FlowNetは `<KSQL_FLOWNET_IO_DIR>/out`配下へ同じallowlist規則で解決し
 | 段階2 kSQL-Flow | CLI/flow配線、Contract/capability/result、文書 | 3〜5人日 |
 | 段階2 FlowNet | outputs schema、path、argv、Execution Result保存・監査要約、`output_files` | 3〜5人日 |
 | 段階2互換/E2E | round-trip 3方向、SJIS、kill/disk fault、冪等sha | 4〜7人日 |
-| **段階2合計** | 初期採用(b) | **17〜29人日** — **✅完了(2026-09-04)**: engine B179(v3.77.0公開)・kSQL-Flow v0.9.0(main 0a66c35・publish待ち)・FlowNet outputs(main 37cc533)・実機受入1/3/14〜17+round-trip 3方向・cli-kintone実取込合格([証跡](./test-results/csv2-20260904/README.md)) |
+| **段階2合計** | 初期採用(b) | **17〜29人日** — **✅完了(2026-09-04)**: engine B179(v3.77.0公開)・kSQL-Flow v0.9.0(npm公開済み 2026-09-04)・FlowNet outputs(main 37cc533)・実機受入1/3/14〜17+round-trip 3方向・cli-kintone実取込合格([証跡](./test-results/csv2-20260904/README.md)) |
 | C-1(a)差分 | AST/alias spellingと全伝播経路（採用時のみ） | 追加5〜9人日 |
 | 別作業（本計画のスコープ外） | 最小取込アダプタ（ファイル配置 + 取込マーカー + sha256重複禁止INSERT） | 小 |
 
