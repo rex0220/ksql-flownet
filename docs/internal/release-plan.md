@@ -38,7 +38,7 @@ UI・仕様の変更はR2以降凍結する(発生したらR2からやり直し)
 - [x] `npm run pack:plugin` で最終zipを生成(2026-09-04)(恒久署名鍵 — プラグインIDは既存インストールと同一のまま)
 - [x] `package.json` version確定(1.0.0・2026-09-04)。`private: true`はR6まで維持
 - [x] 全ゲート確認(2026-09-04): build / typecheck / lint / test 519/519 / build:plugin / E2E 13本全合格(P2-01×6+P2-11×5+m系代表2。証跡: test-results/r2-gate-20260904)
-- [x] git tag候補のコミットを固定(2026-09-04・r2-gate記帳コミット=main先端。以後の変更はやり直し)
+- [x] git tag候補のコミットを固定(2026-09-04)。当初`bc25b3f`→R0/R1の文書・README・LICENSE整理(src/plugin不変・全ゲート有効)を取り込み**R1完了コミットへ更新**。以後のコード変更はR2やり直し
 
 ## R3. アプリテンプレート作成(kintone)
 
