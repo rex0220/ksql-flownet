@@ -82,6 +82,11 @@
             "type": "object",
             "propertyNames": { "$ref": "#/$defs/sourceIdentifier" },
             "additionalProperties": { "type": "string", "minLength": 1 }
+          },
+          "outputs": {
+            "type": "object",
+            "propertyNames": { "$ref": "#/$defs/sourceIdentifier" },
+            "additionalProperties": { "type": "string", "minLength": 1 }
           }
         }
       }

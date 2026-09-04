@@ -47,6 +47,11 @@ function yaml(nodes) {
       for (const [name, pattern] of Object.entries(node.inputs))
         lines.push(`      ${name}: ${pattern}`);
     }
+    if (node.outputs) {
+      lines.push("    outputs:");
+      for (const [name, pattern] of Object.entries(node.outputs))
+        lines.push(`      ${name}: ${pattern}`);
+    }
   }
   return `${lines.join("\n")}\n`;
 }
@@ -309,12 +314,13 @@ function heldMonitor(overrides = {}) {
   };
 }
 
-function fakeExecutor(repository, outcomes, calls, concurrency) {
+function fakeExecutor(repository, outcomes, calls, concurrency, requests = []) {
   return {
     async execute(input) {
       concurrency.active += 1;
       concurrency.max = Math.max(concurrency.max, concurrency.active);
       calls.push(input.nodeState.value.node_id);
+      requests.push(input);
       await new Promise((resolve) => setImmediate(resolve));
       const configured = outcomes[input.nodeState.value.node_id] ?? "SUCCESS";
       const authorized = await input.authorizeResultPersistence();
@@ -386,6 +392,7 @@ async function execute(nodes, options = {}) {
   const calls = [];
   const closeCalls = [];
   const concurrency = { active: 0, max: 0 };
+  const requests = [];
   const summary = await runSequentialScheduler({
     run: seeded.seededRun,
     invocation: seeded.seededInvocation,
@@ -399,6 +406,7 @@ async function execute(nodes, options = {}) {
       options.outcomes ?? {},
       calls,
       concurrency,
+      requests,
     ),
     leaseMonitor: options.monitor ?? heldMonitor(),
     profile: "prod",
@@ -423,7 +431,7 @@ async function execute(nodes, options = {}) {
         );
     },
   });
-  return { ...seeded, summary, calls, closeCalls, concurrency };
+  return { ...seeded, summary, calls, closeCalls, concurrency, requests };
 }
 
 test("到達nodeのinput不在はspawnせずAttempt/StateをFAILEDへ確定する", async (context) => {
@@ -443,6 +451,69 @@ test("到達nodeのinput不在はspawnせずAttempt/StateをFAILEDへ確定す�
   const states = await result.repository.getNodeStates("run_1");
   assert.equal(states[0].value.status, "FAILED");
   assert.equal(result.summary.invocationResultCode, "INPUT_FILE_MISSING");
+});
+
+test("output中間directoryを作成しinputs併用でも同一runのrerun-fromは同一pathを渡す", async (context) => {
+  const ioRoot = mkdtempSync(join(tmpdir(), "ksql-flownet-scheduler-output-"));
+  mkdirSync(join(ioRoot, "in"));
+  writeFileSync(join(ioRoot, "in", "sales.csv"), "id\n1\n");
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  const nodes = [
+    {
+      id: "a",
+      dependsOn: [],
+      inputs: { sales: "sales.csv" },
+      outputs: { report: "runs/{run_id}/{node_id}.csv" },
+    },
+  ];
+  const first = await execute(nodes, { ioRoot });
+  const rerun = await execute(nodes, {
+    ioRoot,
+    mode: "RERUN_FROM",
+    selectedNodeIds: ["a"],
+    runStatus: "FAILED",
+  });
+  assert.equal(first.requests[0].imports[0].name, "sales");
+  assert.deepEqual(first.requests[0].exports, rerun.requests[0].exports);
+  assert.equal(
+    first.requests[0].exports[0].path,
+    join(ioRoot, "out", "runs", "run_1", "a.csv"),
+  );
+});
+
+test("output中間symlinkはsubprocess未起動のFAILED Attemptにする", async (context) => {
+  const ioRoot = mkdtempSync(
+    join(tmpdir(), "ksql-flownet-scheduler-output-link-"),
+  );
+  const outside = join(ioRoot, "outside");
+  mkdirSync(join(ioRoot, "out"), { recursive: true });
+  mkdirSync(outside);
+  try {
+    const { symlinkSync } = await import("node:fs");
+    symlinkSync(
+      outside,
+      join(ioRoot, "out", "linked"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+  } catch (error) {
+    context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+    if (error?.code === "EPERM" || error?.code === "EACCES") {
+      context.skip(`symlink creation is unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
+  context.after(() => rmSync(ioRoot, { recursive: true, force: true }));
+  const result = await execute(
+    [{ id: "a", dependsOn: [], outputs: { report: "linked/report.csv" } }],
+    { ioRoot },
+  );
+  assert.deepEqual(result.calls, []);
+  const attempts = await result.repository.getAttempts("run_1");
+  assert.equal(attempts[0].value.status, "FAILED");
+  assert.equal(attempts[0].value.result_code, "OUTPUT_PATH_REJECTED");
+  assert.equal(attempts[0].value.execution_started_at, null);
+  assert.equal(result.summary.invocationResultCode, "OUTPUT_PATH_REJECTED");
 });
 
 test("baseline応答消失は再GET一致時だけ続行する", async (context) => {

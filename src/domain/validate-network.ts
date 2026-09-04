@@ -84,6 +84,16 @@ function semanticErrors(definition: NetworkDefinition): ValidationError[] {
         });
       }
     }
+    for (const [sinkName, pattern] of Object.entries(node.outputs ?? {})) {
+      const problem = outputPatternProblem(pattern);
+      if (problem !== null) {
+        errors.push({
+          code: "OUTPUT_PATTERN_INVALID",
+          path: `${nodePath}/outputs/${escapeJsonPointer(sinkName)}`,
+          message: problem,
+        });
+      }
+    }
 
     if (node.trigger_rule !== "all_success") {
       errors.push({
@@ -145,32 +155,50 @@ function semanticErrors(definition: NetworkDefinition): ValidationError[] {
 }
 
 const INPUT_PLACEHOLDERS = new Set(["business_key", "profile"]);
+const OUTPUT_PLACEHOLDERS = new Set([
+  "business_key",
+  "profile",
+  "run_id",
+  "node_id",
+]);
 
 function inputPatternProblem(pattern: string): string | null {
-  if (pattern.length === 0) return "input pattern must not be empty";
-  if (pattern.includes("\0")) return "input pattern must not contain NUL";
+  const literal = pattern.replace(/\{([^{}]*)\}/gu, (_match, name: string) =>
+    INPUT_PLACEHOLDERS.has(name) ? "placeholder" : `{${name}}`,
+  );
+  return relativePatternProblem(pattern, literal, "input");
+}
+
+function outputPatternProblem(pattern: string): string | null {
+  const literal = pattern.replace(/\{([^{}]*)\}/gu, (_match, name: string) =>
+    OUTPUT_PLACEHOLDERS.has(name) ? "placeholder" : `{${name}}`,
+  );
+  return relativePatternProblem(pattern, literal, "output");
+}
+
+function relativePatternProblem(
+  pattern: string,
+  literal: string,
+  context: "input" | "output",
+): string | null {
+  if (pattern.length === 0) return `${context} pattern must not be empty`;
+  if (pattern.includes("\0")) return `${context} pattern must not contain NUL`;
   if (
     pattern.startsWith("/") ||
     pattern.startsWith("\\") ||
     /^[A-Za-z]:/u.test(pattern)
   )
-    return "input pattern must be a relative path without a drive or UNC prefix";
+    return `${context} pattern must be a relative path without a drive or UNC prefix`;
 
-  const literal = pattern.replace(/\{([^{}]*)\}/gu, (_match, name: string) => {
-    return INPUT_PLACEHOLDERS.has(name) ? "placeholder" : `{${name}}`;
-  });
   if (literal.includes("{") || literal.includes("}")) {
-    return "input pattern contains an unknown or malformed placeholder";
-  }
-  if (pattern.includes("{run_id}")) {
-    return "input pattern placeholder '{run_id}' is not allowed";
+    return `${context} pattern contains an unknown or malformed placeholder`;
   }
   if (
     pattern
       .split(/[\\/]/u)
       .some((segment) => segment === "." || segment === "..")
   ) {
-    return "input pattern must not contain '.' or '..' path segments";
+    return `${context} pattern must not contain '.' or '..' path segments`;
   }
   return null;
 }

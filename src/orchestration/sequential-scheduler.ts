@@ -7,7 +7,12 @@ import { readStoreZip, verifyBundle } from "../bundle/index.js";
 import { stableTopologicalSort } from "../dag/topological-sort.js";
 import { loadNetworkDefinitionSource } from "../domain/load-network.js";
 import type { NetworkDefinition } from "../domain/network-definition.js";
-import { InputPathError, resolveNodeInputs } from "../io/io-path.js";
+import {
+  InputPathError,
+  OutputPathError,
+  resolveNodeInputs,
+  resolveNodeOutputs,
+} from "../io/io-path.js";
 import {
   inputBaselinesEqual,
   parseInputBaseline,
@@ -149,8 +154,11 @@ export async function runSequentialScheduler(
   let closeInput: SchedulerCloseInput | null = null;
   let reconciliationRequired = false;
   let adjudicationReason: string | undefined;
-  let inputFailureResultCode:
-    "INPUT_FILE_MISSING" | "INPUT_FILE_MUTATED" | null = null;
+  let ioFailureResultCode:
+    | "INPUT_FILE_MISSING"
+    | "INPUT_FILE_MUTATED"
+    | "OUTPUT_PATH_REJECTED"
+    | null = null;
 
   input.leaseMonitor.start?.();
   try {
@@ -386,6 +394,18 @@ export async function runSequentialScheduler(
                 businessKey: input.run.value.business_key,
                 profile: input.profile,
               });
+        const outputPatterns = node.outputs ?? {};
+        const exports =
+          Object.keys(outputPatterns).length === 0
+            ? []
+            : await resolveNodeOutputs({
+                ioRoot: requiredOutputIoRoot(input.ioRoot),
+                patterns: outputPatterns,
+                businessKey: input.run.value.business_key,
+                profile: input.profile,
+                runId: input.run.value.run_id,
+                nodeId,
+              });
         if (
           imports.length > 0 &&
           shouldComparePreviousBaseline(
@@ -422,6 +442,7 @@ export async function runSequentialScheduler(
           attemptId,
           expectedJobId: node.job_id,
           imports,
+          exports,
           executionStartedAt: startedAt,
           authorizeResultPersistence: async () => {
             if (input.leaseMonitor.canPersistResults()) return true;
@@ -430,7 +451,11 @@ export async function runSequentialScheduler(
           runControlPlaneOperation,
         });
       } catch (error) {
-        if (!(error instanceof InputPathError)) throw error;
+        if (
+          !(error instanceof InputPathError) &&
+          !(error instanceof OutputPathError)
+        )
+          throw error;
         const authorized =
           input.leaseMonitor.canPersistResults() ||
           (await input.leaseMonitor.confirmLeaseForFinalWrite());
@@ -438,7 +463,7 @@ export async function runSequentialScheduler(
           reconciliationRequired = true;
           throw new SchedulerLeaseInterruptedError(true);
         }
-        outcome = await finalizeInputPathFailure(
+        outcome = await finalizeIoPathFailure(
           input.repository,
           attempt,
           state,
@@ -450,9 +475,10 @@ export async function runSequentialScheduler(
       state = outcome.nodeState;
       if (
         outcome.invocationResultCode === "INPUT_FILE_MISSING" ||
-        outcome.invocationResultCode === "INPUT_FILE_MUTATED"
+        outcome.invocationResultCode === "INPUT_FILE_MUTATED" ||
+        outcome.invocationResultCode === "OUTPUT_PATH_REJECTED"
       )
-        inputFailureResultCode = outcome.invocationResultCode;
+        ioFailureResultCode = outcome.invocationResultCode;
       states.set(nodeId, state);
       results.set(
         nodeId,
@@ -499,8 +525,8 @@ export async function runSequentialScheduler(
       const terminal = invocationOutcome(aggregateStatus);
       closeInput = finalization(
         terminal.status,
-        terminal.status === "FAILED" && inputFailureResultCode !== null
-          ? inputFailureResultCode
+        terminal.status === "FAILED" && ioFailureResultCode !== null
+          ? ioFailureResultCode
           : terminal.resultCode,
         selected,
         preserved,
@@ -654,11 +680,20 @@ function requiredIoRoot(ioRoot: string | undefined): string {
   return ioRoot;
 }
 
-async function finalizeInputPathFailure(
+function requiredOutputIoRoot(ioRoot: string | undefined): string {
+  if (ioRoot === undefined) {
+    throw new OutputPathError(
+      "IO root is not configured for a node with outputs",
+    );
+  }
+  return ioRoot;
+}
+
+async function finalizeIoPathFailure(
   repository: PersistenceRepository,
   attempt: Versioned<NodeAttempt>,
   nodeState: Versioned<NodeState>,
-  error: InputPathError,
+  error: InputPathError | OutputPathError,
   finishedAt: string,
   controlPlane: <T>(operation: () => Promise<T>) => Promise<T>,
 ): Promise<AttemptExecutionOutcome> {

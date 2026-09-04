@@ -189,3 +189,28 @@ test("input_filesのrows/encoding付き安全receiptを受理し不正shapeを�
     );
   }
 });
+
+test("output_filesの安全receiptを受理しpath・不正sha・未知encodingを拒否する", () => {
+  const value = success();
+  value.output_files = [
+    {
+      name: "report",
+      sha256: "c".repeat(64),
+      bytes: 456,
+      rows: 8,
+      encoding: "utf8",
+    },
+  ];
+  assert.equal(classifyResult(value, context(value)).kind, "VALID_RESULT");
+  for (const output_files of [
+    [{ ...value.output_files[0], sha256: "bad" }],
+    [{ ...value.output_files[0], encoding: "utf-8" }],
+    [{ ...value.output_files[0], path: "C:\\private\\report.csv" }],
+    [value.output_files[0], value.output_files[0]],
+  ]) {
+    assert.equal(
+      classifyResult({ ...value, output_files }, context(value)).kind,
+      "INVALID_RESULT",
+    );
+  }
+});

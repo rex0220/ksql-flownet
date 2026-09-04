@@ -11,7 +11,9 @@ export function loadIoConfig(
 ): IoConfig {
   const configuredRoot = environment.KSQL_FLOWNET_IO_DIR;
   if (configuredRoot === undefined || configuredRoot.trim() === "") {
-    throw new Error("KSQL_FLOWNET_IO_DIR is required for networks with inputs");
+    throw new Error(
+      "KSQL_FLOWNET_IO_DIR is required for networks with inputs or outputs",
+    );
   }
   if (!isAbsolute(configuredRoot)) {
     throw new Error("KSQL_FLOWNET_IO_DIR must be an absolute path");

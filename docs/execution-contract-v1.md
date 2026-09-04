@@ -111,6 +111,14 @@ ksql-flow run \
 
 `lastSuccessfulChunkNo`と`lastWrittenKey`は診断情報であり、途中再開カーソルではない。
 
+### 3.1.1 CSV出力artifact
+
+FlowNetはnetwork nodeの`outputs`を`<KSQL_FLOWNET_IO_DIR>/out`配下の絶対pathへ解決し、sink名順に`--export-csv <sink>=<absolute-path>`を渡す。kSQL-Flow v0.9.0の`features.resultCsv: true`をNetwork lock取得前に要求する。encodingはnetwork定義では指定せず、kSQL-Flow既定のUTF-8を使用する。
+
+kSQL-Flowの`output_files: [{ name, sha256, bytes, rows, encoding }]`はrename済みの完成artifactだけを表す。FlowNetはshape、sink名、順序を検証し、path・CSV text・cell値を含めず、完全なoutput SHA-256をNode Attemptの安全な監査要約へ保存する。専用kintone列やFS receiptは追加しない。同じRunを`--rerun-from`したときは同じpathを全量置換し、同一as-of・同一profile snapshot・同一入力SHA-256なら監査要約のoutput SHA-256一致を検証できる。
+
+CSV export nodeの成功は配信許可を意味しない。export後に後続nodeが失敗したRunのartifactは未配信として扱い、依存する最終publish marker nodeが`SUCCESS`になったことだけを配信ゲートとする。既存の`all_success`依存判定では後続失敗時にpublish markerが成功しないため、この挙動にコード変更は不要である。
+
 ### 3.2 失敗例
 
 ```json

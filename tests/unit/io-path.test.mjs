@@ -13,8 +13,10 @@ import test from "node:test";
 import { loadIoConfig } from "../../dist/io/io-config.js";
 import {
   InputPathError,
+  OutputPathError,
   percentEncodePathSegment,
   resolveNodeInputs,
+  resolveNodeOutputs,
 } from "../../dist/io/io-path.js";
 
 function fixture(context) {
@@ -115,6 +117,94 @@ test("symlinkまたはjunctionを含む入力pathを拒否する", async (contex
       profile: "prod",
     },
     "INPUT_PATH_REJECTED",
+  );
+});
+
+test("出力pathをout配下へ解決し存在しない中間directoryを段階的に作る", async (context) => {
+  const root = fixture(context);
+  const outputs = await resolveNodeOutputs({
+    ioRoot: root,
+    patterns: {
+      report: "daily/{profile}/{business_key}/{run_id}/{node_id}.csv",
+    },
+    businessKey: "key/one",
+    profile: "prod",
+    runId: "run_1",
+    nodeId: "export_1",
+  });
+  assert.deepEqual(outputs, [
+    {
+      name: "report",
+      path: resolve(
+        root,
+        "out",
+        "daily",
+        "prod",
+        "key%2Fone",
+        "run_1",
+        "export_1.csv",
+      ),
+    },
+  ]);
+  assert.equal(
+    (await import("node:fs"))
+      .statSync(join(root, "out", "daily", "prod"))
+      .isDirectory(),
+    true,
+  );
+  writeFileSync(outputs[0].path, "old artifact");
+  assert.deepEqual(
+    await resolveNodeOutputs({
+      ioRoot: root,
+      patterns: {
+        report: "daily/{profile}/{business_key}/{run_id}/{node_id}.csv",
+      },
+      businessKey: "key/one",
+      profile: "prod",
+      runId: "run_1",
+      nodeId: "export_1",
+    }),
+    outputs,
+  );
+});
+
+test("出力のtraversalと中間symlinkをOUTPUT_PATH_REJECTEDにする", async (context) => {
+  const root = fixture(context);
+  const base = {
+    ioRoot: root,
+    businessKey: "key",
+    profile: "prod",
+    runId: "run_1",
+    nodeId: "node_1",
+  };
+  await assert.rejects(
+    resolveNodeOutputs({ ...base, patterns: { report: "../outside.csv" } }),
+    (error) =>
+      error instanceof OutputPathError && error.code === "OUTPUT_PATH_REJECTED",
+  );
+  const outside = join(root, "outside-output");
+  mkdirSync(outside);
+  mkdirSync(join(root, "out"));
+  try {
+    symlinkSync(
+      outside,
+      join(root, "out", "linked"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+  } catch (error) {
+    if (error?.code === "EPERM" || error?.code === "EACCES") {
+      context.skip(`symlink creation is unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
+  await assert.rejects(
+    resolveNodeOutputs({
+      ...base,
+      patterns: { report: "linked/report.csv" },
+    }),
+    (error) =>
+      error instanceof OutputPathError && error.code === "OUTPUT_PATH_REJECTED",
   );
 });
 

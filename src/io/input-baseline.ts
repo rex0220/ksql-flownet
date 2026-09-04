@@ -1,4 +1,5 @@
 import type { InputBaseline } from "./io-path.js";
+import type { ExecutionOutputFile } from "../executor/result-classifier.js";
 
 export const INPUT_AUDIT_SUMMARY_MAX_LENGTH = 10_000;
 
@@ -58,6 +59,21 @@ export function parseInputBaseline(
     return null;
   }
   if (!isRecord(value)) return null;
+  if (value.kind === "KSQL_FLOWNET_IO_AUDIT") {
+    if (
+      !hasOnlyKeys(value, [
+        "version",
+        "kind",
+        "baseline",
+        "input_files",
+        "output_files",
+      ])
+    )
+      throw new Error("IO audit summary has unknown fields");
+    if (value.version !== 1 || !Array.isArray(value.baseline))
+      throw new Error("IO audit summary has an invalid version or baseline");
+    return strictBaseline(value.baseline);
+  }
   if (value.kind === "KSQL_FLOWNET_INPUT_AUDIT") {
     if (!hasOnlyKeys(value, ["version", "kind", "baseline", "input_files"]))
       throw new Error("input audit summary has unknown fields");
@@ -101,6 +117,63 @@ export function serializeInputAuditSummary(
     baseline: normalizedBaseline,
     input_files: normalizedReceipts,
   });
+}
+
+export function serializeOutputAuditSummary(
+  outputs: readonly ExecutionOutputFile[],
+): string {
+  return checkedJson({
+    version: 1,
+    kind: "KSQL_FLOWNET_OUTPUT_AUDIT",
+    output_files: normalizeOutputReceipts(outputs),
+  });
+}
+
+export function serializeIoAuditSummary(
+  baseline: readonly Pick<InputBaseline, "name" | "sha256" | "bytes">[],
+  inputReceipts: readonly InputFileReceipt[],
+  outputReceipts: readonly ExecutionOutputFile[],
+): string {
+  const inputAudit = JSON.parse(
+    serializeInputAuditSummary(baseline, inputReceipts),
+  ) as Record<string, unknown>;
+  return checkedJson({
+    version: 1,
+    kind: "KSQL_FLOWNET_IO_AUDIT",
+    baseline: inputAudit.baseline,
+    input_files: inputAudit.input_files,
+    output_files: normalizeOutputReceipts(outputReceipts),
+  });
+}
+
+function normalizeOutputReceipts(
+  outputs: readonly ExecutionOutputFile[],
+): readonly unknown[] {
+  const normalized = outputs.map((output) => {
+    if (
+      !isSafeSourceName(output.name) ||
+      !/^[a-f0-9]{64}$/u.test(output.sha256) ||
+      !Number.isSafeInteger(output.bytes) ||
+      output.bytes < 0 ||
+      !Number.isSafeInteger(output.rows) ||
+      output.rows < 0 ||
+      !["utf8", "sjis"].includes(output.encoding)
+    )
+      throw new Error("output receipt contains invalid audit metadata");
+    return {
+      sink: output.name,
+      type: "EXPORT" as const,
+      sha256: output.sha256,
+      bytes: output.bytes,
+      rows: output.rows,
+      encoding: output.encoding,
+    };
+  });
+  if (
+    new Set(normalized.map((output) => output.sink)).size !== normalized.length
+  )
+    throw new Error("output receipt sink names must be unique");
+  return normalized;
 }
 
 export function inputBaselinesEqual(

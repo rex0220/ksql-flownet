@@ -51,6 +51,17 @@ function addInputs(networkPath) {
   );
 }
 
+function addOutputs(networkPath) {
+  const source = readFileSync(networkPath, "utf8");
+  writeFileSync(
+    networkPath,
+    source.replace(
+      "    idempotent: true",
+      "    idempotent: true\n    outputs:\n      report: report_{run_id}_{node_id}.csv",
+    ),
+  );
+}
+
 function description(overrides = {}) {
   return {
     formatVersion: 1,
@@ -649,6 +660,33 @@ test("inputs付きnetworkはimportCsvをNetwork lock取得前に必須化する"
     return {
       ...capabilities(),
       features: { ...capabilities().features, importCsv: true },
+    };
+  };
+  const accepted = await ensureRun(
+    input(networkPath, h, {
+      beforeLock: () => h.events.push("io-config"),
+    }),
+  );
+  assert.equal(accepted.outcome, "NEW");
+  assert.deepEqual(h.events.slice(1, 4), ["capabilities", "io-config", "lock"]);
+});
+
+test("outputs付きnetworkはresultCsvをNetwork lock取得前に必須化する", async (context) => {
+  const { networkPath } = fixture(context);
+  addOutputs(networkPath);
+  const h = harness();
+  await assert.rejects(ensureRun(input(networkPath, h)), (error) => {
+    assert.equal(error.code, "CAPABILITY_FEATURE_MISSING");
+    assert.deepEqual(error.details, ["resultCsv"]);
+    return true;
+  });
+  assert.deepEqual(h.events, ["capabilities"]);
+
+  h.executor.capabilities = async () => {
+    h.events.push("capabilities");
+    return {
+      ...capabilities(),
+      features: { ...capabilities().features, resultCsv: true },
     };
   };
   const accepted = await ensureRun(

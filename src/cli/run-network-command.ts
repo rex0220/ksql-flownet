@@ -381,7 +381,9 @@ function productionDependencies(
         beforeLock(definition) {
           if (
             definition.nodes.some(
-              (node) => Object.keys(node.inputs ?? {}).length > 0,
+              (node) =>
+                Object.keys(node.inputs ?? {}).length > 0 ||
+                Object.keys(node.outputs ?? {}).length > 0,
             )
           ) {
             ioConfig = loadIoConfig();

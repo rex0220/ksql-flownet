@@ -11,6 +11,7 @@ export interface RunRequest {
   readonly attemptId: string;
   readonly expectedJobId: string;
   readonly imports?: readonly RunImport[];
+  readonly exports?: readonly RunExport[];
 }
 
 export interface RunImport {
@@ -18,6 +19,11 @@ export interface RunImport {
   readonly path: string;
   readonly sha256: string;
   readonly bytes: number;
+}
+
+export interface RunExport {
+  readonly name: string;
+  readonly path: string;
 }
 
 export interface ProcessExit {
@@ -140,6 +146,14 @@ export class RunSubprocess {
         `${input.name}=${input.sha256}`,
       );
     }
+    for (const output of [...(request.exports ?? [])].sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    )) {
+      if (!isSafeIoName(output.name) || !isAbsolute(output.path)) {
+        throw new Error("export sink must have a safe name and absolute path");
+      }
+      contractArgs.push("--export-csv", `${output.name}=${output.path}`);
+    }
     const args = [...(this.options.binArgs ?? []), ...contractArgs];
     let stdout = "";
     let stderr = "";
@@ -192,6 +206,20 @@ export class RunSubprocess {
       true,
     );
   }
+}
+
+function isSafeIoName(value: string): boolean {
+  return (
+    value.length >= 1 &&
+    value.length <= 128 &&
+    value !== "__net__" &&
+    !value.includes(":") &&
+    !value.includes("=") &&
+    ![...value].some((character) => {
+      const code = character.codePointAt(0)!;
+      return code <= 0x1f || code === 0x7f;
+    })
+  );
 }
 
 export const spawnRunProcess: RunSpawn = (request) => {
