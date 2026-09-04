@@ -921,6 +921,7 @@ Run や監査レコードの直接修正は通常運用では行わない。
 | network / record 識別子は128文字 | network schema、要求入力、正準化で検証単位が異なる。長い非BMP文字列は境界に注意 |
 | YAML は schema_version 1 のみ | 未知フィールド、重複キー、未対応 trigger rule を拒否 |
 | 実行は直列 | DAG に独立ノードがあっても同時実行しない |
+| network 間の依存関係は未対応 | `depends_on` は同一 network 内のみ。「A 成功後に B を自動起動」はできない。回避策: 同一周期なら 1 つの network に統合する。周期が異なる場合は cron の時刻を前後させ、下流 network の先頭ノードに ASSERT ゲート(上流の結果データの充足検証)を置いて fail-closed にする。未充足なら FAILED になり、上流完了後にリランで続行する |
 | START は全ノード冪等のみ | 非冪等 network の新規実行は直接 CLI の運用判断に限定 |
 | STOP は境界停止 | 実行中 SQL は完走し、次ノードを開始しない |
 | RELEASE は起動しない | hold 解除後の再開は別の RERUN または外部 cron が行う |
