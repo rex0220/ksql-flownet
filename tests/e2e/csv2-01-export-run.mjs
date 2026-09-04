@@ -9,6 +9,7 @@ import {
   makeCsv2Rows,
   outputAudit,
   prepareCsv2Case,
+  seedFinalizeMarker,
   runCsv2,
   runCsv2Fixture,
   seedCsv2Input,
@@ -43,10 +44,11 @@ await runCsv2(
     );
     try {
       await seedCsv2Input(testCase.ioRoot, businessKey, settings.profile, rows);
+      await seedFinalizeMarker(settings, testCase);
       const process = await runCsv2Fixture(settings, testCase, businessKey);
       assert.equal(process.exitCode, 0, process.stderr || process.stdout);
       const graph = await loadRunGraph(settings, businessKey);
-      assert.equal(graph.attempts.length, 3);
+      assert.equal(graph.attempts.length, 4);
       const inputAudit = ioAudit(graph, testCase.fixture, rows.length, "UTF8");
       const receipt = outputAudit(
         graph,
@@ -74,7 +76,7 @@ await runCsv2(
       await Promise.all([
         cleanupTargetRows(
           settings,
-          [...rows, ...expected].map(({ key }) => key),
+          [...rows, ...expected].map(({ key }) => key).concat(testCase.finalizeMarkerKey),
         ),
         testCase.dispose(),
       ]);

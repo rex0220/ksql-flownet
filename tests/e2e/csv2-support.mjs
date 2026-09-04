@@ -22,6 +22,7 @@ import {
   createIoRoot,
   csvRows,
   runCsv1,
+  insertTargetRows,
   subprocessEnvironment,
   writeCsv,
 } from "./csv1-support.mjs";
@@ -112,7 +113,16 @@ export async function prepareCsv2Case(settings, scope, options = {}) {
         "utf8",
       );
     }
+    // 一意制約付き文字列1行は64文字まで(kintone既知の制約)のため、
+    // scope全体ではなく短縮ハッシュでマーカーキーを作る。
+    const finalizeMarkerKey =
+      options.finalizeMarkerKey ??
+      `${CSV1_PREFIX}${createHash("sha256")
+        .update(`${scope}:FMK`)
+        .digest("hex")
+        .slice(0, 12)}_FMK`;
     const replacements = new Map([
+      ["__CSV2_MARKER_KEY__", sqlLiteral(finalizeMarkerKey)],
       ["__CSV2_IMPORT_ENCODING__", importEncoding],
       [
         "__CSV2_SOURCE_FILTER__",
@@ -131,6 +141,7 @@ export async function prepareCsv2Case(settings, scope, options = {}) {
       "csv2-import.sql",
       "csv2-transform.sql",
       "csv2-export.sql",
+      "csv2-finalize.sql",
     ]) {
       const path = join(fixture.directory, "jobs", name);
       let sql = await readFile(path, "utf8");
@@ -143,6 +154,7 @@ export async function prepareCsv2Case(settings, scope, options = {}) {
     return {
       fixture,
       ioRoot: io.root,
+      finalizeMarkerKey,
       async dispose() {
         await Promise.all([fixture.dispose(), io.dispose()]);
       },
@@ -239,8 +251,8 @@ export async function runCsv2Fixture(
   );
 }
 
-export function outputAudit(graph, fixture, expectedRows, encoding) {
-  assert.equal(graph.run.status, "SUCCESS");
+export function outputAudit(graph, fixture, expectedRows, encoding, options = {}) {
+  assert.equal(graph.run.status, options.runStatus ?? "SUCCESS");
   const attempt = graph.attempts
     .filter(({ nodeId }) => nodeId === fixture.nodeId(CSV2_EXPORT_NODE))
     .at(-1);
@@ -384,3 +396,11 @@ export async function runCliKintoneImport(settings, csvPath) {
 }
 
 export { assertAuditHasNoLeak };
+
+/** 受入17のfinalizeゲート用マーカーを投入する(成功系シナリオはrun前に必須)。 */
+export async function seedFinalizeMarker(settings, exportCase) {
+  await insertTargetRows(settings, [
+    { key: exportCase.finalizeMarkerKey, value: "finalize" },
+  ]);
+  return exportCase.finalizeMarkerKey;
+}

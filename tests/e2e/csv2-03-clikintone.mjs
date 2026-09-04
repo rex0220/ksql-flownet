@@ -7,6 +7,7 @@ import {
   destinationRows,
   makeCsv2Rows,
   prepareCsv2Case,
+  seedFinalizeMarker,
   runCliKintoneImport,
   runCsv2,
   runCsv2Fixture,
@@ -33,6 +34,7 @@ await runCsv2(
     });
     try {
       await seedCsv2Input(testCase.ioRoot, businessKey, settings.profile, rows);
+      await seedFinalizeMarker(settings, testCase);
       const exported = await runCsv2Fixture(settings, testCase, businessKey);
       assert.equal(exported.exitCode, 0, exported.stderr || exported.stdout);
       const artifactPath = csv2OutputPath(
@@ -61,7 +63,7 @@ await runCsv2(
       await Promise.all([
         cleanupTargetRows(
           settings,
-          [...rows, ...expected].map(({ key }) => key),
+          [...rows, ...expected].map(({ key }) => key).concat(testCase.finalizeMarkerKey),
         ),
         testCase.dispose(),
       ]);

@@ -312,7 +312,10 @@ async function targetRequest(settings, path, options = {}) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const error = new Error(
-      `CSV1 fixture API ${options.method ?? "GET"} ${path} failed (${response.status})`,
+      `CSV1 fixture API ${options.method ?? "GET"} ${path} failed (${response.status})` +
+        (body?.errors
+          ? ` errors=${JSON.stringify(body.errors).slice(0, 300)}`
+          : ""),
     );
     error.status = response.status;
     error.apiCode = body?.code ?? null;
@@ -330,6 +333,29 @@ function chunks(values, size) {
   for (let index = 0; index < values.length; index += size)
     result.push(values.slice(index, index + size));
   return result;
+}
+
+/** 試験用の制御行(マーカー等)をfixtureアプリへ直接投入する。keyはscope接頭辞必須。 */
+export async function insertTargetRows(settings, rows) {
+  for (const row of rows)
+    assert.ok(
+      row.key.startsWith(CSV1_PREFIX),
+      "CSV1 insert対象keyが試験scope外です",
+    );
+  for (const group of chunks(rows, 100)) {
+    if (group.length === 0) continue;
+    await targetRequest(settings, "records", {
+      method: "POST",
+      body: {
+        app: settings.targetAppId,
+        records: group.map((row) => ({
+          [CSV1_KEY_FIELD]: { value: row.key },
+          [CSV1_VALUE_FIELD]: { value: row.value ?? "" },
+        })),
+      },
+    });
+  }
+  return { inserted: rows.length };
 }
 
 export async function getTargetRows(settings, keys) {

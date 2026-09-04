@@ -13,6 +13,7 @@ import {
   runCsv2,
   runCsv2Fixture,
   seedCsv2Input,
+  seedFinalizeMarker,
 } from "./csv2-support.mjs";
 import {
   assertSuccessfulImport,
@@ -47,6 +48,7 @@ await runCsv2(
           expectedRows: rows.length,
         });
         testCases.push(exportCase);
+        allRows.push({ key: exportCase.finalizeMarkerKey, value: 'finalize' });
         const importCase = await prepareCsv1Case(
           settings,
           `${caseScope}_destination`,
@@ -59,16 +61,20 @@ await runCsv2(
           settings.profile,
           rows,
         );
+        // 受入17: マーカー未投入の初回はfinalize_gateで失敗し、Runは
+        // FAILEDのままexport成果物だけが完成した状態を作る(SUCCESS終端は
+        // 再開不能=RERUN_FROM_SUCCESS_RUN、が製品の正)。
         const first = await runCsv2Fixture(settings, exportCase, businessKey, {
           outputEncoding: encoding,
         });
-        assert.equal(first.exitCode, 0, first.stderr || first.stdout);
+        assert.notEqual(first.exitCode, 0, 'finalizeゲートで失敗すること');
         const firstGraph = await loadRunGraph(settings, businessKey);
         const firstReceipt = outputAudit(
           firstGraph,
           exportCase.fixture,
           expected.length,
           encoding,
+          { runStatus: 'FAILED' },
         );
         const artifactPath = csv2OutputPath(
           exportCase.ioRoot,
@@ -98,6 +104,7 @@ await runCsv2(
         assertSuccessfulImport(importGraph, expected.length, encoding);
         const target = await assertTargetRows(settings, expected);
 
+        await seedFinalizeMarker(settings, exportCase);
         const rerun = await runCsv2Fixture(settings, exportCase, "", {
           outputEncoding: encoding,
           resumeRun: firstGraph.run.runId,

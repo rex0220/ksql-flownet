@@ -30,3 +30,9 @@ nodes:
     idempotent: true
     outputs:
       report: csv2/{business_key}/{profile}/report.csv
+  - id: finalize_gate
+    job_id: csv2_finalize
+    sql: jobs/csv2-finalize.sql
+    depends_on: [export_csv]
+    trigger_rule: all_success
+    idempotent: true
