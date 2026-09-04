@@ -27,12 +27,16 @@ flowchart LR
 
 ## 2. サーバー準備(初回のみ)
 
-1. IOルートを作成する(rootのみアクセス可を推奨):
+1. IOルートを作成する。FlowNetが要求するのは「絶対パスの既存ディレクトリで、FlowNet実行ユーザーが読み書きできること」だけであり、root実行は要求しない。**CSV授受のためにroot鍵を配らない**よう、転送用アカウントを作ってIOルートだけに権限を与える:
 
    ```sh
+   useradd -m -s /bin/bash csvxfer                  # 転送用アカウント(SSH鍵は本人分のみ)
    mkdir -p /opt/ksql/io/in /opt/ksql/io/out
-   chmod 700 /opt/ksql/io
+   chown -R csvxfer:csvxfer /opt/ksql/io
+   chmod 750 /opt/ksql/io                            # FlowNet実行ユーザーがrootなら読み書き可
    ```
+
+   FlowNet実行ユーザーがroot以外の場合は、そのユーザーをcsvxferグループへ加えるかACLで`in/`読取・`out/`書込を許可する。既存本番のように管理者がroot鍵でSSHする構成を続ける場合は、鍵を持つ人を二次対応者に限定する
 
 2. FlowNetの環境ファイル(例: `/root/.ksql-flownet.env`)へ追加する:
 
@@ -61,7 +65,7 @@ flowchart LR
    ```
 
    - `inputs` のプレースホルダ: `{business_key}` `{profile}`
-   - `outputs` は加えて `{run_id}` `{node_id}` が使える。**再実行ごとに別ファイルにしたい場合は`{run_id}`を含める**
+   - `outputs` は加えて `{run_id}` `{node_id}` が使える。`{run_id}` を含めると**別Run(補正キー等)の出力が同じファイルを上書きしない**。ただし同一Runの `--rerun-from` は同じ `run_id` なので同一パスへ全量置換される(再実行履歴を残す仕組みではない)
 4. バージョン前提: kSQL-Flow 0.8.0以上(取込)/0.9.0以上(出力)。capability不足はロック取得前に拒否される(fail-closed)
 5. `validate` と対象networkの試験実行で経路を確認してから運用に載せる
 
@@ -70,12 +74,13 @@ flowchart LR
 1. **置き先のパスを確定する。** `in/` + inputsテンプレートのプレースホルダ展開:
 
    - 例: business_key=`monthly_sales@2026-09`、profile=`prod` →
-     `/opt/ksql/io/in/sales/monthly_sales@2026-09/prod/input.csv`
+     `/opt/ksql/io/in/sales/monthly_sales%402026-09/prod/input.csv`
+   - **プレースホルダの値はpercent encodingされる。** 英数字と `-` `_` `~` 以外の文字(`@` `:` 空白・日本語など)は `%XX` に変換される(`@` → `%40`)。記載どおりの生の `@` で置くと `INPUT_FILE_MISSING` になる。`plan` 等は実パスを表示しないため、記号を含むキーでは変換後のパスを確認する
 
 2. **転送する。** Windowsからの例:
 
    ```powershell
-   scp -i <SSH鍵> C:\work\input.csv root@<VPS>:/opt/ksql/io/in/sales/monthly_sales@2026-09/prod/input.csv
+   scp -i <SSH鍵> C:\work\input.csv csvxfer@<VPS>:/opt/ksql/io/in/sales/monthly_sales%402026-09/prod/input.csv
    ```
 
    WinSCP(SFTP)でも同じパスへ置けばよい。中間ディレクトリは事前に作る(`ssh ... mkdir -p`)か、SFTPクライアントで作成する
@@ -85,27 +90,27 @@ flowchart LR
 
 ### 取込の不変条件(重要)
 
-- **Run開始後にファイルを差し替えない。** 初回読取時のsha256がbaselineとして記録され、失敗後のresumeは**同一バイトのファイル**を要求する(`INPUT_FILE_MUTATED`で拒否)
+- **Run開始後にファイルを差し替えない。** 初回読取時のsha256がbaselineとして記録され、失敗後のresume / rerun-fromで**再実行対象になる取込ノード**は同一バイトのファイルを要求する(`INPUT_FILE_MUTATED`で拒否。SUCCESS済みで保持されるノードは照合しない)
 - 内容を直したい場合は、**新しいbusiness_key(補正キー等)で新しいRunとして取り込む**
-- 入力ファイルはresumeに備えて**Runが終端するまで元のパスへ保持**する。保持期限(既定90日)を過ぎたresumeは`INPUT_RETENTION_EXPIRED`で拒否される
+- 入力ファイルはresumeに備えて**Runが終端するまで元のパスへ保持**する。保持期限は**Run作成から既定90日**で、超過後のresumeは`INPUT_RETENTION_EXPIRED`で拒否される
 - 取込SQLは重複禁止キーへの`ON DUPLICATE`パターン(仕様書参照)にしておくと、chunk途中失敗→resumeでも各キー1件へ収束する(実測済み)
 
 ## 4. 出力CSVを取り出す手順
 
 1. 出力先は `out/` + outputsテンプレートの展開先:
 
-   - 例: `/opt/ksql/io/out/sales/monthly_sales@2026-09/netrun_xxxx/report.csv`
+   - 例: `/opt/ksql/io/out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv`(§3と同じくプレースホルダ値はpercent encodingされる)
 
 2. **完成したファイルだけが現れる**(atomic write)。途中失敗時に壊れた一時ファイルは残らず、既存ファイルも不変。Runが`SUCCESS`になってから取得する
 3. 取得例:
 
    ```powershell
-   scp -i <SSH鍵> root@<VPS>:/opt/ksql/io/out/sales/monthly_sales@2026-09/netrun_xxxx/report.csv C:\work\
+   scp -i <SSH鍵> csvxfer@<VPS>:/opt/ksql/io/out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv C:\work\
    ```
 
 4. 内容の照合が必要な場合、Node Attempt要約の`output_files`(sha256・行数・encoding)と突き合わせる。同一Runの`--rerun-from`では同一sha256になることを実測済み
 5. 出力先(取引先システム等)が`cli-kintone`でkintoneへ取り込む場合もそのまま使える — kSQLのUTF-8出力は`cli-kintone record import`互換の値表現で出力される(実機検証済み)
-6. 取得済みの出力ファイルの削除は任意。`out/`はFlowNetが上書きしないパス設計(`{run_id}`使用時)なら削除せず残してもよい
+6. 取得済みの出力ファイルの削除は任意。`{run_id}`を含むパス設計なら別Run間の上書きは起きないため残してもよい(同一Runのrerun-fromは同一パスを置換する — §2)
 
 ## 5. 安全規則とエラー早見
 

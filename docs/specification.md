@@ -220,15 +220,17 @@ stateDiagram-v2
   CREATED --> RUNNING: 最初のノードを開始
   RUNNING --> SUCCESS: 全ノード SUCCESS
   RUNNING --> FAILED: ノードが FAILED / BLOCKED
-  RUNNING --> CANCELLED: STOP hold を境界で受理
+  RUNNING --> CANCELLED: ノードが CANCELLED(ロック競合等の PREPARE_FAILED)
   RUNNING --> UNKNOWN: ノード結果が不明(Attempt UNKNOWN)
-  FAILED --> RUNNING: resume / RERUN(冪等ノードを再評価)
-  CANCELLED --> RUNNING: RELEASE 後の resume / RERUN
+  FAILED --> RUNNING: resume / RERUN で再実行ノードが動き出す
+  CANCELLED --> RUNNING: resume / RERUN で再実行ノードが動き出す
   UNKNOWN --> RUNNING: resolve-node で Attempt を解決してから resume
   SUCCESS --> [*]
 ```
 
-Run の状態はノード状態の集約で決まる(`UNKNOWN` のノードがあれば `UNKNOWN`、`FAILED` / `BLOCKED` があれば `FAILED`)。`SUCCESS` は終端であり、同じ Run を再実行できない(§9)。
+Run の状態はノード状態の集約で決まり、優先順は `UNKNOWN` > `RUNNING` > `FAILED` / `BLOCKED` > `CANCELLED` > 全件 `SUCCESS` である(いずれにも当てはまらなければ未開始は `CREATED`、開始済みは `RUNNING`)。resume 後の状態もこの集約で再計算される。
+
+STOP(停止 hold)は Run の状態を変えない。次ノード境界で Invocation が `CANCELLED / STOP_REQUESTED` として閉じ、Run は `RUNNING` のまま activity が `STOPPED` になる(§5.5)。`SUCCESS` は終端であり、同じ Run を再実行できない(§9)。
 
 ### 3.3 監査履歴アプリ
 
@@ -381,7 +383,7 @@ nodes:
 
 出力先の未存在directoryはFlowNetがIO rootから1段ずつ作成し、各段のsymlink/junctionを拒否する。既存の出力fileは正常であり、同一Runの`--rerun-from`でも同一pathをkSQL-Flowへ渡して全量置換する。出力path違反はsubprocessを起動せず、Node Attemptを`FAILED / OUTPUT_PATH_REJECTED`で確定する。
 
-入力fileは最初の読取時にsha256をNode Attemptのbaselineとして記録し、resume時に同一バイトであることを要求する。不一致は`INPUT_FILE_MUTATED`、不在は`INPUT_FILE_MISSING`、保持期限(既定90日)超過は`INPUT_RETENTION_EXPIRED`で拒否する。fileの配置・取り出し手順は[CSV入出力の運用](./csv-io-operations.md)を参照。
+入力fileは最初の読取時にsha256をNode Attemptのbaselineとして記録し、resume / rerun-fromで**再実行対象になる入力ノード**について同一バイトであることを要求する(SUCCESS済みで保持されるノードは照合しない)。不一致は`INPUT_FILE_MUTATED`、不在は`INPUT_FILE_MISSING`、Run作成からの保持期限(既定90日)超過は`INPUT_RETENTION_EXPIRED`で拒否する。fileの配置・取り出し手順は[CSV入出力の運用](./csv-io-operations.md)を参照。
 
 ### 4.6 業務キー導出
 
@@ -481,7 +483,7 @@ networks:
 配置規則:
 
 - **1 network = 1 YAML。** ボード・ポーラーから使う network はすべて allowlist へ `definition_path`(絶対パス)で登録する
-- **SQL の置き場所は参照範囲で決める。** 複数 network で共用する SQL は共有 `jobs/` に置き `../jobs/…` で参照する。その network 専用の SQL は network フォルダー配下の `jobs/` に置き、他 network から参照しない(変更影響を network 内に閉じる)
+- **SQL の置き場所は参照範囲で決める。** 複数 network で共用する SQL は共有 `jobs/` に置き、network YAML からの相対パス(上の構成例では `../../jobs/…`)で参照する。その network 専用の SQL は network フォルダー配下の `jobs/` に置き、他 network から参照しない(変更影響を network 内に閉じる)
 - **`job_id` は profile 内で名前空間を共有する**(ジョブロック `{profile}:{job_id}`・64 UTF-16 単位以内 — §9)。別 network に同じ `job_id` を与えると同一ロックを取り合う。同じ SQL・同じ書込先を共有する意図がある場合以外は network ごとに一意にする
 - **cron は network ごとに 1 行**(定期実行の起動スクリプト)。`poll-requests` のポーラーは 1 本で全 network を担当する
 - cron・ポーラーはジョブ資材リポジトリを cwd として起動する(`KSQL_FLOW_CONFIG` が相対パスのため)
@@ -536,7 +538,7 @@ networks:
 | rerun-from(`--rerun-from <node>`) | 同じ Run | 変わらない | 指定ノードとその子孫を、成功済みでも再実行 | ボードの RERUN 要求(上級入力)、CLI |
 | 補正キー(correction) | **別の Run** | 変わる(例: `…@2026-09-correction-1`) | 全ノードを最初から実行。SUCCESS 済みの期間を再集計したいとき | ボードの新規実行(補正モード)、CLI の `--business-key` + `--scheduled-for` |
 
-`SUCCESS` で終端した Run には resume も rerun-from もできない(§9)。再集計は補正キーで行う。
+`SUCCESS` で終端した Run への resume は `NOOP_ALREADY_SUCCESS`(exit 0)で何も実行せず、rerun-from は `RERUN_FROM_SUCCESS_RUN` で拒否される(exit 1)。どちらもノードを再実行しないため、再集計は補正キーで行う(§9)。
 
 ### 5.3 ensure-run の裁定
 
@@ -792,7 +794,7 @@ START許可CSVが設定されている場合、network はグループ対応コ�
 末尾の `その他(自由入力)` で一覧外の network ID も入力できるが、サーバー側 allowlist の判定は迂回できない。
 
 CSV の入力モードは選択時の初期値になる。
-business key テンプレートがある補正・任意キーモードでは、network と対象期間から未編集の business key を自動設定する。
+business key テンプレートがある場合、補正モードでは network と対象期間から未編集の business key を自動設定する。任意キーモードには対象期間がないため、`{年}` / `{月}` / `{日}` を含むテンプレートは適用せず空欄にし、`{ネットワークID}` だけのテンプレートに限り適用する。
 対象期間は日本時間の datetime-local として入力し、対象期間欄を business key 欄より上に置く。
 
 ダイアログを開いた時だけ `START要求実績(DONE)` と `Run実績` を独立取得し、各最大500件から重複を除いた参考候補を表示する。
@@ -862,7 +864,7 @@ flowchart LR
 | 選択肢名「売上取込」 | プラグイン CSV 1列目(表示専用) | なし(表示名は VPS に存在しない) |
 | network | CSV 2列目 `sales_import` | allowlist の `network_id: sales_import` entry |
 | 入力モード「任意キー」が初期選択 | CSV 3列目 | network.yaml の `business_key_policy: explicit` と一致している必要がある(§6.5) |
-| business_key `sales_import_20260904` | 利用者の入力(CSV 4列目テンプレートで初期値を補助できるが、`{年}{月}{日}` は対象期間を持つ定期・補正モードでのみ展開される) | Run の業務キー(Run 一意性・IO パス `{business_key}` の展開に使用) |
+| business_key `sales_import_20260904` | 利用者の入力(CSV 4列目テンプレートで初期値を補助できるが、`{年}{月}{日}` を含むテンプレートが展開されるのは対象期間を持つ補正モードだけ。定期はテンプレート指定不可、任意キーは `{ネットワークID}` だけのテンプレートなら展開) | Run の業務キー(Run 一意性・IO パス `{business_key}` の展開に使用) |
 | 実行される SQL | 画面では選べない | `flownet/sales-import/network.yaml` の `nodes[].sql` 3本を DAG 順に実行 |
 
 実行開始後の進捗はボードの `進行中のRun` に `sales_import_20260904` の Run として現れ、各ノードの結果は Node Attempt と JOBログに記録される。同じ business_key での再起票は重複ガードと ensure-run 裁定により新規 Run にならない(§6.5)。
