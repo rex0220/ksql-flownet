@@ -1,0 +1,32 @@
+schema_version: 1
+network_id: csv2_export
+description: CSV stage 2 isolated import transform export fixture
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 120
+  heartbeat_interval_sec: 30
+nodes:
+  - id: import_csv
+    job_id: csv2_import
+    sql: jobs/csv2-import.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+    inputs:
+      source: csv2/{business_key}/{profile}/input.csv
+  - id: transform_gate
+    job_id: csv2_transform
+    sql: jobs/csv2-transform.sql
+    depends_on: [import_csv]
+    trigger_rule: all_success
+    idempotent: true
+  - id: export_csv
+    job_id: csv2_export
+    sql: jobs/csv2-export.sql
+    depends_on: [transform_gate]
+    trigger_rule: all_success
+    idempotent: true
+    outputs:
+      report: csv2/{business_key}/{profile}/report.csv

@@ -149,7 +149,7 @@ export async function prepareCsv1Case(settings, scope, options = {}) {
   }
 }
 
-async function createFixtureConfig(settings, directory) {
+export async function createFixtureConfig(settings, directory) {
   const config = JSON.parse(await readFile(settings.configPath, "utf8"));
   const profile = config.profiles?.[settings.profile];
   assert.ok(
@@ -223,6 +223,7 @@ export function subprocessEnvironment(settings, ioRoot, options = {}) {
   const inherited = process.env.NODE_OPTIONS?.trim() ?? "";
   const useHook = options.failAfterTargetWrites || options.memoryFile;
   return {
+    ...(options.environment ?? {}),
     KSQL_FLOWNET_IO_DIR: ioRoot,
     KSQL_CSV1_TARGET_API_TOKEN: settings.targetApiToken,
     ...(useHook
@@ -262,6 +263,12 @@ export async function runFixture(
     businessKey,
     {
       ...(options.resume ? { resume: true } : {}),
+      ...(options.resumeRun === undefined
+        ? {}
+        : { resumeRun: options.resumeRun }),
+      ...(options.rerunFrom === undefined
+        ? {}
+        : { rerunFrom: options.rerunFrom }),
       environment: subprocessEnvironment(settings, ioRoot, options),
     },
   );

@@ -496,6 +496,9 @@ export async function startFlowNetNetwork(
     "run-network",
     networkPath,
     ...(options.resume ? ["--resume"] : []),
+    ...(options.rerunFrom === undefined
+      ? []
+      : ["--rerun-from", options.rerunFrom]),
     ...(options.resumeRun === undefined
       ? ["--business-key", businessKey]
       : ["--resume-run", options.resumeRun]),
