@@ -40,6 +40,8 @@ node --env-file=.env "$FLOWNET" run-network flownet/daily-summary/network.yaml -
 - cron 行は 1 本になり、「A はたぶん 1 時間で終わる」という見込みの時間差起動が不要になる(ケース A・C)
 - A が完走済みで NO-OP(exit 0)でも B は進む。B も完走済みなら NO-OP で終わるため、同じ日に再発火しても安全
 - A が失敗した日は B が起動しない。A をボードからリランして成功させた後、B は翌日の cron まで動かない。**当日中に B も動かしたい場合は同じスクリプトを手動実行する**(A は NO-OP、B が実行される)
+- **翌日以降に手動リカバリする場合は対象日を環境変数で渡す。** 既定の `TARGET` は実行日の日付になるため、そのまま叩くと前日分の B は実行されない: `SCHEDULED_FOR="2026-09-04T00:00:00+09:00" ./run_daily_chain.sh`
+- **失敗の検知を運用に組み込む。** A が失敗するとスクリプトは exit 1 で無言終了するため、cron の `MAILTO` で非0終了を通知するか、ボードの「終了済み・対応が必要なRun」(§7.2)で A の `FAILED` を検知してリランする流れ([一次対応手順](./ops-first-response.md))とセットで運用する
 - A と B の `scheduled_for` を揃えるため、両 network の `business_key_policy` は同じ period(例: day)にする。period が異なる場合はパターン 2 を併用する
 
 ## 4. パターン 2: 下流 network の先頭に「先行完了ゲート」を置く
@@ -54,25 +56,38 @@ node --env-file=.env "$FLOWNET" run-network flownet/daily-summary/network.yaml -
 -- @ksql dialect: 1
 ASSERT (
   SELECT COUNT(*) FROM LAPP_日次実績
-  WHERE 取込日 = TODAY()
+  WHERE 取込日 = @TODAY()
 ) > 0, '先行の日次取込データがありません';
 ```
 
-**2b. 実行管理アプリのメタデータで判定する(変種)** — 実行管理アプリを kSQL-Flow の profile に**閲覧専用トークンで logical app として登録**し、上流 network の Run 状態を検証する。SQL には Run の業務キーを埋め込めない(kSQL-Flow へ渡るのは `as_of` だけ)ため、「上流に未完了 Run が残っていない」形が扱いやすい:
+`@TODAY()` 等の時刻関数は実行時刻ではなく **Run の `as_of`(対象期間)を基準に評価される**(kSQL-Flow 仕様 §5.3)。翌日にリランしても対象日の判定が変わらない。
+
+**2b. 実行管理アプリのメタデータで判定する(変種)** — 実行管理アプリを kSQL-Flow の profile に**閲覧専用トークンで logical app として登録**し、上流 network の Run 状態を検証する。SQL には Run の業務キーを埋め込めない(kSQL-Flow へ渡るのは `as_of` だけ)ため、上流 Run の `as_of` を as-of 基準の時刻関数と比較する。**「未完了がない」だけの判定では、上流がまだ一度も起動していない(cron 遅延・スクリプト失敗)場合に素通りする**ので、「対象日の SUCCESS が存在する」ことを主条件にする:
 
 ```sql
 -- @ksql name: ds_gate_upstream_run
 -- @ksql timeout: 60
 -- @ksql dialect: 1
+-- 主条件: 対象日の上流 Run が SUCCESS で存在する(未起動・失敗・不明はここで止まる)
+ASSERT (
+  SELECT COUNT(*) FROM LAPP_FLOWNET_STATE
+  WHERE record_type = 'NETWORK_RUN'
+    AND network_id = 'daily_intake'
+    AND status = 'SUCCESS'
+    AND as_of >= @TODAY()
+) >= 1, '先行 daily_intake の対象日の SUCCESS Run がありません';
+-- 補助条件: 補正 Run など、対象日に未完了の上流 Run が残っていない
 ASSERT (
   SELECT COUNT(*) FROM LAPP_FLOWNET_STATE
   WHERE record_type = 'NETWORK_RUN'
     AND network_id = 'daily_intake'
     AND status IN ('CREATED', 'RUNNING', 'FAILED', 'UNKNOWN')
+    AND as_of >= @TODAY()
 ) = 0, '先行 daily_intake に未完了の Run があります';
 ```
 
-- 2b は実行プレーン(kSQL-Flow)が Control Plane のアプリを読む形になる。閲覧専用トークンに限定し、書込は行わない(§8.1)
+- `as_of` は kintone DATETIME(UTC 保存)であり、`@TODAY()` は Run の `as_of` を暦日に丸めた値になる(タイムゾーンは kSQL-Flow 側の設定に従う)。日次 Run の `as_of` は対象日 00:00 なので `>=` で対象日分を拾える。月次など粒度が違う場合は `@MONTH_START()` / `@NEXT_MONTH_START()` で範囲比較する
+- 2b は実行プレーン(kSQL-Flow)が Control Plane のアプリを読む形になる。閲覧専用トークンに限定し、書込は行わない(§8.1)。この条件記述の難しさが、2a を推奨とする理由でもある
 - ゲートは「動くべきでないときに止める」保険であり、起動順そのものはパターン 1 か cron の時刻で作る
 
 ## 5. パターン 3: 業務カレンダーの判定
