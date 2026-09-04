@@ -129,7 +129,3 @@ flowchart LR
 | `INPUT_PATH_REJECTED` | ルート外・symlink等の不正パス | 定義テンプレートと実パスを是正 |
 | `OUTPUT_PATH_REJECTED` | 出力先が封じ込め違反 | outputsテンプレートを是正 |
 | capability拒否 | kSQL-Flow/engineが機能未対応 | サーバーのkSQL-Flowを0.8/0.9以上へ更新 |
-
-## 6. SSHを使わない経路(将来)
-
-一次対応者だけでファイルを渡したい(SSHを配らない)場合の**kintone添付ファイル経由の取込アダプタ**(添付→`in/`へ配置→取込)は現時点では未実装で、backlog(implementation-plan P2-14)。それまでは、CSVの配置・取り出しは二次対応者の作業とする。
