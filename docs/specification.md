@@ -297,6 +297,16 @@ nodes:
 
 ### 4.5 ノード
 
+ノードとは network(DAG)の 1 ステップであり、**1 つの SQL ファイルを 1 回の kSQL-Flow ジョブとして実行する単位**である。SQL ファイル内の複数文(SELECT・ASSERT・UPSERT 等)は 1 ノードとして一括実行され、文単位ではノードにならない。ノードは 3 つの識別子を持ち、役割が異なる:
+
+| 識別子 | 役割 |
+| --- | --- |
+| `id` | DAG 内での名前。`depends_on` の参照先で、Node State / Attempt の `node_id` になる |
+| `job_id` | kSQL-Flow 側のジョブ名。SQL ヘッダの `-- @ksql name:` と一致させる。ジョブロック `{profile}:{job_id}` の名前空間(§4.7) |
+| `sql` | 実行するファイル(network YAML からの相対パス) |
+
+実行時は、ノード 1 つにつき Node State レコードが 1 件でき、実行のたびに Node Attempt レコードが追加される(§3.2)。§4.1 の例では `id: extract` のノードが `jobs/extract.sql` を job `extract_customer` として実行する。
+
 | フィールド | 必須 | 型・値 | 意味 |
 | --- | --- | --- | --- |
 | `id` | 必須 | 識別子 | network 内で一意な Node ID |
