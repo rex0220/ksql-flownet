@@ -334,7 +334,7 @@ FlowNetは `<KSQL_FLOWNET_IO_DIR>/out`配下へ同じallowlist規則で解決し
 | 段階2 kSQL-Flow | CLI/flow配線、Contract/capability/result、文書 | 3〜5人日 |
 | 段階2 FlowNet | outputs schema、path、argv、Execution Result保存・監査要約、`output_files` | 3〜5人日 |
 | 段階2互換/E2E | round-trip 3方向、SJIS、kill/disk fault、冪等sha | 4〜7人日 |
-| **段階2合計** | 初期採用(b) | **17〜29人日** |
+| **段階2合計** | 初期採用(b) | **17〜29人日** — **✅完了(2026-09-04)**: engine B179(v3.77.0公開)・kSQL-Flow v0.9.0(main 0a66c35・publish待ち)・FlowNet outputs(main 37cc533)・実機受入1/3/14〜17+round-trip 3方向・cli-kintone実取込合格([証跡](./test-results/csv2-20260904/README.md)) |
 | C-1(a)差分 | AST/alias spellingと全伝播経路（採用時のみ） | 追加5〜9人日 |
 | 別作業（本計画のスコープ外） | 最小取込アダプタ（ファイル配置 + 取込マーカー + sha256重複禁止INSERT） | 小 |
 
