@@ -721,6 +721,32 @@ business key テンプレートがある補正・任意キーモードでは、n
 候補取得失敗時も自由入力できる。
 起票前の重複キー照合では、kintone クエリ結果を JavaScript の完全一致で再判定する。
 
+#### ダイアログと VPS 上のジョブの対応
+
+ダイアログはジョブを直接実行しない。**操作要求アプリへ START レコードを1件 POST するだけ**であり、実際に動くジョブは VPS 側の設定が決める。両者は `network_id` という1つのキーで結ばれる:
+
+```mermaid
+flowchart LR
+  subgraph KT["kintone"]
+    DLG["新規実行ダイアログ<br>選択肢 = プラグイン設定の<br>START許可CSV(表示用)"]
+    REQ["操作要求アプリ<br>STARTレコード<br>(network_id・キー・理由)"]
+  end
+  subgraph VPS["VPS"]
+    AL["allowlist<br>network_id → definition_path<br>(app_start: true のみ許可)"]
+    NET["network.yaml<br>nodes[].sql(§4.7)"]
+    KF["kSQL-Flowが各SQLを実行"]
+  end
+  DLG -->|"① 起票(POSTのみ)"| REQ
+  REQ -->|"② ポーラーが5分cronでclaim"| AL
+  AL -->|"③ 一致entryのYAMLを読込"| NET
+  NET -->|"④ DAG順に実行"| KF
+```
+
+- **プラグインの START 許可 CSV は表示用の写し**である。ダイアログの選択肢名(ネットワーク名)・初期入力モード・business key テンプレートを決めるだけで、実行可否は決めない
+- **実行の正は VPS の allowlist**である。CSV に載っていても allowlist の該当 `network_id` に `app_start: true` がなければ `NETWORK_NOT_ALLOWED` で拒否される(§6.4 の三重ゲート)
+- どの SQL が動くかは、allowlist の `definition_path` が指す `network.yaml` の `nodes[].sql`(§4.7 のフォルダー構成)で決まる。ダイアログ側には SQL の情報は存在しない
+- したがって新しい flow を画面から起動できるようにする手順は、(1) VPS へ network.yaml と SQL を配置(§4.7)、(2) allowlist へ `app_start: true` で登録、(3) プラグイン設定の CSV へ表示行を追加 — の3点セットになる。CSV と allowlist の `network_id` が一致していることを必ず確認する
+
 ### 7.5 詳細画面
 
 NETWORK_RUN 詳細では activity または `終端(activityなし)`、状態根拠、エラー概要、操作導線を表示する。
