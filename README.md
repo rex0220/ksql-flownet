@@ -21,8 +21,9 @@ requests from the UI.
 ## Requirements
 
 - kintone (uses API tokens, a plugin, related records, and app templates)
-- An execution server with Node.js 22 or later. Outbound HTTPS to kintone is
-  sufficient; no inbound port needs to be opened
+- An execution server with Node.js 22 or later. All traffic is outbound HTTPS
+  from the server to kintone; kintone never connects to the server (no inbound
+  port, static IP, or domain required)
 - See [Specification §2 (environment)](./docs/specification.md) for details
 
 ## Installation

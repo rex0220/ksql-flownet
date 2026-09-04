@@ -144,6 +144,15 @@ API トークンに必要な権限:
 
 CLI・cron・ポーラーを動かすサーバーを 1 台用意する。kintone へ HTTPS で発信できれば足り、受信ポートの開放は不要である。
 
+**通信は実行サーバーから kintone への発信のみ**で、kintone から実行サーバーへの接続は一切ない。Webhook・プラグインからのサーバー呼出し・常駐 API はなく、操作要求も「ポーラーが kintone を読みに行く」pull 方式である。したがって実行サーバーはインターネットから到達不能(SSH 以外閉)のままでよく、固定 IP・ドメイン・証明書も不要である。
+
+```mermaid
+flowchart LR
+  Browser["利用者のブラウザ<br>(ボードプラグイン)"] -->|"HTTPS"| KT["kintone"]
+  VPS["実行サーバー(VPS)<br>CLI / cron / ポーラー"] -->|"HTTPS 発信のみ<br>(REST API・API トークン)"| KT
+  KT -.->|"接続なし"| VPS
+```
+
 | 項目 | 要件 |
 | --- | --- |
 | OS | Linux(本番実績: VPS + cron)。開発・検証は Windows でも動作する |
