@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "version": 2,
+  "version": 1,
   "type": "APP",
   "name": {
     "en": "kSQL-FlowNet Run Activity",
@@ -12,12 +12,20 @@
   },
   "icon": "assets/icon.png",
   "desktop": {
-    "js": ["dist/desktop.js"],
-    "css": ["css/desktop.css"]
+    "js": [
+      "dist/desktop.js"
+    ],
+    "css": [
+      "css/desktop.css"
+    ]
   },
   "config": {
     "html": "config.html",
-    "js": ["dist/config.js"],
-    "css": ["css/config.css"]
+    "js": [
+      "dist/config.js"
+    ],
+    "css": [
+      "css/config.css"
+    ]
   }
 }
