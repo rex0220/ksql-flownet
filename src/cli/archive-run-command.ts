@@ -63,13 +63,15 @@ export async function runArchiveRunCommand(
               : { profile: parsed.profile }),
           });
     process.stdout.write(`${JSON.stringify(outcome)}\n`);
+    // 仕様 §5.3: exit 0 は ARCHIVED+RECORDED+解放済み、または ALREADY_ARCHIVED+解放済みのときだけ。
     const success =
-      outcome.outcome === "ARCHIVED" &&
-      outcome.audit === "RECORDED" &&
-      outcome.lock_released;
+      (outcome.outcome === "ARCHIVED" &&
+        outcome.audit === "RECORDED" &&
+        outcome.lock_released) ||
+      (outcome.outcome === "ALREADY_ARCHIVED" && outcome.lock_released);
     if (success)
       process.stderr.write(
-        `ARCHIVED: ${outcome.run_id} (revision ${outcome.run_revision})\n`,
+        `${outcome.outcome}: ${outcome.run_id} (revision ${outcome.run_revision})\n`,
       );
     else
       process.stderr.write(

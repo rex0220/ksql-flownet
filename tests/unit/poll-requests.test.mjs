@@ -26,6 +26,7 @@ function request(overrides = {}) {
     claimHeartbeatAt: null,
     resultCode: null,
     resultMessage: null,
+    cancelRequested: false,
     ...overrides,
   };
 }
@@ -41,6 +42,7 @@ function run(overrides = {}) {
     started_at: "2026-08-31T00:01:00Z",
     finished_at: "2026-08-31T00:02:00Z",
     updated_at: "2026-08-31T00:02:00Z",
+    hold: null,
     invocations: [
       {
         invocation_id: "invoke-old",
@@ -103,6 +105,9 @@ function harness({
       return { valid: requested, invalid: [], skipped: 0 };
     },
     async rejectInvalid() {},
+    async cancelBeforeClaim() {
+      return true;
+    },
     async claim(value) {
       calls.push(`claim:${value.id}`);
       return accepted(value);
@@ -114,6 +119,10 @@ function harness({
         revision: value.revision + 1,
         claimHeartbeatAt: heartbeatAt,
       };
+    },
+    async getById(id) {
+      const value = requested.find((candidate) => candidate.id === id);
+      return value === undefined ? null : accepted(value);
     },
     async writeResult(value, result) {
       calls.push(`result:${value.id}:${result.code}`);
@@ -162,6 +171,26 @@ function harness({
           stderrTruncated: false,
         }
       );
+    },
+    async archiveRun(_network, value) {
+      calls.push(`archive:${value.id}`);
+      return {
+        output: {
+          outcome: "ARCHIVED",
+          run_id: value.runId,
+          event_id: `archive-${value.id}`,
+          run_revision: 4,
+          audit: "RECORDED",
+          lock_released: true,
+        },
+        process: {
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          stdoutTruncated: false,
+          stderrTruncated: false,
+        },
+      };
     },
   };
   return { calls, results, store, child };
@@ -254,7 +283,15 @@ test("RERUN/STOP/RELEASEの許可・拒否matrixを固定する", () => {
       { requestType: "STOP" },
       {
         status: status(),
-        run: run({ status: "RUNNING", activity: "STOPPED" }),
+        run: run({
+          status: "RUNNING",
+          activity: "STOPPED",
+          hold: {
+            state: "ACCEPTED",
+            requested_by: "operator",
+            requested_at: nowText,
+          },
+        }),
       },
       nowMs,
       60_000,
@@ -266,7 +303,15 @@ test("RERUN/STOP/RELEASEの許可・拒否matrixを固定する", () => {
       { requestType: "RELEASE" },
       {
         status: status(),
-        run: run({ status: "RUNNING", activity: "STOPPED" }),
+        run: run({
+          status: "RUNNING",
+          activity: "STOPPED",
+          hold: {
+            state: "ACCEPTED",
+            requested_by: "operator",
+            requested_at: nowText,
+          },
+        }),
       },
       nowMs,
       60_000,
@@ -281,6 +326,94 @@ test("RERUN/STOP/RELEASEの許可・拒否matrixを固定する", () => {
       60_000,
     ).code,
     "RUN_NOT_ON_HOLD",
+  );
+});
+
+test("RERUNはholdありを拒否しRELEASEは終端Runでもholdだけを条件に受理する", () => {
+  const hold = {
+    state: "REQUESTED",
+    requested_by: "operator",
+    requested_at: nowText,
+  };
+  assert.equal(
+    reviewRequest(
+      { requestType: "RERUN" },
+      { status: status(), run: run({ hold }) },
+      nowMs,
+      60_000,
+    ).code,
+    "RUN_ON_HOLD",
+  );
+  assert.equal(
+    reviewRequest(
+      { requestType: "RELEASE" },
+      { status: status(), run: run({ status: "FAILED", hold }) },
+      nowMs,
+      60_000,
+    ),
+    null,
+  );
+  assert.equal(
+    reviewRequest(
+      { requestType: "RELEASE" },
+      { status: status(), run: run({ status: "FAILED", hold: null }) },
+      nowMs,
+      60_000,
+    ).code,
+    "RUN_NOT_ON_HOLD",
+  );
+});
+
+test("CLOSE一次審査はARCHIVED/SUCCESS/UNKNOWN/非終端/hold/liveの順で裁定する", () => {
+  const close = { requestType: "CLOSE" };
+  const hold = {
+    state: "ACCEPTED",
+    requested_by: "operator",
+    requested_at: nowText,
+  };
+  const liveStatus = status(undefined, {
+    lock: {
+      record_id: "1",
+      owner_invocation_id: "invoke-old",
+      owner_instance_id: "host",
+      heartbeat_at: nowText,
+      lease_expires_at: nowText,
+      stale_candidate: false,
+      revision: 2,
+    },
+  });
+  const cases = [
+    [
+      run({ lifecycle_status: "ARCHIVED", status: "SUCCESS", hold }),
+      "RUN_ALREADY_ARCHIVED",
+      "DONE",
+    ],
+    [run({ status: "SUCCESS", hold }), "RUN_STATUS_NOT_CLOSABLE", "REJECTED"],
+    [run({ status: "UNKNOWN", hold }), "RUN_UNKNOWN_NOT_CLOSABLE", "REJECTED"],
+    [run({ status: "CREATED", hold }), "RUN_NOT_TERMINAL", "REJECTED"],
+    [run({ status: "RUNNING", hold }), "RUN_NOT_TERMINAL", "REJECTED"],
+    [run({ status: "FAILED", hold }), "RUN_ON_HOLD", "REJECTED"],
+    [run({ status: "FAILED" }), null, null],
+  ];
+  for (const [runValue, code, state] of cases) {
+    const actual = reviewRequest(
+      close,
+      { status: status(runValue), run: runValue },
+      nowMs,
+      60_000,
+    );
+    assert.equal(actual?.code ?? null, code);
+    assert.equal(actual?.state ?? null, state);
+  }
+  const liveRun = run({ status: "FAILED" });
+  assert.equal(
+    reviewRequest(
+      close,
+      { status: { ...liveStatus, runs: [liveRun] }, run: liveRun },
+      nowMs,
+      60_000,
+    ).code,
+    "RUN_LIVE",
   );
 });
 
@@ -374,6 +507,192 @@ test("不正要求はrevision指定で個別REJECTED、識別不能件数だけl
   assert.equal(summary.skippedMalformed, 2);
 });
 
+test("valid/invalidのclaim前取消を優先し競合時は警告して周期内で触らない", async () => {
+  const logs = [];
+  const rejected = [];
+  const cancelled = [];
+  const h = harness({
+    requested: [request({ id: "51", cancelRequested: true })],
+  });
+  h.store.listRequested = async () => ({
+    valid: [request({ id: "51", cancelRequested: true })],
+    invalid: [
+      {
+        id: "50",
+        revision: 7,
+        requestState: "REQUESTED",
+        cancelRequested: true,
+        issues: [{ code: "REQUIRED", field: "reason", message: "blank" }],
+      },
+      {
+        id: "52",
+        revision: 8,
+        requestState: "REQUESTED",
+        cancelRequested: "INVALID",
+        issues: [
+          { code: "INVALID_VALUE", field: "cancel_requested", message: "bad" },
+        ],
+      },
+      {
+        id: "53",
+        revision: 9,
+        requestState: "REQUESTED",
+        cancelRequested: true,
+        issues: [{ code: "REQUIRED", field: "reason", message: "blank" }],
+      },
+    ],
+    skipped: 0,
+  });
+  h.store.cancelBeforeClaim = async (identity, result) => {
+    cancelled.push({ identity, result });
+    return identity.id !== "53";
+  };
+  h.store.rejectInvalid = async (identity, result) =>
+    rejected.push({ identity, result });
+  const summary = await pollRequests({
+    store: h.store,
+    child: h.child,
+    config,
+    host: "poller",
+    now: () => new Date(nowText),
+    log: (code, detail) => logs.push({ code, detail }),
+  });
+  assert.deepEqual(
+    cancelled.map(({ identity }) => identity.id),
+    ["50", "53", "51"],
+  );
+  assert.equal(
+    cancelled.every(({ result }) => result.state === "CANCELLED"),
+    true,
+  );
+  assert.deepEqual(
+    rejected.map(({ identity }) => identity.id),
+    ["52"],
+  );
+  assert.equal(rejected[0].result.code, "REQUEST_INVALID");
+  assert.equal(summary.cancelled, 2);
+  assert.equal(
+    h.calls.some((value) => value.startsWith("claim:")),
+    false,
+  );
+  assert.deepEqual(logs, [
+    { code: "CANCEL_FINALIZE_CONFLICT", detail: "request_id=53" },
+  ]);
+});
+
+test("終端直前再GETのcancelを付記し終端後の変更は遡及反映しない", async () => {
+  const h = harness({ requested: [request()] });
+  h.store.getById = async () =>
+    accepted(request({ revision: 10, cancelRequested: true }));
+  await pollRequests({
+    store: h.store,
+    child: h.child,
+    config,
+    host: "poller",
+    now: () => new Date(nowText),
+  });
+  assert.match(h.results[0].result.message, /\(cancel_ignored\)$/u);
+  assert.equal(h.results[0].value.revision, 11);
+  assert.equal(h.results.length, 1);
+});
+
+test("終端再GET/PUT失敗はACCEPTEDを残して次要求へ進みheartbeatを再開しない", async () => {
+  for (const failure of ["get", "put"]) {
+    const logs = [];
+    const h = harness({
+      requested: [request({ id: "1" }), request({ id: "2" })],
+    });
+    const originalGet = h.store.getById;
+    const originalWrite = h.store.writeResult;
+    h.store.getById = async (id) => {
+      if (id === "1" && failure === "get") throw new Error("GET failed");
+      return originalGet(id);
+    };
+    h.store.writeResult = async (value, result) => {
+      if (value.id === "1" && failure === "put") throw new Error("PUT failed");
+      return originalWrite(value, result);
+    };
+    const summary = await pollRequests({
+      store: h.store,
+      child: h.child,
+      config,
+      host: "poller",
+      now: () => new Date(nowText),
+      log: (code, detail) => logs.push({ code, detail }),
+    });
+    assert.equal(summary.claimed, 2);
+    assert.equal(summary.completed, 1);
+    assert.deepEqual(logs, [
+      { code: "RESULT_FINALIZE_ABANDONED", detail: "request_id=1" },
+    ]);
+    assert.equal(h.calls.filter((value) => value === "heartbeat:1").length, 0);
+    assert.equal(
+      h.results.some(({ value }) => value.id === "2"),
+      true,
+    );
+  }
+});
+
+test("終端再GETがACCEPTED以外ならRESULT_STATE_MISMATCHで更新しない", async () => {
+  const logs = [];
+  const h = harness({ requested: [request()] });
+  h.store.getById = async () => request({ requestState: "DONE" });
+  const summary = await pollRequests({
+    store: h.store,
+    child: h.child,
+    config,
+    host: "poller",
+    now: () => new Date(nowText),
+    log: (code, detail) => logs.push({ code, detail }),
+  });
+  assert.equal(summary.completed, 0);
+  assert.equal(h.results.length, 0);
+  assert.deepEqual(logs, [
+    { code: "RESULT_STATE_MISMATCH", detail: "request_id=42" },
+  ]);
+});
+
+test("ARCHIVEDを一次審査で観測したCLOSEはchild未起動でDONEになる", async () => {
+  const h = harness({
+    requested: [request({ requestType: "CLOSE" })],
+    statusFor(network) {
+      return network.networkId === "net-a"
+        ? status(run({ lifecycle_status: "ARCHIVED" }))
+        : null;
+    },
+  });
+  await pollRequests({
+    store: h.store,
+    child: h.child,
+    config,
+    host: "poller",
+    now: () => new Date(nowText),
+  });
+  assert.equal(h.results[0].result.code, "RUN_ALREADY_ARCHIVED");
+  assert.equal(
+    h.calls.some((value) => value.startsWith("archive:")),
+    false,
+  );
+});
+
+test("closableなCLOSEはarchive-run childを起動してRUN_ARCHIVEDで終端する", async () => {
+  const h = harness({ requested: [request({ requestType: "CLOSE" })] });
+  await pollRequests({
+    store: h.store,
+    child: h.child,
+    config,
+    host: "poller",
+    now: () => new Date(nowText),
+  });
+  assert.deepEqual(
+    h.calls.filter((value) => value.startsWith("archive:")),
+    ["archive:42"],
+  );
+  assert.equal(h.results[0].result.state, "DONE");
+  assert.equal(h.results[0].result.code, "RUN_ARCHIVED");
+  assert.match(h.results[0].result.message, /event_id=archive-42/u);
+});
+
 test("REQUESTED一覧GET失敗時はstale書込もchild起動もしない", async () => {
   const h = harness({
     acceptedRecords: [
@@ -436,7 +755,17 @@ test("RERUN/STOP/RELEASEを逐次childへ渡しrerun-fromも保持する", async
     statusFor(network, runId) {
       if (network.networkId !== "net-a") return null;
       if (runId === "run-42" && releaseState)
-        return status(run({ status: "RUNNING", activity: "STOPPED" }));
+        return status(
+          run({
+            status: "RUNNING",
+            activity: "STOPPED",
+            hold: {
+              state: "REQUESTED",
+              requested_by: "operator",
+              requested_at: nowText,
+            },
+          }),
+        );
       return status(
         run({
           status: "RUNNING",

@@ -35,7 +35,7 @@ export async function runPollRequestsCommand(
     }
     const summary = await pollRequests(resolvedDependencies);
     process.stdout.write(
-      `poll-requests: requested=${summary.requested} claimed=${summary.claimed} completed=${summary.completed} invalid=${summary.invalid} stale=${summary.stale} skipped=${summary.skippedMalformed}\n`,
+      `poll-requests: requested=${summary.requested} claimed=${summary.claimed} completed=${summary.completed} cancelled=${summary.cancelled} invalid=${summary.invalid} stale=${summary.stale} skipped=${summary.skippedMalformed}\n`,
     );
     return 0;
   } catch (error) {

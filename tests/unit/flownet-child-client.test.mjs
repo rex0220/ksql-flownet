@@ -144,6 +144,55 @@ test("status/cancel-run argvを固定しreason一時ファイルをfinallyで必
   ]);
 });
 
+test("archive-runはdefinition path・run id・reason fileとREQUESTED_BYを渡して一時ファイルを削除する", async () => {
+  let directory;
+  let reasonPath;
+  const calls = [];
+  const client = new FlownetChildClient({
+    profile: "prod",
+    cliPath: "C:\\app\\cli.js",
+    async makeTempDirectory() {
+      directory = await mkdtemp(join(tmpdir(), "flownet-archive-test-"));
+      return directory;
+    },
+    async execute(command, args, options) {
+      calls.push({ command, args, options });
+      reasonPath = args.at(-1);
+      await access(reasonPath);
+      return processResult({
+        stdout: JSON.stringify({
+          outcome: "ARCHIVED",
+          run_id: "run-42",
+          event_id: "archive-event-42",
+          run_revision: 8,
+          audit: "RECORDED",
+          lock_released: true,
+        }),
+      });
+    },
+  });
+  const actual = await client.archiveRun(
+    { networkId: "net-a", definitionPath: "C:\\net.yaml" },
+    request(),
+  );
+  assert.equal(actual.output.outcome, "ARCHIVED");
+  assert.equal(calls[0].command, process.execPath);
+  assert.deepEqual(calls[0].args.slice(0, -1), [
+    "C:\\app\\cli.js",
+    "archive-run",
+    "C:\\net.yaml",
+    "--run-id",
+    "run-42",
+    "--reason-file",
+  ]);
+  assert.equal(
+    calls[0].options.env.KSQL_FLOWNET_REQUESTED_BY,
+    requestedBy(request()),
+  );
+  await assert.rejects(access(reasonPath));
+  await assert.rejects(access(directory));
+});
+
 test("STARTの3入力modeは完全一致argvを使いresume系を一切持たない", async () => {
   const calls = [];
   const client = new FlownetChildClient({
@@ -173,11 +222,37 @@ test("STARTの3入力modeは完全一致argvを使いresume系を一切持たな
     businessKey: "correction",
     scheduledFor: "2026-08-01T00:00:00.000Z",
   });
-  assert.deepEqual(calls.map(({ args }) => args), [
-    ["C:\\app\\cli.js", "run-network", "C:\\net.yaml", "--business-key", "manual", "--json"],
-    ["C:\\app\\cli.js", "run-network", "C:\\net.yaml", "--scheduled-for", "2026-08-01T00:00:00.000Z", "--json"],
-    ["C:\\app\\cli.js", "run-network", "C:\\net.yaml", "--business-key", "correction", "--scheduled-for", "2026-08-01T00:00:00.000Z", "--json"],
-  ]);
+  assert.deepEqual(
+    calls.map(({ args }) => args),
+    [
+      [
+        "C:\\app\\cli.js",
+        "run-network",
+        "C:\\net.yaml",
+        "--business-key",
+        "manual",
+        "--json",
+      ],
+      [
+        "C:\\app\\cli.js",
+        "run-network",
+        "C:\\net.yaml",
+        "--scheduled-for",
+        "2026-08-01T00:00:00.000Z",
+        "--json",
+      ],
+      [
+        "C:\\app\\cli.js",
+        "run-network",
+        "C:\\net.yaml",
+        "--business-key",
+        "correction",
+        "--scheduled-for",
+        "2026-08-01T00:00:00.000Z",
+        "--json",
+      ],
+    ],
+  );
   for (const { args, options } of calls) {
     assert.equal(args.includes("--resume"), false);
     assert.equal(args.includes("--resume-run"), false);

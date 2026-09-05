@@ -27,11 +27,15 @@ function request(overrides = {}) {
     claimHeartbeatAt: null,
     resultCode: null,
     resultMessage: null,
+    cancelRequested: false,
     ...overrides,
   };
 }
 
-function definition(context, { policy = "explicit", idempotent = "true" } = {}) {
+function definition(
+  context,
+  { policy = "explicit", idempotent = "true" } = {},
+) {
   const directory = mkdtempSync(join(tmpdir(), "flownet-start-test-"));
   context.after(() => rmSync(directory, { recursive: true, force: true }));
   const path = join(directory, "network.yaml");
@@ -70,31 +74,40 @@ const processResult = (overrides = {}) => ({
   ...overrides,
 });
 
-async function runCase(context, {
-  requestValue = request(),
-  requestedRecords,
-  acceptedRecords = [],
-  networkOptions,
-  networks,
-  output,
-  startNetwork,
-  statusFor,
-} = {}) {
+async function runCase(
+  context,
+  {
+    requestValue = request(),
+    requestedRecords,
+    acceptedRecords = [],
+    networkOptions,
+    networks,
+    output,
+    startNetwork,
+    statusFor,
+  } = {},
+) {
   const definitionPath = definition(context, networkOptions);
-  const configuredNetworks =
-    networks ?? [
-      { networkId: "net-a", definitionPath, appStart: true },
-    ];
+  const configuredNetworks = networks ?? [
+    { networkId: "net-a", definitionPath, appStart: true },
+  ];
   const calls = [];
   const results = [];
   const store = {
     async listRequested() {
-      return { valid: requestedRecords ?? [requestValue], invalid: [], skipped: 0 };
+      return {
+        valid: requestedRecords ?? [requestValue],
+        invalid: [],
+        skipped: 0,
+      };
     },
     async listAccepted() {
       return acceptedRecords;
     },
     async rejectInvalid() {},
+    async cancelBeforeClaim() {
+      return true;
+    },
     async claim(value) {
       return {
         ...value,
@@ -107,6 +120,21 @@ async function runCase(context, {
     },
     async heartbeat(value) {
       return value;
+    },
+    async getById(id) {
+      const value = (requestedRecords ?? [requestValue]).find(
+        (candidate) => candidate.id === id,
+      );
+      return value === undefined
+        ? null
+        : {
+            ...value,
+            revision: value.revision + 1,
+            requestState: "ACCEPTED",
+            claimedAt: NOW,
+            claimedHost: "poller-a",
+            claimHeartbeatAt: NOW,
+          };
     },
     async writeResult(value, result) {
       results.push({ value, result });
@@ -122,6 +150,9 @@ async function runCase(context, {
     },
     async cancelRun() {
       throw new Error("cancel child must not be used for START");
+    },
+    async archiveRun() {
+      throw new Error("archive child must not be used for START");
     },
     async startNetwork(network, value, input) {
       calls.push({ method: "startNetwork", network, value, input });
@@ -205,7 +236,10 @@ test("S06 explicit + scheduled_for含む", async (context) => {
 test("S07 scheduled_period + scheduled_for単独", async (context) => {
   const actual = await runCase(context, {
     networkOptions: { policy: "scheduled" },
-    requestValue: request({ businessKey: null, scheduledFor: "2026-07-31T15:00:00Z" }),
+    requestValue: request({
+      businessKey: null,
+      scheduledFor: "2026-07-31T15:00:00Z",
+    }),
   });
   assert.deepEqual(actual.calls[0].input, {
     scheduledFor: "2026-07-31T15:00:00.000Z",
@@ -216,7 +250,10 @@ test("S07 scheduled_period + scheduled_for単独", async (context) => {
 test("S08 scheduled_period correction", async (context) => {
   const actual = await runCase(context, {
     networkOptions: { policy: "scheduled" },
-    requestValue: request({ businessKey: "correction-1", scheduledFor: "2026-07-31T15:00:00Z" }),
+    requestValue: request({
+      businessKey: "correction-1",
+      scheduledFor: "2026-07-31T15:00:00Z",
+    }),
   });
   assert.deepEqual(actual.calls[0].input, {
     scheduledFor: "2026-07-31T15:00:00.000Z",
@@ -226,7 +263,9 @@ test("S08 scheduled_period correction", async (context) => {
 });
 
 test("S09 scheduled_period + business_key単独", async (context) => {
-  const actual = await runCase(context, { networkOptions: { policy: "scheduled" } });
+  const actual = await runCase(context, {
+    networkOptions: { policy: "scheduled" },
+  });
   assert.equal(actual.result.code, "AS_OF_UNDEFINED");
   assert.equal(actual.calls.length, 0);
 });
@@ -240,7 +279,11 @@ test("S10 両方欠落", async (context) => {
 });
 
 test("S11 不正日時(日付のみ・offsetなし・実在しない日時)", async (context) => {
-  for (const scheduledFor of ["2026-08-01", "2026-08-01T00:00:00", "2026-02-30T00:00:00Z"]) {
+  for (const scheduledFor of [
+    "2026-08-01",
+    "2026-08-01T00:00:00",
+    "2026-02-30T00:00:00Z",
+  ]) {
     const actual = await runCase(context, {
       networkOptions: { policy: "scheduled" },
       requestValue: request({ businessKey: null, scheduledFor }),
@@ -253,8 +296,11 @@ test("S11 不正日時(日付のみ・offsetなし・実在しない日時)", as
 test("S12 同一キーSUCCESS", async (context) => {
   const actual = await runCase(context, {
     output: {
-      outcome: "NOOP", run_id: "run-success", invocation_id: null,
-      aggregate_status: "SUCCESS", invocation_result_code: "NOOP_ALREADY_SUCCESS",
+      outcome: "NOOP",
+      run_id: "run-success",
+      invocation_id: null,
+      aggregate_status: "SUCCESS",
+      invocation_result_code: "NOOP_ALREADY_SUCCESS",
     },
   });
   assert.equal(actual.result.state, "DONE");
@@ -265,8 +311,11 @@ test("S12 同一キーSUCCESS", async (context) => {
 test("S13 同一キー未完了", async (context) => {
   const actual = await runCase(context, {
     output: {
-      outcome: "REJECTED", run_id: null, invocation_id: null,
-      aggregate_status: null, invocation_result_code: "RUN_ALREADY_EXISTS",
+      outcome: "REJECTED",
+      run_id: null,
+      invocation_id: null,
+      aggregate_status: null,
+      invocation_result_code: "RUN_ALREADY_EXISTS",
       blocked_run_ids: ["run-active"],
     },
   });
@@ -278,20 +327,29 @@ test("S13 同一キー未完了", async (context) => {
 test("S14 別キー未完了max超過", async (context) => {
   const actual = await runCase(context, {
     output: {
-      outcome: "REJECTED", run_id: null, invocation_id: null,
-      aggregate_status: null, invocation_result_code: "MAX_ACTIVE_RUNS",
+      outcome: "REJECTED",
+      run_id: null,
+      invocation_id: null,
+      aggregate_status: null,
+      invocation_result_code: "MAX_ACTIVE_RUNS",
       blocked_run_ids: ["run-blocker"],
     },
   });
   assert.equal(actual.result.code, "MAX_ACTIVE_RUNS");
-  assert.equal(actual.result.message, "未完了Run #run-blockerがあるため起動できません。失敗Runのやり直しはRERUNを、整理できない場合は二次対応者へ");
+  assert.equal(
+    actual.result.message,
+    "未完了Run #run-blockerがあるため起動できません。失敗Runのやり直しはRERUNを、整理できない場合は二次対応者へ",
+  );
 });
 
 test("S15 上限通過後の別キーlock競合", async (context) => {
   const actual = await runCase(context, {
     output: {
-      outcome: "REJECTED", run_id: null, invocation_id: null,
-      aggregate_status: null, invocation_result_code: "LOCK_CONFLICT",
+      outcome: "REJECTED",
+      run_id: null,
+      invocation_id: null,
+      aggregate_status: null,
+      invocation_result_code: "LOCK_CONFLICT",
       blocked_run_ids: [],
     },
   });
@@ -317,24 +375,30 @@ test("START staleはnetwork直接解決と再導出business keyでstatus照合�
         network_id: "net-a",
         profile: "prod",
         lock: null,
-        runs: [{
-          run_id: "run-started",
-          business_key: "manual-key",
-          status: "FAILED",
-          resume_allowed: true,
-          lifecycle_status: "ACTIVE",
-          created_at: NOW,
-          started_at: NOW,
-          finished_at: NOW,
-          updated_at: NOW,
-          activity: "STOPPED",
-        }],
+        runs: [
+          {
+            run_id: "run-started",
+            business_key: "manual-key",
+            status: "FAILED",
+            resume_allowed: true,
+            lifecycle_status: "ACTIVE",
+            created_at: NOW,
+            started_at: NOW,
+            finished_at: NOW,
+            updated_at: NOW,
+            hold: null,
+            activity: "STOPPED",
+          },
+        ],
       };
     },
   });
   assert.equal(actual.results.length, 1);
   assert.equal(actual.result.code, "STALE");
-  assert.equal(actual.calls.filter(({ method }) => method === "startNetwork").length, 0);
+  assert.equal(
+    actual.calls.filter(({ method }) => method === "startNetwork").length,
+    0,
+  );
 });
 
 test("START staleはstatus取得不能・キー再導出不能・複数一致をfail-closedで更新しない", async (context) => {
@@ -348,15 +412,29 @@ test("START staleはstatus取得不能・キー再導出不能・複数一致を
   for (const variant of ["none", "multiple", "key-invalid"]) {
     const actual = await runCase(context, {
       requestedRecords: [],
-      acceptedRecords: [variant === "key-invalid" ? { ...stale, businessKey: null } : stale],
+      acceptedRecords: [
+        variant === "key-invalid" ? { ...stale, businessKey: null } : stale,
+      ],
       statusFor() {
         if (variant === "none") return null;
         const row = {
-          run_id: "run-started", business_key: "manual-key", status: "FAILED",
-          resume_allowed: true, lifecycle_status: "ACTIVE", created_at: NOW,
-          started_at: NOW, finished_at: NOW, updated_at: NOW,
+          run_id: "run-started",
+          business_key: "manual-key",
+          status: "FAILED",
+          resume_allowed: true,
+          lifecycle_status: "ACTIVE",
+          created_at: NOW,
+          started_at: NOW,
+          finished_at: NOW,
+          updated_at: NOW,
+          hold: null,
         };
-        return { network_id: "net-a", profile: "prod", lock: null, runs: [row, { ...row, run_id: "run-duplicate" }] };
+        return {
+          network_id: "net-a",
+          profile: "prod",
+          lock: null,
+          runs: [row, { ...row, run_id: "run-duplicate" }],
+        };
       },
     });
     assert.equal(actual.results.length, 0);

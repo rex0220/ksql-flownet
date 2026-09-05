@@ -2,6 +2,7 @@ import type {
   ChildProcessResult,
   RunNetworkJsonOutput,
 } from "./flownet-child-client.js";
+import type { ArchiveRunOutcome } from "../orchestration/archive-run.js";
 import type { RequestResult } from "./kintone-request-store.js";
 
 export function classifyRunNetworkResult(input: {
@@ -130,6 +131,87 @@ export function classifyCancelResult(
   );
 }
 
+const ARCHIVE_PENDING_CODES = new Set([
+  "ARCHIVE_AUDIT_FAILED",
+  "AUDIT_CONFLICT",
+  "LEASE_INTERRUPTED_AFTER_ARCHIVE",
+]);
+const ARCHIVE_REJECTED_CODES = new Set([
+  "LOCK_CONFLICT",
+  "LOCK_UNAVAILABLE",
+  "LEASE_INTERRUPTED",
+  "RUN_READ_FAILED",
+  "RUN_STATUS_NOT_CLOSABLE",
+  "RUN_UNKNOWN_NOT_CLOSABLE",
+  "RUN_NOT_TERMINAL",
+  "RUN_ON_HOLD",
+  "RUN_LIVE",
+  "ARCHIVE_WRITE_FAILED",
+]);
+
+export function classifyArchiveRun(input: {
+  readonly output: ArchiveRunOutcome | null;
+  readonly process: ChildProcessResult;
+}): RequestResult {
+  const output = validArchiveRunOutput(input.output) ? input.output : null;
+  if (
+    output === null ||
+    input.process.spawnError !== undefined ||
+    input.process.stdoutTruncated ||
+    input.process.stderrTruncated ||
+    input.process.exitCode !== expectedArchiveExitCode(output)
+  ) {
+    return rejected(
+      "CHILD_RESULT_INVALID",
+      "archive-run result was invalid; the Run may already be ARCHIVED, so verify it with status --json",
+    );
+  }
+
+  const event = `event_id=${output.event_id}`;
+  const lockFailure = output.lock_released ? "" : " lock_release_failed=true";
+  switch (output.outcome) {
+    case "ARCHIVED":
+      if (output.audit === "PENDING") {
+        return {
+          state: "DONE",
+          code: "RUN_ARCHIVED_AUDIT_PENDING",
+          message: `code=${output.code} ${event}${lockFailure}`,
+        };
+      }
+      if (!output.lock_released) {
+        return {
+          state: "DONE",
+          code: "RUN_ARCHIVED_LOCK_UNRELEASED",
+          message: `${event} lock_release_failed=true`,
+        };
+      }
+      return {
+        state: "DONE",
+        code: "RUN_ARCHIVED",
+        message: event,
+      };
+    case "ALREADY_ARCHIVED":
+      return output.lock_released
+        ? {
+            state: "DONE",
+            code: "RUN_ALREADY_ARCHIVED",
+            message: event,
+          }
+        : {
+            state: "DONE",
+            code: "RUN_ARCHIVED_LOCK_UNRELEASED",
+            message: `${event} already_archived=true lock_release_failed=true`,
+          };
+    case "UNCONFIRMED":
+      return rejected(
+        "ARCHIVE_UNCONFIRMED",
+        `Run archive state is unconfirmed; verify it with status --json ${event}${lockFailure}`,
+      );
+    case "REJECTED":
+      return rejected(output.code, `${event}${lockFailure}`);
+  }
+}
+
 export function rejected(code: string, message: string): RequestResult {
   return { state: "REJECTED", code, message };
 }
@@ -155,4 +237,64 @@ function validRunNetworkOutput(
       (Array.isArray(value.blocked_run_ids) &&
         value.blocked_run_ids.every((runId) => typeof runId === "string")))
   );
+}
+
+function expectedArchiveExitCode(output: ArchiveRunOutcome): number {
+  return (output.outcome === "ARCHIVED" &&
+    output.audit === "RECORDED" &&
+    output.lock_released) ||
+    (output.outcome === "ALREADY_ARCHIVED" && output.lock_released)
+    ? 0
+    : 1;
+}
+
+function validArchiveRunOutput(
+  value: ArchiveRunOutcome | null,
+): value is ArchiveRunOutcome {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    typeof value.run_id !== "string" ||
+    value.run_id === "" ||
+    typeof value.event_id !== "string" ||
+    value.event_id === "" ||
+    typeof value.lock_released !== "boolean"
+  ) {
+    return false;
+  }
+  const revision = value.run_revision;
+  switch (value.outcome) {
+    case "ARCHIVED":
+      if (
+        typeof revision !== "number" ||
+        !Number.isSafeInteger(revision) ||
+        revision < 1
+      )
+        return false;
+      if (value.audit === "RECORDED") return !("code" in value);
+      return (
+        value.audit === "PENDING" &&
+        "code" in value &&
+        ARCHIVE_PENDING_CODES.has(value.code)
+      );
+    case "ALREADY_ARCHIVED":
+      return (
+        typeof revision === "number" &&
+        Number.isSafeInteger(revision) &&
+        revision >= 1 &&
+        !("code" in value)
+      );
+    case "UNCONFIRMED":
+      return revision === null && value.code === "ARCHIVE_UNCONFIRMED";
+    case "REJECTED":
+      return (
+        (revision === null ||
+          (typeof revision === "number" &&
+            Number.isSafeInteger(revision) &&
+            revision >= 1)) &&
+        ARCHIVE_REJECTED_CODES.has(value.code)
+      );
+    default:
+      return false;
+  }
 }

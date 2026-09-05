@@ -15,6 +15,7 @@ import type {
 import type { RequestRecord } from "./request-model.js";
 import {
   classifyCancelResult,
+  classifyArchiveRun,
   classifyRunNetworkResult,
   classifyStartNetworkResult,
   rejected,
@@ -30,13 +31,15 @@ export interface RequestPollerDependencies {
     | "listRequested"
     | "listAccepted"
     | "rejectInvalid"
+    | "cancelBeforeClaim"
     | "claim"
     | "heartbeat"
+    | "getById"
     | "writeResult"
   >;
   readonly child: Pick<
     FlownetChildClient,
-    "status" | "runNetwork" | "startNetwork" | "cancelRun"
+    "status" | "runNetwork" | "startNetwork" | "cancelRun" | "archiveRun"
   >;
   readonly config: PollRequestsConfig;
   readonly host: string;
@@ -49,6 +52,7 @@ export interface PollRequestsSummary {
   readonly requested: number;
   readonly claimed: number;
   readonly completed: number;
+  readonly cancelled: number;
   readonly invalid: number;
   readonly skippedMalformed: number;
   readonly stale: number;
@@ -72,13 +76,22 @@ export async function pollRequests(
   if (listed.skipped > 0) {
     log("REQUEST_RECORD_UNIDENTIFIABLE", `count=${listed.skipped}`);
   }
+  let cancelled = 0;
   for (const invalid of listed.invalid) {
+    if (invalid.cancelRequested === true) {
+      if (await cancelBeforeClaim(dependencies, invalid, log)) cancelled += 1;
+      continue;
+    }
     await rejectInvalid(dependencies, invalid);
   }
 
   let claimedCount = 0;
   let completed = 0;
   for (const request of listed.valid) {
+    if (request.cancelRequested) {
+      if (await cancelBeforeClaim(dependencies, request, log)) cancelled += 1;
+      continue;
+    }
     const claimed = await dependencies.store.claim(
       request,
       dependencies.host,
@@ -87,17 +100,64 @@ export async function pollRequests(
     if (claimed === null) continue;
     claimedCount += 1;
     const result = await processClaimed(dependencies, claimed, now, log);
-    await dependencies.store.writeResult(result.request, result.result);
-    completed += 1;
+    if (await finalizeResult(dependencies, result.request, result.result, log))
+      completed += 1;
   }
   return {
     requested: listed.valid.length,
     claimed: claimedCount,
     completed,
+    cancelled,
     invalid: listed.invalid.length,
     skippedMalformed: listed.skipped,
     stale,
   };
+}
+
+async function cancelBeforeClaim(
+  dependencies: RequestPollerDependencies,
+  request: Pick<
+    InvalidRequestRecord,
+    "id" | "revision" | "requestState" | "cancelRequested"
+  >,
+  log: (code: string, detail: string) => void,
+): Promise<boolean> {
+  const cancelled = await dependencies.store.cancelBeforeClaim(request, {
+    state: "CANCELLED",
+    code: "CANCELLED_BY_REQUESTER",
+    message: "requester cancelled before claim",
+  });
+  if (!cancelled) log("CANCEL_FINALIZE_CONFLICT", `request_id=${request.id}`);
+  return cancelled;
+}
+
+async function finalizeResult(
+  dependencies: RequestPollerDependencies,
+  request: RequestRecord,
+  result: RequestResult,
+  log: (code: string, detail: string) => void,
+): Promise<boolean> {
+  let current: RequestRecord | null;
+  try {
+    current = await dependencies.store.getById(request.id);
+  } catch {
+    log("RESULT_FINALIZE_ABANDONED", `request_id=${request.id}`);
+    return false;
+  }
+  if (current?.requestState !== "ACCEPTED") {
+    log("RESULT_STATE_MISMATCH", `request_id=${request.id}`);
+    return false;
+  }
+  const finalized = current.cancelRequested
+    ? { ...result, message: `${result.message} (cancel_ignored)` }
+    : result;
+  try {
+    await dependencies.store.writeResult(current, finalized);
+    return true;
+  } catch {
+    log("RESULT_FINALIZE_ABANDONED", `request_id=${request.id}`);
+    return false;
+  }
 }
 
 async function rejectInvalid(
@@ -171,25 +231,45 @@ async function processClaimed(
   );
   if (review !== null) return { request: claimed, result: review };
 
-  if (claimed.requestType === "RERUN") {
-    return withHeartbeat(
-      dependencies,
-      claimed,
-      () => dependencies.child.runNetwork(resolved.network, claimed),
-      classifyRunNetworkResult,
-      now,
-      log,
-    );
+  switch (claimed.requestType) {
+    case "RERUN":
+      return withHeartbeat(
+        dependencies,
+        claimed,
+        () => dependencies.child.runNetwork(resolved.network, claimed),
+        classifyRunNetworkResult,
+        now,
+        log,
+      );
+    case "STOP":
+    case "RELEASE":
+      return withHeartbeat(
+        dependencies,
+        claimed,
+        () =>
+          dependencies.child.cancelRun(
+            claimed,
+            claimed.requestType === "RELEASE",
+          ),
+        (result) =>
+          classifyCancelResult(result, claimed.requestType === "RELEASE"),
+        now,
+        log,
+      );
+    case "CLOSE":
+      return withHeartbeat(
+        dependencies,
+        claimed,
+        () => dependencies.child.archiveRun(resolved.network, claimed),
+        classifyArchiveRun,
+        now,
+        log,
+      );
+    default: {
+      const exhaustive: never = claimed.requestType;
+      return exhaustive;
+    }
   }
-  return withHeartbeat(
-    dependencies,
-    claimed,
-    () =>
-      dependencies.child.cancelRun(claimed, claimed.requestType === "RELEASE"),
-    (result) => classifyCancelResult(result, claimed.requestType === "RELEASE"),
-    now,
-    log,
-  );
 }
 
 async function processStart(
@@ -197,7 +277,10 @@ async function processStart(
   claimed: RequestRecord,
   now: () => Date,
   log: (code: string, detail: string) => void,
-): Promise<{ readonly request: RequestRecord; readonly result: RequestResult }> {
+): Promise<{
+  readonly request: RequestRecord;
+  readonly result: RequestResult;
+}> {
   if (claimed.runId.trim() !== "") {
     return {
       request: claimed,
@@ -320,30 +403,59 @@ export function reviewRequest(
 ): RequestResult | null {
   const run = resolved.run;
   const live = hasLiveOwner(resolved.status, run, nowMs, leaseAllowanceMs);
-  if (request.requestType === "RERUN") {
-    if (!["CREATED", "RUNNING", "FAILED", "CANCELLED"].includes(run.status))
-      return rejected(
-        "RUN_STATUS_NOT_RERUNNABLE",
-        `Run status ${run.status} is not rerunnable`,
-      );
-    if (!run.resume_allowed || run.lifecycle_status !== "ACTIVE")
-      return rejected("RUN_NOT_RESUMABLE", "Run is not active and resumable");
-    if (run.activity === "STOPPED")
-      return rejected("RUN_ON_HOLD", "Run is on hold");
-    if (run.activity === "LIVE" || live)
-      return rejected("RUN_LIVE", "Run has a live Invocation owner");
-    return null;
+  switch (request.requestType) {
+    case "RERUN":
+      if (!["CREATED", "RUNNING", "FAILED", "CANCELLED"].includes(run.status))
+        return rejected(
+          "RUN_STATUS_NOT_RERUNNABLE",
+          `Run status ${run.status} is not rerunnable`,
+        );
+      if (!run.resume_allowed || run.lifecycle_status !== "ACTIVE")
+        return rejected("RUN_NOT_RESUMABLE", "Run is not active and resumable");
+      if (run.hold !== null || run.activity === "STOPPED")
+        return rejected("RUN_ON_HOLD", "Run is on hold");
+      if (run.activity === "LIVE" || live)
+        return rejected("RUN_LIVE", "Run has a live Invocation owner");
+      return null;
+    case "STOP":
+      if (["SUCCESS", "FAILED", "CANCELLED", "UNKNOWN"].includes(run.status))
+        return rejected("RUN_TERMINAL", `Run status ${run.status} is terminal`);
+      if (run.activity === "STOPPED")
+        return rejected("RUN_ALREADY_ON_HOLD", "Run is already on hold");
+      return null;
+    case "RELEASE":
+      return run.hold === null
+        ? rejected("RUN_NOT_ON_HOLD", "Run is not on hold")
+        : null;
+    case "START":
+      return null;
+    case "CLOSE":
+      if (run.lifecycle_status === "ARCHIVED")
+        return {
+          state: "DONE",
+          code: "RUN_ALREADY_ARCHIVED",
+          message: "Run is already archived",
+        };
+      if (run.status === "SUCCESS")
+        return rejected(
+          "RUN_STATUS_NOT_CLOSABLE",
+          "Successful Runs cannot be closed",
+        );
+      if (run.status === "UNKNOWN")
+        return rejected(
+          "RUN_UNKNOWN_NOT_CLOSABLE",
+          "Unknown Runs cannot be closed",
+        );
+      if (run.status === "CREATED" || run.status === "RUNNING")
+        return rejected("RUN_NOT_TERMINAL", "Run is not terminal");
+      if (run.hold !== null) return rejected("RUN_ON_HOLD", "Run is on hold");
+      if (live) return rejected("RUN_LIVE", "Run has a live Invocation owner");
+      return null;
+    default: {
+      const exhaustive: never = request.requestType;
+      return exhaustive;
+    }
   }
-  if (request.requestType === "STOP") {
-    if (["SUCCESS", "FAILED", "CANCELLED", "UNKNOWN"].includes(run.status))
-      return rejected("RUN_TERMINAL", `Run status ${run.status} is terminal`);
-    if (run.activity === "STOPPED")
-      return rejected("RUN_ALREADY_ON_HOLD", "Run is already on hold");
-    return null;
-  }
-  if (run.activity !== "STOPPED")
-    return rejected("RUN_NOT_ON_HOLD", "Run is not on hold");
-  return null;
 }
 
 export function hasLiveOwner(

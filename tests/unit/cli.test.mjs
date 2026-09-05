@@ -223,6 +223,25 @@ test("archive-runは引数を検証しstdout 1行JSONと厳格なexit codeを返
         }),
       },
     ),
+    0,
+  );
+  assert.match(stderr[0], /^ALREADY_ARCHIVED:/);
+  stdout.length = 0;
+  stderr.length = 0;
+  assert.equal(
+    await runArchiveRunCommand(
+      ["network.yaml", "--run-id", "run_1", "--reason-file", "reason.txt"],
+      {
+        readFile: () => "reason",
+        execute: async () => ({
+          outcome: "ALREADY_ARCHIVED",
+          run_id: "run_1",
+          event_id: "archive_3",
+          run_revision: 2,
+          lock_released: false,
+        }),
+      },
+    ),
     1,
   );
 });
@@ -446,6 +465,25 @@ test("poll-requests --checkは無効token相当のGET失敗でfail-closedかつc
   assert.equal(exitCode, 1);
   assert.equal(childStarted.value, false);
   assert.match(stderr.join(""), /KINTONE_HTTP_ERROR/u);
+});
+
+test("poll-requests one-shot出力はcancelled件数を含む", async (context) => {
+  const stdout = [];
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  const dependencies = pollCheckDependencies(
+    async () => ({ valid: [], invalid: [], skipped: 0 }),
+    { value: false },
+  );
+  dependencies.store.listAccepted = async () => [];
+  const exitCode = await runPollRequestsCommand([], dependencies);
+  assert.equal(exitCode, 0);
+  assert.equal(
+    stdout.join(""),
+    "poll-requests: requested=0 claimed=0 completed=0 cancelled=0 invalid=0 stale=0 skipped=0\n",
+  );
 });
 
 test("run-network --jsonはtext/exit互換を保ちInvocation境界を返す", async (context) => {

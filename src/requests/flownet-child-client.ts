@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { ArchiveRunOutcome } from "../orchestration/archive-run.js";
 import type { StatusOutput } from "../orchestration/status.js";
 import type { PollRequestsNetwork } from "./poll-requests-config.js";
 import type { RequestRecord } from "./request-model.js";
@@ -198,6 +199,43 @@ export class FlownetChildClient {
         ],
         requestedBy(request),
       );
+    } finally {
+      await this.removeTempDirectory(directory);
+    }
+  }
+
+  async archiveRun(
+    network: PollRequestsNetwork,
+    request: RequestRecord,
+  ): Promise<{
+    readonly output: ArchiveRunOutcome | null;
+    readonly process: ChildProcessResult;
+  }> {
+    const directory = await this.makeTempDirectory();
+    const reasonPath = join(directory, "reason.txt");
+    try {
+      await writeFile(reasonPath, request.reason, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      const processResult = await this.run(
+        [
+          "archive-run",
+          network.definitionPath,
+          "--run-id",
+          request.runId,
+          "--reason-file",
+          reasonPath,
+        ],
+        requestedBy(request),
+      );
+      let output: ArchiveRunOutcome | null = null;
+      try {
+        output = JSON.parse(processResult.stdout) as ArchiveRunOutcome;
+      } catch {
+        // The classifier treats an absent machine-readable result as invalid.
+      }
+      return { output, process: processResult };
     } finally {
       await this.removeTempDirectory(directory);
     }
