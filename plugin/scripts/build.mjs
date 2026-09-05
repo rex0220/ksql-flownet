@@ -44,9 +44,19 @@ const workspaceResolver = {
   },
 };
 
+// manifest.json の version を bundle へ埋め込む(起動ログで配布版を識別するため。
+// 2026-09-05 実機フィードバック: ハードコードの "v2" が manifest と食い違っていた)
+const manifest = JSON.parse(
+  await readFile(resolve(pluginDirectory, "manifest.json"), "utf8"),
+);
+const pluginVersionDefine = {
+  __PLUGIN_VERSION__: JSON.stringify(String(manifest.version)),
+};
+
 async function buildWorkspaceEntry(entry, options) {
   return build({
     ...options,
+    define: { ...(options.define ?? {}), ...pluginVersionDefine },
     stdin: {
       contents: await readFile(entry, "utf8"),
       loader: "ts",

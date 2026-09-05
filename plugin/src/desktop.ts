@@ -395,10 +395,14 @@ export function installDesktop(
 
 declare const kintone: RuntimeKintone | undefined;
 declare const document: Document | undefined;
+// build.mjs が manifest.json の version を define で埋め込む(未定義時は "dev")
+declare const __PLUGIN_VERSION__: string | undefined;
 
 if (typeof kintone !== "undefined" && typeof document !== "undefined") {
+  const pluginVersion =
+    typeof __PLUGIN_VERSION__ === "string" ? __PLUGIN_VERSION__ : "dev";
   console.info(
-    `kSQL-FlowNet Run状況 plugin v2 loaded (plugin_id captured: ${typeof kintone.$PLUGIN_ID === "string" && kintone.$PLUGIN_ID !== ""})`,
+    `kSQL-FlowNet Run状況 plugin v${pluginVersion} loaded (plugin_id captured: ${typeof kintone.$PLUGIN_ID === "string" && kintone.$PLUGIN_ID !== ""})`,
   );
   installDesktop(kintone, document);
 }
