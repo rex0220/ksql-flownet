@@ -46,25 +46,31 @@
     }
   };
 
+  // 機械6フィールド: everyone閲覧のみ。cancel_requested: 作成者だけ編集可(上の行が優先)、他は閲覧のみ。
+  const everyoneRead = {
+    accessibility: "READ",
+    entity: { type: "GROUP", code: "everyone" },
+  };
   const aclTargets = {
-    request_state: "READ",
-    claimed_at: "READ",
-    claimed_host: "READ",
-    claim_heartbeat_at: "READ",
-    result_code: "READ",
-    result_message: "READ",
-    cancel_requested: "WRITE",
+    request_state: [everyoneRead],
+    claimed_at: [everyoneRead],
+    claimed_host: [everyoneRead],
+    claim_heartbeat_at: [everyoneRead],
+    result_code: [everyoneRead],
+    result_message: [everyoneRead],
+    cancel_requested: [
+      {
+        accessibility: "WRITE",
+        entity: { type: "FIELD_ENTITY", code: "作成者" },
+      },
+      everyoneRead,
+    ],
   };
   const replaceAclTargets = (rights) => [
     ...rights.filter(({ code }) => !Object.hasOwn(aclTargets, code)),
-    ...Object.entries(aclTargets).map(([code, accessibility]) => ({
+    ...Object.entries(aclTargets).map(([code, entities]) => ({
       code,
-      entities: [
-        {
-          accessibility,
-          entity: { type: "GROUP", code: "everyone" },
-        },
-      ],
+      entities: entities.map((entity) => ({ ...entity })),
     })),
   ];
   const removeAclTargets = (rights) =>
@@ -331,7 +337,7 @@
     step = "ACL適用確認";
     if (
       !confirm(
-        "別ステップとして、機械6フィールドをeveryone READ、cancel_requestedをeveryone WRITEにしますか？",
+        "別ステップとして、機械6フィールドをeveryone READ、cancel_requestedを作成者WRITE+everyone READにしますか？",
       )
     ) {
       return void console.warn("ACLは適用していません。");

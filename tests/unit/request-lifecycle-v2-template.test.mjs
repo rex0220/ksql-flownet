@@ -250,17 +250,20 @@ test("ACLは対象7フィールドだけ差し替え、警告後の別confirmで
   );
   assert.deepEqual(normalizedRights[0], existing);
   const targetRights = Object.fromEntries(
-    normalizedRights.slice(1).map(({ code, entities }) => [code, entities[0]]),
+    normalizedRights.slice(1).map(({ code, entities }) => [code, entities]),
   );
   for (const code of aclCodes.slice(0, -1)) {
-    assert.equal(targetRights[code].accessibility, "READ");
+    assert.deepEqual(targetRights[code], [
+      { accessibility: "READ", entity: { type: "GROUP", code: "everyone" } },
+    ]);
   }
-  assert.equal(targetRights.cancel_requested.accessibility, "WRITE");
-  assert.ok(
-    Object.values(targetRights).every(
-      ({ entity }) => entity.type === "GROUP" && entity.code === "everyone",
-    ),
-  );
+  assert.deepEqual(targetRights.cancel_requested, [
+    {
+      accessibility: "WRITE",
+      entity: { type: "FIELD_ENTITY", code: "作成者" },
+    },
+    { accessibility: "READ", entity: { type: "GROUP", code: "everyone" } },
+  ]);
   assert.match(warnings.join("\n"), /poll-requests --check/u);
   assert.match(readFileSync(templatePath, "utf8"), /READ.*権限削除/u);
 });
@@ -288,14 +291,22 @@ test("revert-acl分岐は対象ACLだけを削除し他を保持する", async (
 });
 
 test("全差分適用済みならpreviewとACLへ書込せず冪等", async () => {
+  const everyoneRead = {
+    accessibility: "READ",
+    entity: { type: "GROUP", code: "everyone" },
+  };
   const rights = aclCodes.map((code) => ({
     code,
-    entities: [
-      {
-        accessibility: code === "cancel_requested" ? "WRITE" : "READ",
-        entity: { type: "GROUP", code: "everyone" },
-      },
-    ],
+    entities:
+      code === "cancel_requested"
+        ? [
+            {
+              accessibility: "WRITE",
+              entity: { type: "FIELD_ENTITY", code: "作成者" },
+            },
+            everyoneRead,
+          ]
+        : [everyoneRead],
   }));
   const { calls } = await evaluate({
     lifecycleV2: true,
