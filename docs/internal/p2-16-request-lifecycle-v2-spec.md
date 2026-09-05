@@ -1,6 +1,6 @@
 # P2-16 操作要求ライフサイクル v2 — CLOSE・処理前取消・終端 hold の解除
 
-- 状態: **DRAFT v3**(2026-09-05 起案、同日 Gemini 第1巡・ChatGPT 第1巡を反映 — §11)
+- 状態: **DRAFT v4**(2026-09-05 起案、同日 Gemini・ChatGPT・Codex 各第1巡を反映 — §11。Codex は FROZEN 不可判定のため再レビュー要)
 - 統合する backlog: P2-10(終端 Run のクローズ)、P2-12(処理前取消)、P2-15(終端 Run に残った hold の解除)
 - 前提正本: [統合仕様書](../specification.md) §3.2・§3.4・§6・§7、[P2-01 仕様](./p2-01-app-rerun-spec.md)(G-01〜G-08)、[P2-11 仕様](./p2-11-adhoc-start-spec.md)(I-03・I-04・X-2〜X-6 の引継ぎ論点)
 - 位置づけ: v1.0.0 リリース後の次版スコープ。R2 凍結中はコードに触れない(本書は文書のみ)
@@ -46,7 +46,17 @@ v1.0.0 の操作要求は「起票 → ポーラーが claim → 実行 → DONE
 
 ### 3.3 監査履歴アプリ(§3.3)
 
-`OPERATION_AUDIT` に `RUN_ARCHIVED` を追加(`run_id`・`result_code = RUN_ARCHIVED`・`reason` JSON に `requested_by`・`reason`・`archived_at`・`previous_status`)。
+`OPERATION_AUDIT` に `RUN_ARCHIVED` を追加する。既存の運用監査と同じく **`event_id` を一意キー**にして重複と応答喪失を裁定する(`src/domain/persistence-model.ts` の `OperationAudit` union に型を追加):
+
+| 項目 | 値 |
+| --- | --- |
+| `event_id` | `archive_<uuid>`(archive-run が起動時に 1 つ採番。再試行でも同じ ID) |
+| `event_type` | `RUN_ARCHIVED` |
+| `run_id` / `result_code` | 対象 Run / `RUN_ARCHIVED` |
+| `reason` JSON | `requested_by`・`reason`・`archived_at`・`previous_status`(`FAILED` / `CANCELLED`)・`run_revision_before` |
+| `service_principal` | 既存運用監査と同じ(`KSQL_FLOWNET_SERVICE_PRINCIPAL`) |
+
+書込応答が失われた場合は同一 `event_id` を再読取し、一致すれば成功とみなす(§5.3 部分成功表)。
 
 ### 3.4 status JSON(§5.5)
 
@@ -58,13 +68,17 @@ v1.0.0 の操作要求は「起票 → ポーラーが claim → 実行 → DONE
 
 終端 Run でも hold があれば非 null になる。activity の導出規則は変えない(終端は引き続き activity なし)。
 
+- `hold` は **一覧(summary)と詳細(detail)の両方**に必須(null 可)で載せる。両経路とも既に `CANCEL_REQUEST` を取得している(`src/orchestration/status.ts`)ため共通 builder に渡す
+- 既存キーは不変。REQUESTED / ACCEPTED / RELEASED / なし × 終端 / 非終端 × list / detail をスキーマ差分テストで固定する(受入 10)
+- ポーラーの **RERUN 一次審査も `hold !== null` を見る**(現行は activity=STOPPED のみで、終端 Run の hold を事前拒否できず ensure-run の `RUN_ON_HOLD` まで進んでいた — G-02 の補強)
+
 ## 4. 状態機械(§6.1 改訂)
 
 | 現在状態 | 遷移 | 主体 | 条件 |
 | --- | --- | --- | --- |
 | `REQUESTED` | `ACCEPTED` | ポーラー | revision 指定の claim PUT 成功(**`cancel_requested` が空のとき**) |
 | `REQUESTED` | `CANCELLED` | ポーラー | claim 時点で `cancel_requested` が入っている → claim せず revision 指定で終端化(`result_code = CANCELLED_BY_REQUESTER`) |
-| `REQUESTED` | `REJECTED` | ポーラー | 構造・入力検証が不正(従来どおり)。**`cancel_requested` が立っている場合は検証より取消を優先**し `CANCELLED` にする(どちらも実行しないが、起票者の意図を結果に残す) |
+| `REQUESTED` | `REJECTED` | ポーラー | 構造・入力検証が不正(従来どおり)。**`cancel_requested` が立っている場合は検証より取消を優先**し `CANCELLED` にする(どちらも実行しないが、起票者の意図を結果に残す)。実装上は、一覧取得時に全レコードから **最小 envelope(`$id`・`$revision`・`request_state`・`cancel_requested`)** を先に読み、取消ありなら完全 validation の前に終端化する(現行は parse 失敗レコードが `InvalidRequestRecord` へ落ちて取消値を持たないため)。`cancel_requested` 自体の型が不正(チェックボックス以外・未知の値)な場合は取消と認めず、従来どおり `REJECTED / REQUEST_INVALID`(fail-closed) |
 | `ACCEPTED` | `DONE` / `REJECTED` | ポーラー | 従来どおり。**`ACCEPTED` 以降の `cancel_requested` は無効**(無視し、終端時に `result_message` 末尾へ `(cancel_ignored)` を付記 — §5.1) |
 
 `CANCELLED` は claim 前に人が取り下げた要求であり、実行の有無を問わず**何も実行していない**ことを意味する(STALE と混同しない — STALE は claim 後の結果不明)。
@@ -87,11 +101,13 @@ v1.0.0 の操作要求は「起票 → ポーラーが claim → 実行 → DONE
 
 ボードは取消 PUT を**必ず取得時の `$revision` 付き**で送り、成功時も「取消を受け付けました。次のポーラー周期で CANCELLED になります」と表示する(取消成立を断定しない)。
 
-### 4.2 終端化 PUT の再試行規則
+### 4.2 取消終端化(REQUESTED → CANCELLED)PUT の再試行規則
+
+この節は **REQUESTED → CANCELLED 専用**である(ACCEPTED からの終端は §5.1 の同周期完結規則に従い、本節を参照しない)。
 
 - ポーラーは **1 周期につき 1 要求 1 回**だけ終端化 PUT を試み、revision 競合なら当該要求をその周期では触らない(無限ループなし)
 - 次周期の再 GET で `request_state` が `REQUESTED` 以外なら対象外(別経路で終端済み)。`request_state` は機械専用フィールドで人は変更できないため、REQUESTED 以外になり得るのはポーラー自身の書込だけである
-- `REQUESTED` かつ `cancel_requested` のままなら再度終端化を試みる。連続 3 周期競合が続いた場合は警告ログ(`CANCEL_FINALIZE_RETRY_EXCEEDED`)を出すが処理は継続する(claim せず取消優先のまま)
+- `REQUESTED` かつ `cancel_requested` のままなら再度終端化を試みる。競合のたびに警告ログ(`CANCEL_FINALIZE_CONFLICT`、要求 ID 付き)を出す。`poll-requests` は one-shot で周期をまたぐカウンタを持てないため、「連続 N 周期」の閾値は設けない(監視は cron ログの同一 ID の繰返しで行う)
 
 ## 5. 機能仕様
 
@@ -99,16 +115,17 @@ v1.0.0 の操作要求は「起票 → ポーラーが claim → 実行 → DONE
 
 **ボード(§7.2 pending 表示)**
 
-- pending リンク先(START要求セクション・進行中 Run の pending バッジ)に、`request_state = REQUESTED` かつ **ログインユーザーが要求の `作成者` と一致する**行だけ **「取消」ボタン**を出す(U-4)。`ACCEPTED` の行には出さない(X-3)。他人の要求は表示のみ
+- pending 表示(START要求セクション・進行中 Run の pending バッジ)を **要求単位のモデル**に変える: 各 pending 要求について `$id`・`$revision`・`request_type`・`request_state`・`作成者.code`・`reason`・対象(`run_id` または `network_id`+`business_key`)・`cancel_requested` を保持する(現行は `$id`/`run_id`/`request_state` のみを取得し、集約後は最古 ID と件数しか残らない — 取消の対象特定・本人判定・revision 付き PUT のいずれにも足りない)。1 つの Run に複数の pending がある場合は **要求ごとに 1 行**で表示し、各行に取消ボタンを持つ
+- `request_state = REQUESTED` かつ **`kintone.getLoginUser().code` が要求の `作成者.code` と一致する**行だけ **「取消」ボタン**を出す(U-4。runtime 型に `getLoginUser` を追加する)。`ACCEPTED` の行には出さない(X-3)。他人の要求は表示のみ
 - 押下 → 確認ダイアログ(要求種別・対象・理由を再表示し、**「取消は元に戻せません。再度実行するには新規に起票してください」**を明記)→ `cancel_requested` のみを含む単票 PUT(`$revision` 付き)
 - 409・通信エラーは §4.1 の表どおり再 GET して判定する。「取消できませんでした」と断定するのは、再 GET で `REQUESTED` かつ `cancel_requested` が空と確認できた場合だけ
 - 取消者の証跡は kintone の**レコード変更履歴**を正とする(更新者欄はポーラーの書き戻しで上書きされる — X-5)
 
 **ポーラー**
 
-- claim 直前に取得したレコードの `cancel_requested` を判定する。入っていれば claim せず、取得時 revision で `request_state = CANCELLED`・`result_code = CANCELLED_BY_REQUESTER`・`result_message = "requester cancelled before claim"` を PUT。revision 競合なら次周期へ
+- 一覧取得(`listRequested`)時に最小 envelope で `cancel_requested` を読み、立っている要求は valid / invalid を問わず **claim 前に**取得時 revision で `request_state = CANCELLED`・`result_code = CANCELLED_BY_REQUESTER`・`result_message = "requester cancelled before claim"` を PUT する(`rejectInvalid` と同じ「REQUESTED からの直接終端」経路の取消版)。revision 競合なら §4.2(次周期)
 - 統計 `cancelled=N` を `poll-requests` の出力行に追加
-- `ACCEPTED` 以降で `cancel_requested` が立っていても処理を続行する。**終端化の直前に要求レコードを再 GET** し、その時点で `cancel_requested` があれば `result_message` 末尾に `(cancel_ignored)` を付記する。終端 PUT はこの再 GET の revision を使い、競合時は §4.2 の再試行規則に従う。`DONE` / `REJECTED` 後のフラグ変更は結果へ遡及反映しない
+- `ACCEPTED` 以降で `cancel_requested` が立っていても処理を続行する。**ACCEPTED からの終端は同一周期内で完結**させる(one-shot ポーラーは子プロセスの結果を次周期へ持ち越せない): 終端化の直前に要求レコードを **再 GET 1 回**(store に公開 GET を追加)→ `request_state` が `ACCEPTED` であることを確認 → その時点で `cancel_requested` があれば `result_message` 末尾に `(cancel_ignored)` を付記 → 再 GET の revision で PUT。競合したら現行 `writeResult` と同じく **もう 1 回だけ再 GET→PUT**(終端一致なら成功扱い)。それでも失敗した場合は要求を `ACCEPTED` のまま残し、既存の STALE 回収(heartbeat 停止後 15 分)に委ねる — 結果不明として扱い、実行済みの Run/監査を人が照合する(G-05 と同じ扱い)。`DONE` / `REJECTED` 後のフラグ変更は結果へ遡及反映しない
 
 **一次対応(§6.7 追加 code)**: `CANCELLED_BY_REQUESTER` — 起票者が処理前に取り下げた。何も実行されていない。
 
@@ -117,6 +134,7 @@ v1.0.0 の操作要求は「起票 → ポーラーが claim → 実行 → DONE
 **ポーラーの RELEASE 受理条件(§6.3 改訂)**
 
 - 現行「activity = STOPPED」→ **「status JSON の `hold` が非 null(REQUESTED/ACCEPTED)」**へ変更。Run 状態は問わない(RUNNING でも FAILED/CANCELLED でも可)
+- `reviewRequest` は現行の「RERUN / STOP / それ以外 = RELEASE」の 3 分岐を **request_type ごとの網羅的 switch** に変える(CLOSE を型に足すだけだと RELEASE 分岐へ落ち、hold なしの closable Run を `RUN_NOT_ON_HOLD` にしてしまう)
 - `hold = null` は従来どおり `RUN_NOT_ON_HOLD`
 - RELEASE は従来どおり hold 解除のみで Run を再開しない。終端 Run では「解除後にリラン要求を出す」導線をボードが案内する
 - `UNKNOWN` Run への RELEASE は API(操作要求アプリへの直接起票)では受理するが、ボードは解除ボタンを出さず「二次対応者へ連絡」のままとする(意図した差 — UNKNOWN は人の裁定が先)
@@ -140,26 +158,58 @@ hold の有無はプラグインが既に読んでいる `CANCEL_REQUEST` レコ
 
 | 種別 | 受理条件 | 実行内容 | 成功側 code |
 | --- | --- | --- | --- |
-| `CLOSE` | Run が `FAILED` / `CANCELLED`、`lifecycle_status = ACTIVE`、live owner なし(**判定は既存 G-02 と同一**: Network lock の owner が当該 Run の Invocation に属し lease が生存(分精度+60秒余裕)している場合のみ live。クラッシュ後の stale lock は lease 失効で live 扱いにならず、CLOSE を妨げない)、**hold なし**(hold があれば先に RELEASE)。`SUCCESS` は対象外(`RUN_STATUS_NOT_CLOSABLE`)、`UNKNOWN` は `resolve-node` で解決してから(`RUN_UNKNOWN_NOT_CLOSABLE`) | 新 CLI `archive-run --run-id <run_id> --reason-file <一時ファイル>` を子プロセス起動 | `RUN_ARCHIVED` |
+| `CLOSE` | 下の判定順表のとおり | 新 CLI `archive-run <network.yaml> --run-id <run_id> --reason-file <一時ファイル>` を子プロセス起動 | `RUN_ARCHIVED` |
+
+CLOSE の一次審査(ポーラー)の判定順と code(上から順に評価し、最初に該当した code で拒否):
+
+| 順 | 条件 | code |
+| --- | --- | --- |
+| 1 | Run が allowlist 内で一意に解決できない | `RUN_NOT_FOUND` / `RUN_ID_AMBIGUOUS`(既存) |
+| 2 | `lifecycle_status = ARCHIVED` | `RUN_ALREADY_ARCHIVED`(**DONE**・NOOP) |
+| 3 | `status = SUCCESS` | `RUN_STATUS_NOT_CLOSABLE` |
+| 4 | `status = UNKNOWN` | `RUN_UNKNOWN_NOT_CLOSABLE`(`resolve-node` で解決してから) |
+| 5 | `status` が `CREATED` / `RUNNING` | `RUN_NOT_TERMINAL` |
+| 6 | `hold !== null` | `RUN_ON_HOLD`(先に RELEASE) |
+| 7 | live owner あり(既存 G-02: lock owner が当該 Run の Invocation に属し lease 生存) | `RUN_LIVE` |
+| 8 | 上記いずれでもない(`FAILED` / `CANCELLED`・ACTIVE・hold なし・live なし) | 受理 → `archive-run` 起動 |
+
+一次審査で live でなくても、**lease 失効後に残った stale lock は `archive-run` のロック取得を阻む**(既存 `NetworkLockManager.acquire()` は既存レコードが `RUNNING` なら期限を見ずに `LOCK_CONFLICT` を返す)。`archive-run` は stale lock を自動奪取**しない**。この場合は要求が `REJECTED / LOCK_CONFLICT` になり、二次対応者が既存手順(runbook: `status` で stale 候補確認 → `force-unlock-network`)で回収してから再度 CLOSE する。v3 の「stale lock は CLOSE を妨げない」は誤りであり撤回する。
 
 **新 CLI `archive-run`(§5.1・§5.6 追加)**
 
-- 引数: `<network.yaml のパス>`(必須。ポーラーは allowlist の `definition_path` を渡す)、`--run-id`(必須)、`--reason-file`(必須)、`--profile`。`--json` は実装しない(他の運用コマンドと同じ)
+- 引数: `<network.yaml のパス>`(必須。ポーラーは allowlist の `definition_path` を渡す)、`--run-id`(必須)、`--reason-file`(必須)、`--profile`。**出力は stdout に 1 行 JSON**(run-network `--json` と同じ流儀。stderr 解析より堅牢なため):
+
+  ```json
+  { "outcome": "ARCHIVED | ALREADY_ARCHIVED | REJECTED", "run_id": "string", "run_revision": 12, "audit": "RECORDED | PENDING | null", "lock_released": true, "code": "string | null", "event_id": "archive_..." }
+  ```
+
+  exit code は `ARCHIVED`+`RECORDED`+`lock_released` のときだけ 0、それ以外は 1。ポーラーは JSON を検証し(`CHILD_RESULT_INVALID` 規則を流用)、`outcome` と `audit` で結果を分類する。stdout が打ち切られた場合(64 KiB)や JSON 不正は `CHILD_RESULT_INVALID` で fail-closed
+- 実装前提: repository に **`lifecycle_status` 専用の revision-fenced 更新メソッド**を追加する(現行の集約更新は `status`・時刻だけを PUT し lifecycle を書く surface がない)。監査 union に §3.3 の `RunArchivedOperationAudit` を追加する。ポーラーの子プロセス client に `archiveRun()` と専用 classifier を追加する
 - 処理順(**排他契約**):
-  1. **Network ロックを取得する**(run-network と同じ lease 機構。owner は `archive_<uuid>`、lease は定義の `network_lock` 値)。取得できなければ `LOCK_CONFLICT` で終了 — これにより **RERUN / resume / START の Invocation と CLOSE は同じ profile・network で直列化**され、「CLOSE が確認した後に別 Invocation がノード実行を開始し、その後 ARCHIVED が書かれる」順序は成立しない(Run レコードの revision だけでは防げない: 失敗 Run の resume は `started_at` が非 null のためノード開始まで Run レコードを書かない)
-  2. ロック内で Run を再取得し、受理条件(`FAILED` / `CANCELLED`・`ACTIVE`・hold なし)を再検証する(fail-closed)
-  3. `lifecycle_status = ARCHIVED` を **revision fencing 付き** PUT
-  4. `OPERATION_AUDIT / RUN_ARCHIVED` を記録
-  5. Network ロックを解放(tombstone)
-- **hold との競合**: 手順 2 の確認後に `cancel-run`(STOP)が hold を作る順序は排除しない。結果は「ARCHIVED かつ hold あり」だが、ARCHIVED は resume されず、hold は RELEASE で解除できる(§5.2 は Run 状態を問わない)ため無害。STOP 要求自体は終端 Run へは `RUN_TERMINAL` で拒否されるので、実際に起き得るのは CLI `cancel-run` の直接実行だけ
-- **監査失敗の結果契約**: 手順 3 成功後に手順 4 が失敗した場合、stdout に `ARCHIVED: <run_id> (revision N) AUDIT_PENDING`、stderr に `Error [ARCHIVE_AUDIT_FAILED]: ...` を出し **exit 1**。ポーラーはこの stderr code を検出したとき要求を **`DONE / RUN_ARCHIVED_AUDIT_PENDING`**(Run は ARCHIVED 済み・監査補完が必要)とし、`result_message` に補完手順(runbook 参照)を書く。通常の拒否(REJECTED)と混同させない。手動補完の前に、監査アプリに同 `run_id` の `RUN_ARCHIVED` が既に無いことを確認する(書込応答喪失で実は記録済みの場合がある)
-- **既に ARCHIVED の Run への CLOSE**: 何もせず `DONE / RUN_ALREADY_ARCHIVED`(望む状態に既にあるため NOOP 扱い。START の `NOOP_ALREADY_SUCCESS` と同じ考え方)
+  1. `event_id = archive_<uuid>` を採番し、**Network ロックを取得する**(run-network と同じ lease 機構。owner は `archive_<uuid>`、lease は定義の `network_lock` 値)。取得できなければ `LOCK_CONFLICT` で終了 — これにより **RERUN / resume / START の Invocation と CLOSE は同じ profile・network で直列化**され、「CLOSE が確認した後に別 Invocation がノード実行を開始し、その後 ARCHIVED が書かれる」順序は成立しない(Run レコードの revision だけでは防げない: 失敗 Run の resume は `started_at` が非 null のためノード開始まで Run レコードを書かない)。同時に 2 つの CLOSE が走った場合、**後着はロック取得で `LOCK_CONFLICT`** になる(Run の revision 競合まで進まない)
+  2. run-network と同じ **`LeaseMonitor` を開始**し、以後の各書込(手順 4・5)の直前に `tick()`(heartbeat と lease token の fence)が成功していることを確認する。lease を再更新できない・強制解放されていた場合は書込を行わず `LEASE_INTERRUPTED` で中止する(処理は秒オーダーだが、API 遅延や force-unlock 後の書込を排除するため run-network と同水準に揃える)
+  3. ロック内で Run を再取得し、受理条件(`FAILED` / `CANCELLED`・`ACTIVE`・hold なし)を再検証する(fail-closed)。既に ARCHIVED なら `ALREADY_ARCHIVED` で終了
+  4. `lifecycle_status = ARCHIVED` を **revision fencing 付き** PUT
+  5. `OPERATION_AUDIT / RUN_ARCHIVED`(`event_id` 固定)を記録
+  6. Network ロックを解放(tombstone)。**手順 4 以降のどこで失敗しても `finally` で必ず解放を試みる**
+- **部分成功の裁定**(手順 4〜6 の応答喪失・失敗):
+
+  | 障害 | 裁定 |
+  | --- | --- |
+  | 手順 4 の PUT 応答喪失 | Run を再 GET。`ARCHIVED` なら成功として手順 5 へ、`ACTIVE` のままなら PUT を 1 回再試行(revision は再 GET 値)。再 GET 自体が失敗すれば `outcome = REJECTED`・`code = ARCHIVE_UNCONFIRMED`(Run 状態不明。ポーラーは `REJECTED / ARCHIVE_UNCONFIRMED`、runbook で `status` 確認) |
+  | 手順 5 の監査 PUT 応答喪失 | 同一 `event_id` を再読取。存在すれば `audit = RECORDED`、無ければ 1 回再試行、再失敗なら `audit = PENDING` |
+  | 手順 5 が明示失敗 | `outcome = ARCHIVED`・`audit = PENDING`・exit 1。ポーラーは **`DONE / RUN_ARCHIVED_AUDIT_PENDING`**(Run は ARCHIVED 済み・監査補完が必要)とし、`result_message` に `event_id` と補完手順(runbook 参照)を書く。手動補完の前に同一 `event_id` の監査が既に無いことを確認する |
+  | 手順 6 のロック解放失敗 | `lock_released = false`・exit 1。Run と監査は成立済みなので要求は `DONE / RUN_ARCHIVED_LOCK_UNRELEASED`。stale lock として既存の `force-unlock-network` 手順で回収する(runbook に追記) |
+
+  「Run が既に ARCHIVED の別障害」を `REJECTED` に誤分類しないよう、ポーラーの分類は上表の `outcome` / `audit` / `lock_released` の組合せで行い、stderr の文字列に依存しない
+- **hold との競合**: 終端 Run への STOP は CLI(`cancel-run`)も `RUN_ALREADY_TERMINAL` で拒否するため、「CLOSE が確認した後に hold が作られる」のは次の三者順序に限られる: STOP が Run(非終端)を読む → Run がノード失敗で終端化 → CLOSE が hold なしを確認 → STOP が hold を作成 → CLOSE が ARCHIVED を書く。結果は「ARCHIVED かつ hold あり」だが、ARCHIVED は resume されず、hold は RELEASE で解除できる(§5.2 は Run 状態を問わない)ため無害。受入 8c はこの順序を repository 注入で再現する単体試験とする
+- **既に ARCHIVED の Run への CLOSE**: 何もせず `DONE / RUN_ALREADY_ARCHIVED`(望む状態に既にあるため NOOP 扱い。START の `NOOP_ALREADY_SUCCESS` と同じ考え方)。同時 CLOSE の後着は §5.3 手順 1 のとおり `LOCK_CONFLICT` であり、ロック解放後に再要求すれば `RUN_ALREADY_ARCHIVED` になる
 - `requested_by` は `KSQL_FLOWNET_REQUESTED_BY`(ポーラー経由なら `app-request:<id>:<creator>`)
 - **逆操作(unarchive)は提供しない**。誤クローズは新しい業務キー(補正キー)で再実行する — ARCHIVED を戻す経路を作らないことで「終端の最終性」を保つ
 
 **ボード**: `FAILED/CANCELLED`(hold なし)の操作に **「クローズ要求」** を追加(リラン要求の隣・二次確認ダイアログに「以後この Run は再開できません」を明記)。ARCHIVED になった Run は要対応一覧から消える(既存フィルタ)。
 
-**一次対応(§6.7 追加 code)**: `RUN_ARCHIVED` / `RUN_ARCHIVED_AUDIT_PENDING`(DONE・監査補完要) / `RUN_ALREADY_ARCHIVED`(DONE・NOOP) / `RUN_STATUS_NOT_CLOSABLE` / `RUN_UNKNOWN_NOT_CLOSABLE` / `RUN_ON_HOLD`(CLOSE でも hold は拒否理由) / `LOCK_CONFLICT`(別 Invocation が実行中)。
+**一次対応(§6.7 追加 code)**: `RUN_ARCHIVED` / `RUN_ARCHIVED_AUDIT_PENDING`(DONE・監査補完要) / `RUN_ARCHIVED_LOCK_UNRELEASED`(DONE・ロック回収要) / `RUN_ALREADY_ARCHIVED`(DONE・NOOP) / `RUN_STATUS_NOT_CLOSABLE` / `RUN_UNKNOWN_NOT_CLOSABLE` / `RUN_NOT_TERMINAL` / `RUN_ON_HOLD`(CLOSE でも hold は拒否理由) / `LOCK_CONFLICT`(別 Invocation 実行中、または stale lock 残留 — runbook で回収) / `LEASE_INTERRUPTED` / `ARCHIVE_UNCONFIRMED`(Run 状態不明・要確認)。
 
 ## 6. ボード runtime の API 境界(§7.7 改訂)
 
@@ -168,37 +218,48 @@ hold の有無はプラグインが既に読んでいる `CANCEL_REQUEST` レコ
 | 操作要求 | レコード GET、単票 POST、**`cancel_requested` のみの単票 PUT(`$revision` 必須)** |
 | 他 | 変更なし |
 
-PUT はこの 1 フィールド以外を含めてはならない(runtime 側で payload を固定)。
+PUT はこの 1 フィールド以外を含めてはならない(runtime 側で payload を固定)。wire 形を固定する:
+
+```json
+{ "app": <要求アプリID>, "id": "<レコードID>", "revision": "<取得時の $revision>", "record": { "cancel_requested": { "value": ["取消"] } } }
+```
+
+- 取得時のフィールド名は `$revision` だが、更新 body のキーは `revision` である(kintone API 仕様)。チェックボックス値は文字列ではなく配列 `["取消"]`
+- runtime には汎用の update API を公開せず、この body を組み立てる**固定 builder 1 つ**だけを追加する。解除値 `[]` を送る経路は作らない(§3.1 の不可逆性)
+- `tests/unit/activity-plugin-request.test.mjs` の境界テストで body の完全一致・単票・1 フィールド・revision 必須を固定する
 
 ## 7. 受入基準(実機 E2E・単体)
 
 | # | 内容 | 層 |
 | --- | --- | --- |
 | 1 | REQUESTED 要求に取消 → 次周期で `CANCELLED / CANCELLED_BY_REQUESTER`、子プロセス未起動、Run/監査無変更 | E2E |
-| 2 | 取消 PUT と claim の競合: 取消先勝ち → CANCELLED、claim 先勝ち → ボードは再 GET で「処理開始済み」を表示し、要求は正常系なら ACCEPTED→DONE(実行結果により REJECTED にもなり得る) | E2E(競合は fault-hook で順序固定) |
+| 2 | 取消 PUT と claim の競合: 取消先勝ち → CANCELLED、claim 先勝ち → ボードは再 GET で「処理開始済み」を表示し、要求は正常系なら ACCEPTED→DONE(実行結果により REJECTED にもなり得る) | E2E(**fault-hook の拡張が前提** — §8 M0: path・method・body の field/id で対象を指定し、到達ログ+外部 release の barrier を持つ。現行 hook は全通信/全書込の一括遮断のみで順序固定できない) |
 | 2b | 取消 PUT の通信断: サーバー側成立/不成立の両方で、ボードが再 GET の結果どおりの文言を出す | 単体(fetch 失敗を注入) |
 | 3 | ACCEPTED 以降の取消は無効、結果に `cancel_ignored` | 単体 |
 | 4 | STOP → 実行中 SQL 失敗 → Run FAILED + hold: ボードが解除要求を表示し、RELEASE 要求が `DONE / RELEASED`。その後リラン要求が通る | E2E |
 | 5 | hold なし終端 Run への RELEASE は `RUN_NOT_ON_HOLD`(従来維持) | 単体 |
 | 6 | FAILED Run へ CLOSE → `DONE / RUN_ARCHIVED`、`lifecycle_status = ARCHIVED`、`OPERATION_AUDIT` 1 件、ボード要対応一覧から消える、`--resume-run` が `RUN_NOT_RESUMABLE` | E2E |
 | 7 | SUCCESS / UNKNOWN / hold あり / LIVE の Run への CLOSE はそれぞれの code で拒否・状態不変 | E2E |
-| 8 | `archive-run` の revision 競合(同時 CLOSE)は 1 件だけ成功。2 件目は `RUN_ALREADY_ARCHIVED`(DONE) | 単体 |
-| 8b | CLOSE と RERUN の競合: run-network が Network ロック保持中は CLOSE が `LOCK_CONFLICT`。CLOSE 完了後の run-network は `RUN_NOT_RESUMABLE`。**ARCHIVED の Run でノード実行が開始されない** | E2E(長時間 SQL fixture で順序固定) |
-| 8c | CLOSE と hold 作成の競合: 結果は ARCHIVED+hold。RELEASE で hold が解除でき、resume は拒否される | 単体 |
-| 8d | 監査失敗の結果契約: 手順 4 を失敗させ、要求が `DONE / RUN_ARCHIVED_AUDIT_PENDING`、Run は ARCHIVED、ロックは解放済み | 単体(監査 repository を失敗注入) |
-| 4b | 終端化直前の再 GET: ACCEPTED 後に立てた `cancel_requested` が `(cancel_ignored)` として付記され、終端後の変更は反映されない | 単体 |
-| 11 | 取消と入力不正が同時: `CANCELLED` が優先され `REJECTED` にならない | 単体 |
-| 9 | フィールドアクセス権: 機械フィールド 6 種が一般ユーザーに閲覧のみで、`cancel_requested` は作成者が編集できる(テンプレート検証)。ボードの取消ボタンが作成者以外に出ない | 実機・手動 |
-| 10 | `status --json` の `hold` が終端 Run でも返る。既存フィールドは不変(スキーマ差分テスト) | 単体 |
+| 8 | 同時 CLOSE: 後着は Network ロック取得で `LOCK_CONFLICT`(Run の revision 競合には進まない)。先着の解放後に再 CLOSE すると `RUN_ALREADY_ARCHIVED`(DONE) | 単体(lock manager 注入) |
+| 8b | CLOSE と RERUN の競合: run-network が Network ロック保持中は CLOSE が `LOCK_CONFLICT`。CLOSE 完了後の run-network は `RUN_NOT_RESUMABLE`。**ARCHIVED の Run でノード実行が開始されない** | E2E(長時間 SQL fixture+拡張 fault-hook の barrier で「ロック保持到達」を観測してから CLOSE を発火) |
+| 8c | CLOSE と hold 作成の三者順序(STOP が非終端 Run を読む → Run が終端化 → CLOSE が hold なしを確認 → STOP が hold 作成 → CLOSE が ARCHIVED 書込): 結果は ARCHIVED+hold。RELEASE で hold が解除でき、resume は拒否される | 単体(repository 注入で順序固定。終端 Run への単純な CLI STOP が `RUN_ALREADY_TERMINAL` で拒否されることは別受入 8e) |
+| 8d | 監査失敗の結果契約: 手順 5 を失敗させ、JSON が `ARCHIVED`+`PENDING`、要求が `DONE / RUN_ARCHIVED_AUDIT_PENDING`、Run は ARCHIVED、ロックは解放済み | 単体(監査 repository を失敗注入) |
+| 8e | 終端 Run への CLI `cancel-run`(STOP)は `RUN_ALREADY_TERMINAL` | 単体(既存挙動の固定) |
+| 8f | 部分成功の裁定: Run PUT 応答喪失(再 GET で ARCHIVED → 続行)、監査応答喪失(同一 `event_id` 再読取で成功扱い)、ロック解放失敗(`RUN_ARCHIVED_LOCK_UNRELEASED`)、lease 中断(`LEASE_INTERRUPTED`・Run 不変) | 単体 |
+| 4b | 終端化直前の再 GET: ACCEPTED 後に立てた `cancel_requested` が `(cancel_ignored)` として付記され、終端後の変更は反映されない。再 GET→PUT が 2 回とも競合した場合は ACCEPTED のまま残り STALE 回収に乗る | 単体 |
+| 11 | 取消と入力不正が同時: `CANCELLED` が優先され `REJECTED` にならない(最小 envelope 経由)。`cancel_requested` の型不正は `REQUEST_INVALID` | 単体 |
+| 12 | 取消済み要求の扱い: E2E decoder と terminal 集合が `CANCELLED` を終端として待機できる。ボードの START 要求実績(DONE 履歴)には `CANCELLED` を含めず、`03_取消済み` 一覧を正とする | 単体+E2E |
+| 9 | フィールドアクセス権: 機械フィールド 6 種が一般ユーザーに閲覧のみで、`cancel_requested` は作成者が編集できる(テンプレート検証)。ボードの取消ボタンが作成者以外に出ない。他人による直接 PUT の結果(拒否/受理)を記録 | 実機・手動 |
+| 10 | `status --json` の `hold` が終端 Run でも list/detail の両方で返る。REQUESTED/ACCEPTED/RELEASED/なしの 4 値を固定し、既存キーは不変(スキーマ差分テスト) | 単体 |
 
 ## 8. マイルストーン
 
 | M | 内容 |
 | --- | --- |
-| M0 | 本仕様の外部レビュー(3 系統)→ FROZEN。テンプレート追補スクリプト・E2E 要求アプリへの適用 |
-| M1 | 契約層: request-model(`CLOSE`・`CANCELLED`・`cancel_requested`)、status JSON `hold`、`archive-run` CLI、監査 `RUN_ARCHIVED` |
-| M2 | ポーラー: claim 前取消・RELEASE 受理条件・CLOSE 分岐。単体 S 系 |
-| M3 | 実機 E2E(受入 1〜8・10)。P2-01/P2-11 の回帰 |
+| M0 | 本仕様の外部レビュー(3 系統)→ FROZEN。テンプレート追補スクリプト・E2E 要求アプリへの適用(作成者へのフィールド権限の実機確認 — U-4)。**E2E ハーネスの拡張**: fault-hook に path/method/body 条件の対象指定と barrier(到達ログ+外部 release)を追加、`p2-01-support.mjs` / `p2-11-support.mjs` の decoder と terminal 集合に `cancel_requested` / `CANCELLED` を追加 |
+| M1 | 契約層: request-model(`CLOSE`・`CANCELLED`・`cancel_requested` の配列 parser・最小 envelope)、status JSON `hold`(list/detail)、repository の lifecycle 専用更新、監査 `RunArchivedOperationAudit`、`archive-run` CLI(LeaseMonitor・JSON 出力・部分成功裁定) |
+| M2 | ポーラー: 最小 envelope の取消終端化、ACCEPTED 終端の同周期完結、`reviewRequest` の網羅 switch(RERUN の hold 判定・RELEASE・CLOSE 判定順)、`archiveRun()` client と classifier。単体 S 系 |
+| M3 | 実機 E2E(受入 1〜8f・10・12)。P2-01/P2-11 の回帰 |
 | M4 | ボード: 取消ボタン・解除/クローズ表示・`cancel_requested` PUT。E2E UI ドライバ+受入 9 |
 | M5 | 文書(仕様書 §3.4/§5/§6/§7 改訂・一次対応・runbook・templates/README)、本番適用(要求アプリ追補 → プラグイン → VPS → smoke) |
 
@@ -223,7 +284,7 @@ PUT はこの 1 フィールド以外を含めてはならない(runtime 側で 
 | --- | --- | --- | --- |
 | 1-① | `cancel_requested` の再トグル(解除・再チェック)の扱い | 採用 | §3.1 で**不可逆**を明記(ボードに解除操作なし、直接解除は運用違反、復活は新規起票)。§5.1 の確認ダイアログに文言追加 |
 | 1-② | CANCELLED 終端化 PUT の競合再試行と無限ループ | 採用 | §4.2 を新設: 1 周期 1 回、REQUESTED 以外は対象外、3 周期連続競合で警告 |
-| 1-③ | CLOSE の live owner 判定(stale lock でのデッドロック) | 採用 | §5.3 で既存 G-02(lease 生存+60秒余裕)と同一と明記。stale lock は妨げない |
+| 1-③ | CLOSE の live owner 判定(stale lock でのデッドロック) | 採用(v4 で訂正) | §5.3 で既存 G-02(lease 生存+60秒余裕)と同一と明記。**「stale lock は妨げない」は v4 で撤回** — 一次審査は通るが `archive-run` のロック取得が `LOCK_CONFLICT` になるため、`force-unlock-network` で回収してから再 CLOSE(Codex #1) |
 | 2-① | ボードの hold 導出と status JSON `hold` の乖離 | 採用 | §5.2 に「表示は推測、正は status JSON(I-03)」を注記。判定条件を同一に固定 |
 | 2-② | kintone フィールドアクセス権で「作成時入力可・起票後編集不可」は作れない | 採用(前提を修正) | §3.1 を「機械フィールドのみ権限で閲覧専用。入力フィールドの起票後編集は運用違反+claim 時スナップショット裁定」へ。プロセス管理は不採用 |
 | 3 | U-1〜U-4 の推奨判断 | 採用 | §9 を決定事項へ |
@@ -242,3 +303,26 @@ PUT はこの 1 フィールド以外を含めてはならない(runtime 側で 
 | 軽微 | UNKNOWN への RELEASE の UI/API 差 | 採用 | §5.2 に意図した差と明記 |
 | 軽微 | I-05 の `--evidence-ref` | 採用 | I-05 を「理由ファイル+監査で証跡、evidence-ref は要求しない」へ |
 | 軽微 | 受入 2 の正常系前提 | 採用 | 受入 2 を修正 |
+
+### v4(2026-09-05)— Codex 第1巡([レビュー全文](./p2-16-review-codex-20260905.md)・判定 FROZEN 不可)
+
+16 件すべて採用。実装を突き合わせ、v3 の誤り 2 点(stale lock・同時 CLOSE の裁定)と実装不能 2 点(不正レコードの取消優先・ACCEPTED 終端の次周期送り)を修正した。
+
+| # | 指摘 | 採否 | 反映 |
+| --- | --- | --- | --- |
+| 1 | 既存 `acquire()` は既存 lock が RUNNING なら期限を見ず `LOCK_CONFLICT`。stale lock は CLOSE を阻む | 採用(v3 の誤りを訂正) | §5.3 判定順表の後に「stale lock は自動奪取しない・`REJECTED / LOCK_CONFLICT`・force-unlock 後に再 CLOSE」を明記。Gemini 1-③ の行も訂正 |
+| 2 | owner を変えるだけでは lease 機構を満たさない(heartbeat・書込前 fence・失効時中止) | 採用 | §5.3 手順 2 に `LeaseMonitor` 開始と各書込前 `tick()`、`LEASE_INTERRUPTED` を追加 |
+| 3 | 同時 CLOSE の後着は revision 競合でなく `LOCK_CONFLICT` | 採用 | §5.3・受入 8 を修正 |
+| 4 | 終端 Run への CLI STOP は `RUN_ALREADY_TERMINAL` で hold を作れず、受入 8c は再現不能 | 採用 | §5.3 の hold 競合を三者順序に書き直し、受入 8c を repository 注入の単体へ、8e を追加 |
+| 5 | parse 失敗レコードは `InvalidRequestRecord` へ落ち取消値を持たない | 採用 | §4 に最小 envelope(`$id`/`$revision`/`request_state`/`cancel_requested`)による取消優先と、型不正時の fail-closed を追加。§5.1 ポーラー節を修正 |
+| 6 | one-shot ポーラーは「連続 3 周期」を数えられない | 採用 | §4.2 を「競合のたびに警告(要求 ID 付き)・閾値なし」へ |
+| 7 | ACCEPTED 終端 PUT の「次周期送り」は実装不能(child 結果を持ち越せない)。現行 `writeResult` は即時再 GET→再 PUT | 採用 | §5.1 を「同周期完結: 再 GET 1 回→ACCEPTED 確認→付記→PUT、競合時もう 1 回、失敗なら ACCEPTED のまま STALE 回収へ」に変更。§4.2 を REQUESTED→CANCELLED 専用と明記 |
+| 8 | Run PUT 応答喪失・監査応答喪失・ロック解放失敗の裁定が未定義。lifecycle 更新 surface と監査型が無い | 採用 | §5.3 に部分成功表(4 障害)、実装前提(lifecycle 専用更新メソッド・監査 union 追加・`archiveRun()` client)、`finally` でのロック解放を追加。code に `ARCHIVE_UNCONFIRMED` / `RUN_ARCHIVED_LOCK_UNRELEASED` / `LEASE_INTERRUPTED` |
+| 9 | 監査 JSON の識別方式(`event_id`)が未定義 | 採用 | §3.3 を `event_id = archive_<uuid>` 固定の型定義へ。応答喪失時は同一 event_id 再読取で成功扱い |
+| 10 | `hold` は list/detail 両方に必要。差分テスト。RERUN も hold を見るべき(G-02) | 採用 | §3.4 に list/detail 必須・差分テスト・RERUN 一次審査の hold 判定を追加。受入 10 を拡張 |
+| 11 | pending モデルに creatorCode/revision/種別/理由が無く、runtime に `getLoginUser` が無い。複数 pending の UI 単位 | 採用 | §5.1 ボード節を要求単位モデル(必要フィールド列挙)+ `getLoginUser().code` 比較+要求ごとに 1 行・各行に取消ボタン、へ変更 |
+| 12 | PUT の wire 形(`revision` キー・チェックボックスは配列)が未固定 | 採用 | §6 に body を固定・固定 builder のみ・解除値禁止・境界テストを明記 |
+| 13 | stderr code 判定は脆い(64 KiB 打ち切り・classifier 不在) | 採用(JSON 出力へ変更) | `archive-run` の出力を stdout 1 行 JSON(`outcome`/`audit`/`lock_released`/`code`/`event_id`)へ。`CHILD_RESULT_INVALID` 規則を流用。v1 の「`--json` は実装しない」を撤回 |
+| 14 | fault-hook は全遮断のみで受入 2/8b の順序固定ができない | 採用 | M0 に hook 拡張(対象指定+barrier)を追加。受入 2/8b の前提に明記 |
+| 15 | E2E decoder・terminal 集合・START 履歴が `CANCELLED` を扱わない | 採用 | M0 に decoder/terminal 集合の更新、受入 12 で「START 実績履歴に CANCELLED を含めず `03_取消済み` を正」と決定 |
+| 16 | `reviewRequest` は 3 分岐で CLOSE が RELEASE へ落ちる。CLOSE 判定順が未定義 | 採用 | §5.2 に網羅 switch、§5.3 に CLOSE 判定順表(8 段・code 優先順) |
