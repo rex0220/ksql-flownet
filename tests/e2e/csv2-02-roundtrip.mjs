@@ -48,7 +48,7 @@ await runCsv2(
           expectedRows: rows.length,
         });
         testCases.push(exportCase);
-        allRows.push({ key: exportCase.finalizeMarkerKey, value: 'finalize' });
+        allRows.push({ key: exportCase.finalizeMarkerKey, value: "finalize" });
         const importCase = await prepareCsv1Case(
           settings,
           `${caseScope}_destination`,
@@ -67,14 +67,14 @@ await runCsv2(
         const first = await runCsv2Fixture(settings, exportCase, businessKey, {
           outputEncoding: encoding,
         });
-        assert.notEqual(first.exitCode, 0, 'finalizeゲートで失敗すること');
+        assert.notEqual(first.exitCode, 0, "finalizeゲートで失敗すること");
         const firstGraph = await loadRunGraph(settings, businessKey);
         const firstReceipt = outputAudit(
           firstGraph,
           exportCase.fixture,
           expected.length,
           encoding,
-          { runStatus: 'FAILED' },
+          { runStatus: "FAILED" },
         );
         const artifactPath = csv2OutputPath(
           exportCase.ioRoot,

@@ -63,7 +63,9 @@ await runCsv2(
       await Promise.all([
         cleanupTargetRows(
           settings,
-          [...rows, ...expected].map(({ key }) => key).concat(testCase.finalizeMarkerKey),
+          [...rows, ...expected]
+            .map(({ key }) => key)
+            .concat(testCase.finalizeMarkerKey),
         ),
         testCase.dispose(),
       ]);

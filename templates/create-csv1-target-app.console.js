@@ -71,9 +71,12 @@
         body,
       );
     } catch (error) {
-      throw new Error(`${method} /k/v1${endpoint}.json -> ${errorText(error)}`, {
-        cause: error,
-      });
+      throw new Error(
+        `${method} /k/v1${endpoint}.json -> ${errorText(error)}`,
+        {
+          cause: error,
+        },
+      );
     }
   };
   const detectSpaceId = () => {

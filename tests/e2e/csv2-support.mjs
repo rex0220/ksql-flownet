@@ -251,7 +251,13 @@ export async function runCsv2Fixture(
   );
 }
 
-export function outputAudit(graph, fixture, expectedRows, encoding, options = {}) {
+export function outputAudit(
+  graph,
+  fixture,
+  expectedRows,
+  encoding,
+  options = {},
+) {
   assert.equal(graph.run.status, options.runStatus ?? "SUCCESS");
   const attempt = graph.attempts
     .filter(({ nodeId }) => nodeId === fixture.nodeId(CSV2_EXPORT_NODE))

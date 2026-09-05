@@ -12,20 +12,12 @@
   },
   "icon": "assets/icon.png",
   "desktop": {
-    "js": [
-      "dist/desktop.js"
-    ],
-    "css": [
-      "css/desktop.css"
-    ]
+    "js": ["dist/desktop.js"],
+    "css": ["css/desktop.css"]
   },
   "config": {
     "html": "config.html",
-    "js": [
-      "dist/config.js"
-    ],
-    "css": [
-      "css/config.css"
-    ]
+    "js": ["dist/config.js"],
+    "css": ["css/config.css"]
   }
 }
