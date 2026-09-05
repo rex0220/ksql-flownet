@@ -43,8 +43,19 @@ const invocationRecord = () => ({
   invocation_id: field("invoke_1"),
   run_id: field("run_1"),
 });
+const cancelRecord = (runId, state = "ACCEPTED") => ({
+  $id: field("41"),
+  record_type: field("CANCEL_REQUEST"),
+  record_key: field(`CANCEL:${runId}`),
+  run_id: field(runId),
+  status_reason: field(
+    JSON.stringify({ state, requested_by: "operator", reason: "stop now" }),
+  ),
+});
 const pendingStartRecord = (id, state) => ({
   $id: field(String(id)),
+  $revision: field("1"),
+  request_type: field("START"),
   request_state: field(state),
   network_id: field("monthly"),
   business_key: field(id === 41 ? "monthly@2026-09" : ""),
@@ -52,6 +63,7 @@ const pendingStartRecord = (id, state) => ({
   reason: field(`reason_${id}`),
   作成者: field({ code: "operator@example.test", name: "運用担当" }),
   作成日時: field("2026-09-01T00:00:00Z"),
+  cancel_requested: field([]),
 });
 const terminalStartRecord = (id, state = "DONE") => ({
   ...pendingStartRecord(id, state),
@@ -141,9 +153,11 @@ test("board loads pending START count only when request app is configured and ne
     stateAppId: 100,
     auditAppId: "200",
     requestAppId: "300",
+    getLoginUser: () => ({ code: "operator@example.test" }),
     nowMs: () => NOW,
   });
   assert.equal(model.pendingStartCount, 2);
+  assert.equal(model.loginUserCode, "operator@example.test");
   assert.deepEqual(
     model.pendingStartRequests.map(({ id, requestState }) => ({
       id,
@@ -526,6 +540,9 @@ test("active and attention sections fail independently in both directions", asyn
       ) {
         return { records: [terminalRecord(9)], totalCount: "1" };
       }
+      if (request.query.includes('record_type in ("CANCEL_REQUEST")')) {
+        return { records: [] };
+      }
       throw new Error("active failed");
     },
     stateAppId: 100,
@@ -568,6 +585,9 @@ test("pending aggregate failure discards badges but preserves both sections and 
       if (request.query.includes('record_type in ("NETWORK_RUN")')) {
         return { records: [] };
       }
+      if (request.query.includes('record_type in ("CANCEL_REQUEST")')) {
+        return { records: [] };
+      }
       throw new Error("unexpected request");
     },
     stateAppId: 100,
@@ -577,7 +597,11 @@ test("pending aggregate failure discards badges but preserves both sections and 
   });
   assert.equal(model.activeSection.state, "ready");
   assert.equal(model.attentionSection.state, "ready");
-  assert.equal(model.attentionSection.rows[0].action.kind, "action");
+  assert.equal(model.attentionSection.rows[0].action.kind, "actions");
+  assert.deepEqual(model.attentionSection.rows[0].action.actions, [
+    "RERUN",
+    "CLOSE",
+  ]);
   assert.equal(model.attentionRemainingCount, 4);
   assert.match(model.pendingWarning, /重複確認ができません/u);
 });
@@ -600,6 +624,9 @@ test("error summary GET failure preserves terminal rows and acceptance actions",
       if (request.query.includes('record_type in ("NODE_STATE")')) {
         return { records: [] };
       }
+      if (request.query.includes('record_type in ("CANCEL_REQUEST")')) {
+        return { records: [] };
+      }
       throw new Error("unexpected request");
     },
     stateAppId: 100,
@@ -608,15 +635,16 @@ test("error summary GET failure preserves terminal rows and acceptance actions",
   });
   const row = model.attentionSection.rows[0];
   assert.equal(model.attentionSection.state, "ready");
-  assert.equal(row.action.kind, "action");
+  assert.equal(row.action.kind, "actions");
+  assert.deepEqual(row.action.actions, ["RERUN", "CLOSE"]);
   assert.deepEqual(row.errorSummary, { state: "unavailable" });
 });
 
 test("terminal detail routes SUCCESS/FAILED/CANCELLED/UNKNOWN through the shared action table", async () => {
   const expected = {
     SUCCESS: "none",
-    FAILED: "action",
-    CANCELLED: "action",
+    FAILED: "actions",
+    CANCELLED: "actions",
     UNKNOWN: "unknown",
   };
   for (const [status, kind] of Object.entries(expected)) {
@@ -678,4 +706,41 @@ test("STOPPED with missing requester details is fail-closed for RELEASE only", a
   assert.equal(row.activity, "STOPPED");
   assert.equal(row.action.kind, "invalid");
   assert.match(row.actionError, /解除要求を起票できません/u);
+});
+
+test("FAILED hold renders RELEASE only while hold-free FAILED renders RERUN and CLOSE", async () => {
+  for (const hasHold of [true, false]) {
+    const model = await loadBoard({
+      fetchRecords: async (request) => {
+        if (
+          request.query.includes('status in ("FAILED", "CANCELLED", "UNKNOWN")')
+        ) {
+          return { records: [terminalRecord(9)], totalCount: "1" };
+        }
+        if (request.query.includes('record_type in ("CANCEL_REQUEST")')) {
+          return { records: hasHold ? [cancelRecord("run_9")] : [] };
+        }
+        if (
+          request.query.includes('record_type in ("NODE_ATTEMPT")') ||
+          request.query.includes('record_type in ("NODE_STATE")')
+        ) {
+          return { records: [] };
+        }
+        if (request.query.includes('record_type in ("NETWORK_RUN")')) {
+          return { records: [] };
+        }
+        throw new Error(`unexpected request: ${request.query}`);
+      },
+      stateAppId: 100,
+      auditAppId: "200",
+      nowMs: () => NOW,
+    });
+    const row = model.attentionSection.rows[0];
+    assert.equal(model.attentionSection.state, "ready");
+    assert.equal(row.action.kind, "actions");
+    assert.deepEqual(
+      row.action.actions,
+      hasHold ? ["RELEASE"] : ["RERUN", "CLOSE"],
+    );
+  }
 });

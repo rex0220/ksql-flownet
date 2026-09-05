@@ -11,6 +11,7 @@ import {
   validateAuditAppId,
 } from "./config-validation.js";
 import { loadDetail } from "./detail-controller.js";
+import type { RequestRecord } from "../../src/requests/request-model.js";
 import type {
   FetchRecords,
   RecordsRequest,
@@ -18,14 +19,18 @@ import type {
 } from "./kintone-reader.js";
 import type { KintoneRecord } from "./kintone-record.js";
 import {
+  openCancelRequestDialog,
   openRequestDialog,
   type RequestDialogTarget,
 } from "./request-dialog.js";
 import { openStartRequestDialog } from "./start-request-dialog.js";
-import type {
-  CreateRecordResponse,
-  CreateRequestBody,
-  PostRecord,
+import {
+  putCancelRequested,
+  type CancelRequestedBody,
+  type CreateRecordResponse,
+  type CreateRequestBody,
+  type PostRecord,
+  type PutCancelRequested,
 } from "./request-client.js";
 import {
   detectRelatedAppIds,
@@ -59,6 +64,7 @@ export function isNetworkRunDetail(event: DetailEvent): boolean {
 
 interface RuntimeKintone {
   readonly $PLUGIN_ID: string;
+  getLoginUser(): { readonly code: string };
   readonly events: {
     on(
       names: string | readonly string[],
@@ -92,6 +98,7 @@ interface RuntimeKintone {
       method: "POST",
       body: CreateRequestBody,
     ): Promise<CreateRecordResponse>;
+    (url: string, method: "PUT", body: CancelRequestedBody): Promise<unknown>;
     url(path: string, guestSpace: boolean): string;
   };
 }
@@ -118,6 +125,13 @@ export interface KintoneRecordPostApi {
   };
 }
 
+export interface KintoneCancelRequestedPutApi {
+  readonly api: {
+    (url: string, method: "PUT", body: CancelRequestedBody): Promise<unknown>;
+    url(path: string, guestSpace: boolean): string;
+  };
+}
+
 export function createKintoneFetchRecords(
   api: KintoneRecordsGetApi,
 ): FetchRecords {
@@ -130,9 +144,24 @@ export function createKintonePostRecord(api: KintoneRecordPostApi): PostRecord {
     api.api(api.api.url("/k/v1/record.json", true), "POST", request);
 }
 
+export function createKintonePutCancelRequested(
+  api: KintoneCancelRequestedPutApi,
+): PutCancelRequested {
+  // P2-16 §6: runtime で唯一許される PUT。build.mjs がリテラル "PUT" の出現を 1 回に固定する。
+  return (app, id, revision) =>
+    putCancelRequested(
+      (request) =>
+        api.api(api.api.url("/k/v1/record.json", true), "PUT", request),
+      app,
+      id,
+      revision,
+    );
+}
+
 interface RuntimeDependencies {
   readonly load: ActivityLoadDependencies;
   readonly postRecord: PostRecord;
+  readonly putCancelRequested: PutCancelRequested;
   readonly startAllowedNetworks: readonly StartAllowedNetwork[];
   readonly startAllowedNetworkGroups: readonly StartAllowedNetworkGroup[];
 }
@@ -166,8 +195,10 @@ export async function loadRuntimeDependencies(
       auditAppId: appIds.auditAppId,
       requestAppId: appIds.requestAppId,
       logAppId: appIds.logAppId,
+      getLoginUser: () => api.getLoginUser(),
     },
     postRecord: createKintonePostRecord(api),
+    putCancelRequested: createKintonePutCancelRequested(api),
     startAllowedNetworks: flattenStartAllowedNetworks(
       parsedStartAllowedNetworks,
     ),
@@ -189,12 +220,13 @@ function dialogTarget(target: ActionTarget): RequestDialogTarget {
     allowRerunFromNode: target.allowRerunFromNode,
     interrupted: target.interrupted,
     cancelDetails: target.cancelDetails,
+    terminal: target.terminal,
   };
 }
 
 function pendingDetail(
   model: DetailViewModel,
-  requestId: string,
+  request: RequestRecord,
 ): DetailViewModel {
   if (model.state !== "ready") return model;
   return {
@@ -203,11 +235,26 @@ function pendingDetail(
       ...model.row,
       action: {
         kind: "pending",
-        pending: {
-          oldestId: requestId,
-          count: 1,
-          label: `要求処理待ち #${requestId}`,
-        },
+        pending: [
+          {
+            id: request.id,
+            revision: String(request.revision),
+            requestType: request.requestType,
+            requestState:
+              request.requestState === "ACCEPTED" ? "ACCEPTED" : "REQUESTED",
+            creatorCode: request.creatorCode,
+            reason: request.reason,
+            target:
+              request.requestType === "START"
+                ? {
+                    networkId: request.networkId ?? "",
+                    businessKey: request.businessKey,
+                    scheduledFor: request.scheduledFor,
+                  }
+                : { runId: request.runId },
+            cancelRequested: request.cancelRequested,
+          },
+        ],
         secondaryNotice:
           model.row.status === "UNKNOWN"
             ? "二次対応者へ連絡してください。"
@@ -273,6 +320,18 @@ export function installDesktop(
                   onCreated: () => reload(),
                 });
               },
+              onCancelRequest: (request) => {
+                if (model.requestAppId === null) return;
+                openCancelRequestDialog({
+                  pageDocument,
+                  host: pageDocument.body,
+                  requestAppId: model.requestAppId,
+                  request,
+                  fetchRecords: dependencies.load.fetchRecords,
+                  putCancelRequested: dependencies.putCancelRequested,
+                  onCompleted: reload,
+                });
+              },
             }),
         },
       );
@@ -322,7 +381,7 @@ export function installDesktop(
               postRecord: dependencies.postRecord,
               requestAppId: currentModel.requestAppId,
               onCreated: (created) => {
-                currentModel = pendingDetail(currentModel, created.id);
+                currentModel = pendingDetail(currentModel, created);
                 render();
               },
             });

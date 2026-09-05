@@ -271,8 +271,16 @@ test("guard failure is fail-open with warning; duplicate is linked without POST"
         records: [
           {
             $id: field("9"),
+            $revision: field("2"),
             run_id: field("run_1"),
+            network_id: field(""),
+            business_key: field(""),
+            scheduled_for: field(""),
+            request_type: field("STOP"),
             request_state: field("ACCEPTED"),
+            作成者: field({ code: "operator@example.test" }),
+            reason: field("reason"),
+            cancel_requested: field([]),
           },
         ],
       }),
@@ -473,4 +481,90 @@ test("RELEASE confirmation repeats stop context and both mandatory cautions", as
     ).length,
     2,
   );
+});
+
+test("CLOSE confirms irreversibility and posts only request_type, run_id and reason", async () => {
+  const document = new FakeDocument();
+  const posts = [];
+  openRequestDialog(
+    baseOptions(document, {
+      target: {
+        action: "CLOSE",
+        runId: "run_1",
+        allowRerunFromNode: false,
+        interrupted: false,
+        cancelDetails: null,
+        terminal: true,
+      },
+      fetchRecords: async (request) => {
+        if (!request.query.startsWith("$id =")) return { records: [] };
+        return {
+          records: [
+            {
+              ...readback(),
+              request_type: field("CLOSE"),
+              cancel_requested: field([]),
+            },
+          ],
+        };
+      },
+      postRecord: async (body) => {
+        posts.push(body);
+        return { id: "88", revision: "1" };
+      },
+    }),
+  );
+  const reason = allNodes(document.body).find(
+    (item) => item.tagName === "textarea",
+  );
+  reason.value = "archive after review";
+  allNodes(document.body)
+    .find((item) => item.tagName === "form")
+    .trigger("submit");
+  await tick();
+  assert.match(
+    allText(document.body),
+    /以後この Run は再開できません。再集計は補正キーで新規実行してください/u,
+  );
+  findText(document.body, "要求を作成").trigger("click");
+  await tick();
+  assert.deepEqual(posts, [
+    {
+      app: "300",
+      record: {
+        request_type: field("CLOSE"),
+        run_id: field("run_1"),
+        reason: field("archive after review"),
+      },
+    },
+  ]);
+});
+
+test("terminal RELEASE tells the operator to request RERUN after release", async () => {
+  const document = new FakeDocument();
+  openRequestDialog(
+    baseOptions(document, {
+      target: {
+        action: "RELEASE",
+        runId: "run_1",
+        allowRerunFromNode: false,
+        interrupted: false,
+        cancelDetails: {
+          state: "ACCEPTED",
+          requestedBy: "operator",
+          reason: "stop",
+        },
+        terminal: true,
+      },
+    }),
+  );
+  const reason = allNodes(document.body).find(
+    (item) => item.tagName === "textarea",
+  );
+  reason.value = "release hold";
+  allNodes(document.body)
+    .find((item) => item.tagName === "form")
+    .trigger("submit");
+  await tick();
+  assert.match(allText(document.body), /解除後にリラン要求を出してください/u);
 });

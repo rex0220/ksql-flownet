@@ -226,6 +226,7 @@ test("pending START section hides when empty and renders multiple safe linked de
     pendingStartCount: 0,
     requestEnabled: true,
     requestAppId: "300",
+    loginUserCode: "operator@example.test",
     judgedAt: Date.parse("2026-09-02T00:00:00Z"),
     state: "ready",
     rows: [],
@@ -252,27 +253,31 @@ test("pending START section hides when empty and renders multiple safe linked de
       pendingStartRequests: [
         {
           id: "41",
+          revision: "2",
+          requestType: "START",
           requestState: "REQUESTED",
-          networkId: "monthly",
-          businessKey: "monthly@2026-09",
-          scheduledFor: "2026-09-01T01:23:00Z",
+          target: {
+            networkId: "monthly",
+            businessKey: "monthly@2026-09",
+            scheduledFor: "2026-09-01T01:23:00Z",
+          },
           reason: `長い理由 ${"理由".repeat(100)}`,
-          creatorName: "運用担当",
-          createdAt: "2026-09-01T00:00:00Z",
+          creatorCode: "operator@example.test",
+          cancelRequested: false,
         },
         {
           id: "42",
+          revision: "3",
+          requestType: "START",
           requestState: "ACCEPTED",
-          networkId: attack,
-          businessKey: null,
-          scheduledFor: null,
+          target: { networkId: attack, businessKey: null, scheduledFor: null },
           reason: attack,
-          creatorName: attack,
-          createdAt: "2026-09-01T02:34:00Z",
+          creatorCode: attack,
+          cancelRequested: false,
         },
       ],
     },
-    { onReload: () => {} },
+    { onReload: () => {}, onCancelRequest: () => {} },
   );
   const text = allText(root);
   assert.match(text, /START要求/u);
@@ -280,7 +285,11 @@ test("pending START section hides when empty and renders multiple safe linked de
   assert.match(text, /ACCEPTED/u);
   assert.match(text, /業務キー: monthly@2026-09/u);
   assert.match(text, /対象日時: 2026\/09\/01 10:23/u);
-  assert.match(text, /運用担当 \/ 2026\/09\/01 09:00/u);
+  assert.match(text, /operator@example\.test/u);
+  assert.equal(
+    allNodes(root).filter((node) => node.textContent === "取消").length,
+    1,
+  );
   const recordLinks = allNodes(root).filter(
     (node) =>
       node.tagName === "a" &&
@@ -289,8 +298,8 @@ test("pending START section hides when empty and renders multiple safe linked de
   assert.deepEqual(
     recordLinks.map((node) => [node.textContent, node.attributes.get("href")]),
     [
-      ["#41", "/k/300/show#record=41"],
-      ["#42", "/k/300/show#record=42"],
+      ["#41 START", "/k/300/show#record=41"],
+      ["#42 START", "/k/300/show#record=42"],
     ],
   );
   assert.equal(
@@ -563,6 +572,7 @@ test("START request history renders terminal results and tones below pending row
   );
   const text = allText(root);
   assert.match(text, /START要求/u);
+  assert.match(text, /03_取消済み/u);
   assert.match(text, /OK/u);
   assert.match(text, /NETWORK_NOT_ALLOWED \/ 許可対象外です/u);
   const statuses = allNodes(root).filter((node) =>
@@ -761,10 +771,10 @@ test("two sections render every action kind, remaining count, copy callback, and
     ...overrides,
   });
   const activeRows = [
-    enrich(row("LIVE", 1), { kind: "action", action: "STOP" }),
+    enrich(row("LIVE", 1), { kind: "actions", actions: ["STOP"] }),
     enrich(
       row("STOPPED", 2),
-      { kind: "action", action: "RELEASE" },
+      { kind: "actions", actions: ["RELEASE"] },
       {
         cancelDetails: {
           state: "ACCEPTED",
@@ -776,11 +786,38 @@ test("two sections render every action kind, remaining count, copy callback, and
     enrich(row("IDLE", 3), { kind: "none" }),
     enrich(row("INTERRUPTED", 4), {
       kind: "pending",
-      pending: {
-        oldestId: "9",
-        count: 2,
-        label: "要求処理待ち 2件(最古 #9)",
-      },
+      pending: [
+        {
+          id: "9",
+          revision: "2",
+          requestType: "RERUN",
+          requestState: "REQUESTED",
+          creatorCode: "me",
+          reason: "first reason",
+          target: { runId: "run_4" },
+          cancelRequested: false,
+        },
+        {
+          id: "10",
+          revision: "3",
+          requestType: "CLOSE",
+          requestState: "ACCEPTED",
+          creatorCode: "me",
+          reason: "second reason",
+          target: { runId: "run_4" },
+          cancelRequested: false,
+        },
+        {
+          id: "11",
+          revision: "4",
+          requestType: "STOP",
+          requestState: "REQUESTED",
+          creatorCode: "other",
+          reason: "third reason",
+          target: { runId: "run_4" },
+          cancelRequested: false,
+        },
+      ],
       secondaryNotice: null,
       copyRunId: false,
     }),
@@ -804,7 +841,10 @@ test("two sections render every action kind, remaining count, copy callback, and
     attentionSection: {
       state: "ready",
       rows: [
-        terminalBase(1, "FAILED", { kind: "action", action: "RERUN" }),
+        terminalBase(1, "FAILED", {
+          kind: "actions",
+          actions: ["RERUN", "CLOSE"],
+        }),
         terminalBase(2, "CANCELLED", {
           kind: "disabled",
           message: "再開が無効化されています。",
@@ -812,6 +852,7 @@ test("two sections render every action kind, remaining count, copy callback, and
         terminalBase(3, "UNKNOWN", {
           kind: "unknown",
           message: "二次対応者へ連絡してください。",
+          holdNotice: null,
           copyRunId: true,
         }),
         terminalBase(4, "FAILED", {
@@ -825,6 +866,7 @@ test("two sections render every action kind, remaining count, copy callback, and
     pendingWarning: "重複確認ができませんでした",
     requestEnabled: true,
     requestAppId: "300",
+    loginUserCode: "me",
     judgedAt: Date.parse("2026-09-01T00:00:00Z"),
     state: "ready",
     rows: activeRows,
@@ -832,9 +874,11 @@ test("two sections render every action kind, remaining count, copy callback, and
   };
   const actions = [];
   const copies = [];
+  const cancellations = [];
   const callbacks = {
     onReload: () => {},
     onAction: (target) => actions.push(target),
+    onCancelRequest: (request) => cancellations.push(request.id),
     onCopyRunId: (runId) => copies.push(runId),
   };
   renderBoard(root, model, callbacks);
@@ -846,7 +890,10 @@ test("two sections render every action kind, remaining count, copy callback, and
     "停止要求",
     "解除要求",
     "リラン要求",
-    "要求処理待ち 2件(最古 #9)",
+    "#9 RERUN / REQUESTED",
+    "#10 CLOSE / ACCEPTED",
+    "#11 STOP / REQUESTED",
+    "クローズ要求",
     "再開が無効化されています。",
     "二次対応者へ連絡してください。",
     "判定不能",
@@ -871,8 +918,14 @@ test("two sections render every action kind, remaining count, copy callback, and
   );
   assert.equal(root.children.length, 1, "replaceChildren keeps one board root");
   findText(root, "停止要求").listeners.get("click")();
+  findText(root, "取消").listeners.get("click")();
   findText(root, "Run IDをコピー").listeners.get("click")();
   assert.equal(actions[0].action, "STOP");
+  assert.deepEqual(cancellations, ["9"]);
+  assert.equal(
+    allNodes(root).filter((item) => item.textContent === "取消").length,
+    1,
+  );
   assert.deepEqual(copies, [attack]);
   assert.equal(document.createdTags.includes("img"), false);
 });

@@ -132,12 +132,19 @@ const desktopText = await readFile(desktopOutput, "utf8");
 for (const [label, pattern] of [
   ["cursor endpoint", /\/k\/v1\/records\/cursor\.json/u],
   ["bulk endpoint", /\/k\/v1\/bulkRequest\.json/u],
-  ["PUT method", /["']PUT["']/u],
   ["DELETE method", /["']DELETE["']/u],
 ]) {
   if (pattern.test(desktopText)) {
     throw new Error(`forbidden runtime API found in desktop bundle: ${label}`);
   }
+}
+// P2-16 §6: 唯一許される PUT は cancel_requested 専用の固定 builder 1 箇所だけ。
+// リテラル "PUT" の出現をちょうど 1 回に固定し、汎用 update 経路の混入を検出する。
+const putLiterals = desktopText.match(/["']PUT["']/gu) ?? [];
+if (putLiterals.length !== 1) {
+  throw new Error(
+    `desktop bundle must contain exactly one PUT literal (cancel_requested only), found ${putLiterals.length}`,
+  );
 }
 
 const allowedDesktopEndpoints = new Set([

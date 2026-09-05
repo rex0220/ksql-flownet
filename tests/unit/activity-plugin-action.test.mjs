@@ -61,15 +61,20 @@ test("RERUN alone uses resume_allowed and ACTIVE two-condition gate", () => {
       resumeAllowed: false,
       lifecycleStatus: "ARCHIVED",
     }),
-    { kind: "action", action: "STOP" },
+    { kind: "actions", actions: ["STOP"] },
   );
 });
 
 test("priority is invalid > pending > RERUN disabled > matrix", () => {
   const pending = {
-    oldestId: "9",
-    count: 2,
-    label: "要求処理待ち 2件(最古 #9)",
+    id: "9",
+    revision: "2",
+    requestType: "RERUN",
+    requestState: "REQUESTED",
+    creatorCode: "operator@example.test",
+    reason: "reason",
+    target: { runId: "run_1" },
+    cancelRequested: false,
   };
   assert.equal(
     decideBoardAction({
@@ -77,7 +82,7 @@ test("priority is invalid > pending > RERUN disabled > matrix", () => {
       activity: "LIVE",
       resumeAllowed: true,
       lifecycleStatus: "ACTIVE",
-      pending,
+      pending: [pending],
     }).kind,
     "invalid",
   );
@@ -87,7 +92,7 @@ test("priority is invalid > pending > RERUN disabled > matrix", () => {
       activity: null,
       resumeAllowed: false,
       lifecycleStatus: "ARCHIVED",
-      pending,
+      pending: [pending],
     }).kind,
     "pending",
   );
@@ -107,7 +112,7 @@ test("priority is invalid > pending > RERUN disabled > matrix", () => {
       resumeAllowed: true,
       lifecycleStatus: "ACTIVE",
     }).kind,
-    "action",
+    "actions",
   );
 });
 
@@ -118,13 +123,24 @@ test("UNKNOWN keeps contact/copy guidance alongside pending and matrix text is X
     activity: null,
     resumeAllowed: true,
     lifecycleStatus: "ACTIVE",
-    pending: { oldestId: "1", count: 1, label: attack },
+    pending: [
+      {
+        id: "1",
+        revision: "1",
+        requestType: "STOP",
+        requestState: "REQUESTED",
+        creatorCode: "operator@example.test",
+        reason: attack,
+        target: { runId: "run_1" },
+        cancelRequested: false,
+      },
+    ],
   });
   assert.equal(model.kind, "pending");
   assert.equal(model.secondaryNotice, "二次対応者へ連絡してください。");
   assert.equal(model.copyRunId, true);
   assert.equal(
-    model.pending.label,
+    model.pending[0].reason,
     attack,
     "値はDOM生成せずplain textのまま渡す",
   );
@@ -139,4 +155,38 @@ test("UNKNOWN keeps contact/copy guidance alongside pending and matrix text is X
   });
   assert.equal(invalid.kind, "invalid");
   assert.doesNotMatch(invalid.message, /<img/u);
+});
+
+test("terminal hold selects RELEASE only; no hold selects RERUN and CLOSE", () => {
+  for (const status of ["FAILED", "CANCELLED"]) {
+    assert.deepEqual(
+      decideBoardAction({
+        status,
+        activity: null,
+        resumeAllowed: true,
+        lifecycleStatus: "ACTIVE",
+        hasHold: true,
+      }),
+      { kind: "actions", actions: ["RELEASE"] },
+    );
+    assert.deepEqual(
+      decideBoardAction({
+        status,
+        activity: null,
+        resumeAllowed: true,
+        lifecycleStatus: "ACTIVE",
+        hasHold: false,
+      }),
+      { kind: "actions", actions: ["RERUN", "CLOSE"] },
+    );
+  }
+  const unknown = decideBoardAction({
+    status: "UNKNOWN",
+    activity: null,
+    resumeAllowed: true,
+    lifecycleStatus: "ACTIVE",
+    hasHold: true,
+  });
+  assert.equal(unknown.kind, "unknown");
+  assert.match(unknown.holdNotice, /hold/u);
 });

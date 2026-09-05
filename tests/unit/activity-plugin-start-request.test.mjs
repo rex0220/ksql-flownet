@@ -243,7 +243,10 @@ test("normalizeJstDatetimeLocal emits kintone-canonical minute precision", () =>
     normalizeJstDatetimeLocal("2026-09-01T00:00:45"),
     "2026-08-31T15:00:00Z",
   );
-  assert.doesNotMatch(normalizeJstDatetimeLocal("2026-09-01T00:00"), /\.\d{3}Z/u);
+  assert.doesNotMatch(
+    normalizeJstDatetimeLocal("2026-09-01T00:00"),
+    /\.\d{3}Z/u,
+  );
 });
 
 test("matchesStartGuard tolerates millisecond representation drift in scheduled_for", () => {
@@ -255,14 +258,22 @@ test("matchesStartGuard tolerates millisecond representation drift in scheduled_
   };
   assert.equal(
     matchesStartGuard(
-      { networkId: "net-a", businessKey: null, scheduledFor: "2026-08-31T15:00:00.000Z" },
+      {
+        networkId: "net-a",
+        businessKey: null,
+        scheduledFor: "2026-08-31T15:00:00.000Z",
+      },
       key,
     ),
     true,
   );
   assert.equal(
     matchesStartGuard(
-      { networkId: "net-a", businessKey: null, scheduledFor: "2026-08-31T15:01:00Z" },
+      {
+        networkId: "net-a",
+        businessKey: null,
+        scheduledFor: "2026-08-31T15:01:00Z",
+      },
       key,
     ),
     false,

@@ -8,6 +8,7 @@ import type { RunActivity } from "./activity-entry.js";
 import type { ErrorSummary, ErrorSummaryItem } from "./error-summary.js";
 import type {
   PendingStartRequest,
+  PendingRequest,
   TerminalStartRequest,
 } from "./request-client.js";
 import type { RecentTerminalRun } from "./terminal-run-loader.js";
@@ -56,6 +57,7 @@ export interface BoardViewModel {
   readonly stateAppId: string;
   readonly requestEnabled: boolean;
   readonly requestAppId: string | null;
+  readonly loginUserCode: string;
   readonly judgedAt: number;
   /** P2-08の公開単体契約との互換値。 */
   readonly state: "ready" | "error";
@@ -80,12 +82,14 @@ export interface ActionTarget {
   readonly allowRerunFromNode: boolean;
   readonly interrupted: boolean;
   readonly cancelDetails: CancelActionDetails | null;
+  readonly terminal: boolean;
 }
 
 export interface RenderCallbacks {
   readonly onReload: () => void;
   readonly onStart?: () => void;
   readonly onAction?: (target: ActionTarget) => void;
+  readonly onCancelRequest?: (request: PendingRequest) => void;
   readonly onCopyRunId?: (runId: string, button: HTMLButtonElement) => void;
 }
 
@@ -100,6 +104,7 @@ const ACTION_LABEL: Readonly<Record<BoardRequestAction, string>> = {
   RERUN: "リラン要求",
   STOP: "停止要求",
   RELEASE: "解除要求",
+  CLOSE: "クローズ要求",
 };
 
 const MAX_DISPLAY_LENGTH = 160;
@@ -241,6 +246,7 @@ function actionContent(
   requestAppId: string | null,
   callbacks: RenderCallbacks,
   allowRerunFromNode: boolean,
+  loginUserCode: string,
 ): HTMLElement {
   const content = element(pageDocument, "div", "ksql-flownet-action-cell");
   switch (row.action.kind) {
@@ -256,24 +262,38 @@ function actionContent(
       );
       break;
     case "pending":
-      if (requestAppId !== null) {
-        content.append(
-          requestLink(
-            pageDocument,
-            requestAppId,
-            row.action.pending.oldestId,
-            row.action.pending.label,
-          ),
-        );
-      } else {
-        content.append(
+      for (const pending of row.action.pending) {
+        const pendingRow = element(pageDocument, "div", "ksql-flownet-pending");
+        const label = `#${pending.id} ${pending.requestType} / ${pending.requestState}`;
+        pendingRow.append(
+          requestAppId === null
+            ? element(pageDocument, "span", undefined, label)
+            : requestLink(pageDocument, requestAppId, pending.id, label),
           element(
             pageDocument,
             "span",
-            "ksql-flownet-pending",
-            row.action.pending.label,
+            undefined,
+            `起票者: ${pending.creatorCode} / 理由: ${pending.reason}`,
           ),
         );
+        if (
+          pending.requestState === "REQUESTED" &&
+          pending.creatorCode === loginUserCode &&
+          callbacks.onCancelRequest !== undefined
+        ) {
+          const cancel = element(
+            pageDocument,
+            "button",
+            "ksql-flownet-action",
+            "取消",
+          ) as HTMLButtonElement;
+          cancel.type = "button";
+          cancel.addEventListener("click", () =>
+            callbacks.onCancelRequest?.(pending),
+          );
+          pendingRow.append(cancel);
+        }
+        content.append(pendingRow);
       }
       if (row.action.secondaryNotice !== null) {
         content.append(
@@ -296,25 +316,28 @@ function actionContent(
         ),
       );
       break;
-    case "action":
+    case "actions":
       if (requestEnabled && callbacks.onAction !== undefined) {
-        const button = element(
-          pageDocument,
-          "button",
-          "ksql-flownet-action",
-          ACTION_LABEL[row.action.action],
-        ) as HTMLButtonElement;
-        button.type = "button";
-        button.addEventListener("click", () =>
-          callbacks.onAction?.({
-            action: row.action.kind === "action" ? row.action.action : "RERUN",
-            runId: row.runId,
-            allowRerunFromNode,
-            interrupted: row.activity === "INTERRUPTED",
-            cancelDetails: row.cancelDetails,
-          }),
-        );
-        content.append(button);
+        for (const action of row.action.actions) {
+          const button = element(
+            pageDocument,
+            "button",
+            "ksql-flownet-action",
+            ACTION_LABEL[action],
+          ) as HTMLButtonElement;
+          button.type = "button";
+          button.addEventListener("click", () =>
+            callbacks.onAction?.({
+              action,
+              runId: row.runId,
+              allowRerunFromNode,
+              interrupted: row.activity === "INTERRUPTED",
+              cancelDetails: row.cancelDetails,
+              terminal: row.status === "FAILED" || row.status === "CANCELLED",
+            }),
+          );
+          content.append(button);
+        }
       }
       break;
     case "unknown":
@@ -322,6 +345,11 @@ function actionContent(
         element(pageDocument, "span", undefined, row.action.message),
         copyButton(pageDocument, row.runId, callbacks.onCopyRunId),
       );
+      if (row.action.holdNotice !== null) {
+        content.append(
+          element(pageDocument, "span", undefined, row.action.holdNotice),
+        );
+      }
       break;
     case "none":
       break;
@@ -397,6 +425,7 @@ function renderActiveTable(
         model.requestAppId,
         callbacks,
         false,
+        model.loginUserCode,
       ),
     );
     tr.append(
@@ -428,11 +457,15 @@ function renderActiveTable(
 function startKeyAndSchedule(
   row: PendingStartRequest | TerminalStartRequest,
 ): string {
+  const businessKey =
+    "target" in row ? row.target.businessKey : row.businessKey;
+  const scheduledFor =
+    "target" in row ? row.target.scheduledFor : row.scheduledFor;
   return [
-    row.businessKey === null ? null : `業務キー: ${row.businessKey}`,
-    row.scheduledFor === null
+    businessKey === null ? null : `業務キー: ${businessKey}`,
+    scheduledFor === null
       ? null
-      : `対象日時: ${formatLocalDateTime(row.scheduledFor)}`,
+      : `対象日時: ${formatLocalDateTime(scheduledFor)}`,
   ]
     .filter((value): value is string => value !== null)
     .join(" / ");
@@ -443,6 +476,8 @@ function renderStartRequestTable(
   pendingRows: readonly PendingStartRequest[],
   terminalRows: readonly TerminalStartRequest[],
   requestAppId: string,
+  loginUserCode: string,
+  callbacks: RenderCallbacks,
 ): HTMLElement {
   const table = element(
     pageDocument,
@@ -456,7 +491,7 @@ function renderStartRequestTable(
       "状態",
       "network_id",
       "業務キー / 対象日時",
-      "要求者 / 作成日時",
+      "起票者",
       "理由",
       "結果",
     ],
@@ -473,7 +508,7 @@ function renderStartRequestTable(
     }
     const record = element(pageDocument, "td", "ksql-flownet-record-cell");
     record.append(
-      requestLink(pageDocument, requestAppId, row.id, `#${row.id}`),
+      requestLink(pageDocument, requestAppId, row.id, `#${row.id} START`),
     );
     tr.append(
       record,
@@ -490,13 +525,20 @@ function renderStartRequestTable(
         );
         return stateCell;
       })(),
-      element(pageDocument, "td", undefined, row.networkId),
+      element(
+        pageDocument,
+        "td",
+        undefined,
+        "target" in row ? row.target.networkId : row.networkId,
+      ),
       element(pageDocument, "td", undefined, startKeyAndSchedule(row)),
       element(
         pageDocument,
         "td",
         undefined,
-        `${row.creatorName} / ${formatLocalDateTime(row.createdAt)}`,
+        "creatorCode" in row
+          ? row.creatorCode
+          : `${row.creatorName} / ${formatLocalDateTime(row.createdAt)}`,
       ),
       element(
         pageDocument,
@@ -513,6 +555,22 @@ function renderStartRequestTable(
           : "—",
       ),
     );
+    if (
+      "creatorCode" in row &&
+      row.requestState === "REQUESTED" &&
+      row.creatorCode === loginUserCode &&
+      callbacks.onCancelRequest !== undefined
+    ) {
+      const cancel = element(
+        pageDocument,
+        "button",
+        "ksql-flownet-action",
+        "取消",
+      ) as HTMLButtonElement;
+      cancel.type = "button";
+      cancel.addEventListener("click", () => callbacks.onCancelRequest?.(row));
+      record.append(cancel);
+    }
     tbody.append(tr);
   }
   table.append(thead, tbody);
@@ -606,6 +664,7 @@ function renderTerminalTable(
         model.requestAppId,
         callbacks,
         false,
+        model.loginUserCode,
       ),
     );
     tr.append(
@@ -782,6 +841,7 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
         (model.pendingStartRequests === null ? null : []),
       recentTerminalRuns: model.recentTerminalRuns ?? null,
       stateAppId: model.stateAppId ?? "",
+      loginUserCode: model.loginUserCode ?? "",
     };
   }
   const legacy = model as unknown as {
@@ -814,6 +874,7 @@ function normalizeLegacyModel(model: BoardViewModel): BoardViewModel {
     stateAppId: "",
     requestEnabled: false,
     requestAppId: null,
+    loginUserCode: "",
     judgedAt: legacy.judgedAt ?? 0,
     state: legacy.state,
     rows,
@@ -997,6 +1058,8 @@ export function renderBoard(
       model.pendingStartRequests ?? [],
       model.terminalStartRequests ?? [],
       model.requestAppId,
+      model.loginUserCode,
+      callbacks,
     );
     pendingStartTable.id = "ksql-flownet-start-request-content";
     pendingStart.append(
@@ -1009,6 +1072,17 @@ export function renderBoard(
       ),
       pendingStartTable,
     );
+    const cancelled = pageDocument.createElement("a");
+    cancelled.className = "ksql-flownet-pending";
+    cancelled.textContent =
+      "取消済みSTART要求は操作要求アプリの「03_取消済み」一覧で確認してください。";
+    cancelled.setAttribute(
+      "href",
+      `/k/${model.requestAppId}/?query=${encodeURIComponent(
+        'request_type in ("START") and request_state in ("CANCELLED")',
+      )}`,
+    );
+    pendingStart.append(cancelled);
     board.append(pendingStart);
   }
 
@@ -1169,6 +1243,7 @@ export function renderDetail(
         model.requestAppId,
         { onReload: () => {}, ...callbacks },
         model.allowRerunFromNode,
+        "",
       ),
     );
     if (model.terminal && row.status !== "SUCCESS") {

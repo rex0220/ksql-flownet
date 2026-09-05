@@ -6,6 +6,7 @@ import vm from "node:vm";
 import {
   createKintoneFetchRecords,
   createKintonePostRecord,
+  createKintonePutCancelRequested,
 } from "../../dist/plugin/desktop.js";
 
 const bundlePath = new globalThis.URL(
@@ -130,7 +131,7 @@ test("desktopバンドルへ設定画面コードを混入させない(2026-09-0
   );
 });
 
-test("runtime adapters allow only form fields GET, records GET, and single-record POST", async () => {
+test("runtime adapters allow reads, single-record POST, and cancel-only single-record PUT", async () => {
   const calls = [];
   const api = async (url, method, body) => {
     calls.push({ url, method, body });
@@ -152,6 +153,7 @@ test("runtime adapters allow only form fields GET, records GET, and single-recor
       reason: { value: "reason" },
     },
   });
+  await createKintonePutCancelRequested({ api })(300, "41", "7");
   await createKintonePostRecord({ api })({
     app: 300,
     record: {
@@ -174,8 +176,9 @@ test("runtime adapters allow only form fields GET, records GET, and single-recor
     "request|/k/v1/records.json|GET",
     "log|/k/v1/records.json|GET",
     "request|/k/v1/record.json|POST",
+    "request|/k/v1/record.json|PUT",
   ]);
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 7);
   for (const { url, method, body } of calls) {
     const role = roles.get(body.app);
     assert.ok(role, `unknown app role: ${body.app}`);
@@ -193,10 +196,19 @@ test("runtime adapters allow only form fields GET, records GET, and single-recor
         ].includes(fields.join(",")),
       );
     }
+    if (method === "PUT") {
+      assert.equal(role, "request");
+      assert.deepEqual(body, {
+        app: 300,
+        id: "41",
+        revision: "7",
+        record: { cancel_requested: { value: ["取消"] } },
+      });
+    }
   }
 });
 
-test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
+test("desktop bundle contains no cursor, bulk or DELETE API, and exactly one PUT literal (cancel_requested only)", () => {
   const desktop = readFileSync(
     new globalThis.URL("../../plugin/dist/desktop.js", import.meta.url),
     "utf8",
@@ -204,11 +216,15 @@ test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
   for (const [label, pattern] of [
     ["cursor", /\/k\/v1\/records\/cursor\.json/u],
     ["bulk", /\/k\/v1\/bulkRequest\.json/u],
-    ["PUT", /["']PUT["']/u],
     ["DELETE", /["']DELETE["']/u],
   ]) {
     assert.doesNotMatch(desktop, pattern, label);
   }
+  assert.equal(
+    (desktop.match(/["']PUT["']/gu) ?? []).length,
+    1,
+    "exactly one PUT literal: the cancel_requested fixed builder",
+  );
   const endpoints = [...desktop.matchAll(/\/k\/v1\/[A-Za-z/]+\.json/gu)].map(
     (match) => match[0],
   );
@@ -218,4 +234,9 @@ test("desktop bundle contains no cursor, bulk, PUT or DELETE API", () => {
     "/k/v1/record.json",
     "/k/v1/records.json",
   ]);
+  assert.match(
+    desktop,
+    /cancel_requested/u,
+    "dedicated cancel update is bundled",
+  );
 });

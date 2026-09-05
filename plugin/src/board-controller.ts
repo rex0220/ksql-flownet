@@ -10,10 +10,7 @@ import {
   type CancelActionDetails,
   type RunActionAttributes,
 } from "./activity-input.js";
-import {
-  decideBoardAction,
-  type PendingActionSummary,
-} from "./board-action.js";
+import { decideBoardAction } from "./board-action.js";
 import { deriveRunActivity } from "./activity-entry.js";
 import { loadErrorSummaries } from "./error-summary.js";
 import {
@@ -30,6 +27,7 @@ import {
   loadPendingRequests,
   loadPendingStartRequests,
   loadTerminalStartRequests,
+  type PendingRequest,
   type PendingStartRequest,
   type TerminalStartRequest,
 } from "./request-client.js";
@@ -94,6 +92,7 @@ export interface ActivityLoadDependencies {
   readonly requestAppId?: string;
   readonly logAppId?: string;
   readonly nowMs?: () => number;
+  readonly getLoginUser?: () => { readonly code: string };
 }
 
 interface CancelResult {
@@ -267,10 +266,11 @@ async function readSupportingRecords(
       evidence = cancel.evidence.get(run.runId) ?? "Cancel要求あり";
     }
     const attributes = actionAttributes(run);
-    const releaseInfoError =
-      activity === "STOPPED"
-        ? (cancel.detailErrors.get(run.runId) ?? null)
-        : null;
+    const cancelState = cancel.states.get(run.runId) ?? null;
+    const hasHold = cancelState === "REQUESTED" || cancelState === "ACCEPTED";
+    const releaseInfoError = hasHold
+      ? (cancel.detailErrors.get(run.runId) ?? null)
+      : null;
     const judgementError =
       rowError !== null ||
       run.actionAttributes === null ||
@@ -298,6 +298,7 @@ async function readSupportingRecords(
         activity,
         resumeAllowed: attributes.resumeAllowed,
         lifecycleStatus: attributes.lifecycleStatus,
+        hasHold,
         judgementError,
       }),
     };
@@ -358,29 +359,53 @@ async function loadAttentionSection(
       dependencies.fetchRecords,
       dependencies.stateAppId,
     );
-    const summaries = await loadErrorSummaries(
-      dependencies.fetchRecords,
-      dependencies.stateAppId,
-      dependencies.auditAppId,
-      loaded.runs.map((run) => run.runId),
-      dependencies.logAppId,
-    );
+    const runIds = loaded.runs.map((run) => run.runId);
+    const [summaries, cancelRecords] = await Promise.all([
+      loadErrorSummaries(
+        dependencies.fetchRecords,
+        dependencies.stateAppId,
+        dependencies.auditAppId,
+        runIds,
+        dependencies.logAppId,
+      ),
+      runIds.length === 0
+        ? Promise.resolve([] as readonly KintoneRecord[])
+        : readAllByChunks(dependencies.fetchRecords, {
+            app: dependencies.stateAppId,
+            baseQuery: 'record_type in ("CANCEL_REQUEST")',
+            field: "run_id",
+            values: runIds,
+            fields: CANCEL_FIELDS,
+          }),
+    ]);
+    const cancel = parseCancels(cancelRecords, new Set(runIds));
     return {
       section: readySection(
-        loaded.runs.map((run) => ({
-          ...run,
-          recordUrl: `/k/${dependencies.stateAppId}/show#record=${run.recordId}`,
-          activity: null,
-          actionError: null,
-          cancelDetails: null,
-          errorSummary: summaries.get(run.runId) ?? { state: "unavailable" },
-          action: decideBoardAction({
-            status: run.status,
+        loaded.runs.map((run) => {
+          const state = cancel.states.get(run.runId) ?? null;
+          const hasHold = state === "REQUESTED" || state === "ACCEPTED";
+          const actionError =
+            cancel.errors.get(run.runId) ??
+            (hasHold && run.status !== "UNKNOWN"
+              ? (cancel.detailErrors.get(run.runId) ?? null)
+              : null);
+          return {
+            ...run,
+            recordUrl: `/k/${dependencies.stateAppId}/show#record=${run.recordId}`,
             activity: null,
-            resumeAllowed: run.resumeAllowed,
-            lifecycleStatus: run.lifecycleStatus,
-          }),
-        })),
+            actionError,
+            cancelDetails: cancel.details.get(run.runId) ?? null,
+            errorSummary: summaries.get(run.runId) ?? { state: "unavailable" },
+            action: decideBoardAction({
+              status: run.status,
+              activity: null,
+              resumeAllowed: run.resumeAllowed,
+              lifecycleStatus: run.lifecycleStatus,
+              hasHold,
+              judgementError: actionError !== null,
+            }),
+          };
+        }),
       ),
       remaining: loaded.remainingCount,
     };
@@ -396,7 +421,7 @@ async function loadAttentionSection(
 
 function applyPending<T extends ActivityRowViewModel | TerminalRowViewModel>(
   rows: readonly T[],
-  pending: ReadonlyMap<string, PendingActionSummary>,
+  pending: ReadonlyMap<string, readonly PendingRequest[]>,
 ): readonly T[] {
   return rows.map((row) => ({
     ...row,
@@ -405,6 +430,9 @@ function applyPending<T extends ActivityRowViewModel | TerminalRowViewModel>(
       activity: row.activity,
       resumeAllowed: row.resumeAllowed,
       lifecycleStatus: row.lifecycleStatus,
+      hasHold:
+        row.cancelDetails?.state === "REQUESTED" ||
+        row.cancelDetails?.state === "ACCEPTED",
       pending: pending.get(row.runId) ?? null,
       judgementError: row.action.kind === "invalid",
     }),
@@ -507,6 +535,7 @@ export async function loadBoard(
     stateAppId: String(dependencies.stateAppId),
     requestEnabled,
     requestAppId: requestEnabled ? requestConfig.value : null,
+    loginUserCode: dependencies.getLoginUser?.().code ?? "",
     judgedAt: nowMs,
     // P2-08の外部単体利用との互換値。描画の正本はsection model。
     state: active.state,

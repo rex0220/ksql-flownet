@@ -2,6 +2,7 @@ import {
   parseRequestRecord,
   REQUEST_VALUE_LIMITS,
   type RequestRecord,
+  type RequestState,
   type RequestType,
 } from "../../src/requests/request-model.js";
 import {
@@ -34,8 +35,16 @@ export const PENDING_REQUEST_BASE_QUERY =
   'request_state in ("REQUESTED", "ACCEPTED")';
 export const PENDING_REQUEST_FIELDS = [
   "$id",
+  "$revision",
   "run_id",
+  "network_id",
+  "business_key",
+  "scheduled_for",
+  "request_type",
   "request_state",
+  "作成者",
+  "reason",
+  "cancel_requested",
 ] as const;
 export const PENDING_MAX_VALUES = 100;
 export const PENDING_MAX_CONDITION_LENGTH = 1_000;
@@ -59,50 +68,104 @@ export const REQUEST_READBACK_FIELDS = [
   "claim_heartbeat_at",
   "result_code",
   "result_message",
+  "cancel_requested",
 ] as const;
 
-interface PendingRequest {
-  readonly id: string;
-  readonly runId: string;
-}
+export type PendingRequestTarget =
+  | { readonly runId: string }
+  | {
+      readonly networkId: string;
+      readonly businessKey: string | null;
+      readonly scheduledFor: string | null;
+    };
 
-export interface PendingRequestSummary {
-  readonly oldestId: string;
-  readonly count: number;
-  readonly label: string;
+export interface PendingRequest {
+  readonly id: string;
+  readonly revision: string;
+  readonly requestType: RequestType;
+  readonly requestState: "REQUESTED" | "ACCEPTED";
+  readonly creatorCode: string;
+  readonly reason: string;
+  readonly target: PendingRequestTarget;
+  readonly cancelRequested: boolean;
 }
 
 export type PendingLoadResult =
   | {
       readonly state: "ready";
-      readonly byRunId: ReadonlyMap<string, PendingRequestSummary>;
+      readonly byRunId: ReadonlyMap<string, readonly PendingRequest[]>;
     }
   | {
       readonly state: "unavailable";
-      readonly byRunId: ReadonlyMap<string, PendingRequestSummary>;
+      readonly byRunId: ReadonlyMap<string, readonly PendingRequest[]>;
       readonly warning: string;
     };
 
-function parsePendingRequest(record: KintoneRecord): PendingRequest {
+function parseCreatorCode(record: KintoneRecord, context: string): string {
+  const creator = fieldValue(record, "作成者");
+  if (
+    typeof creator !== "object" ||
+    creator === null ||
+    !("code" in creator) ||
+    typeof creator.code !== "string" ||
+    creator.code.trim() === ""
+  ) {
+    throw new KintoneRecordError(`invalid ${context} creator`);
+  }
+  return creator.code;
+}
+
+function parseCancelRequested(record: KintoneRecord): boolean {
+  const value = fieldValue(record, "cancel_requested");
+  if (
+    !Array.isArray(value) ||
+    value.length > 1 ||
+    value.some((item) => item !== "取消")
+  ) {
+    throw new KintoneRecordError("invalid cancel_requested");
+  }
+  return value.length === 1;
+}
+
+function parseRunPendingRequest(record: KintoneRecord): PendingRequest {
   const id = requiredText(record, "$id");
   if (!/^[1-9][0-9]*$/.test(id)) {
     throw new KintoneRecordError("invalid pending request record ID");
   }
-  requireLiteral(record, "request_state", ["REQUESTED", "ACCEPTED"] as const);
-  return { id, runId: requiredText(record, "run_id") };
+  const requestType = requireLiteral(record, "request_type", [
+    "RERUN",
+    "STOP",
+    "RELEASE",
+    "CLOSE",
+  ] as const);
+  return {
+    id,
+    revision: requiredText(record, "$revision"),
+    requestType,
+    requestState: requireLiteral(record, "request_state", [
+      "REQUESTED",
+      "ACCEPTED",
+    ] as const),
+    creatorCode: parseCreatorCode(record, "pending request"),
+    reason: requiredText(record, "reason"),
+    target: { runId: requiredText(record, "run_id") },
+    cancelRequested: parseCancelRequested(record),
+  };
 }
 
-function summarizePending(
+function groupPendingByRun(
   records: readonly PendingRequest[],
-): ReadonlyMap<string, PendingRequestSummary> {
+): ReadonlyMap<string, readonly PendingRequest[]> {
   const grouped = new Map<string, PendingRequest[]>();
   for (const record of records) {
-    const group = grouped.get(record.runId) ?? [];
+    if (!("runId" in record.target)) {
+      throw new KintoneRecordError("pending Run request has no run_id target");
+    }
+    const group = grouped.get(record.target.runId) ?? [];
     group.push(record);
-    grouped.set(record.runId, group);
+    grouped.set(record.target.runId, group);
   }
-  const summaries = new Map<string, PendingRequestSummary>();
-  for (const [runId, group] of grouped) {
+  for (const group of grouped.values()) {
     group.sort((left, right) =>
       BigInt(left.id) < BigInt(right.id)
         ? -1
@@ -110,19 +173,8 @@ function summarizePending(
           ? 1
           : 0,
     );
-    const oldest = group[0];
-    if (oldest === undefined) continue;
-    const count = group.length;
-    summaries.set(runId, {
-      oldestId: oldest.id,
-      count,
-      label:
-        count === 1
-          ? `要求処理待ち #${oldest.id}`
-          : `要求処理待ち ${count}件(最古 #${oldest.id})`,
-    });
   }
-  return summaries;
+  return grouped;
 }
 
 /** 1 page/chunkでも失敗した場合は、部分結果を一切返さない。 */
@@ -143,16 +195,22 @@ export async function loadPendingRequests(
       maxQueryLength: PENDING_MAX_CONDITION_LENGTH,
       maxFinalQueryLength: PENDING_MAX_FINAL_QUERY_LENGTH,
     });
-    const parsed = records.map(parsePendingRequest);
+    const parsed = records.map(parseRunPendingRequest);
     const requestedRunIds = new Set(runIds);
-    if (parsed.some((record) => !requestedRunIds.has(record.runId))) {
+    if (
+      parsed.some(
+        (record) =>
+          !("runId" in record.target) ||
+          !requestedRunIds.has(record.target.runId),
+      )
+    ) {
       throw new KintoneRecordError(
         "pending response contains a run_id outside the requested set",
       );
     }
     return {
       state: "ready",
-      byRunId: summarizePending(parsed),
+      byRunId: groupPendingByRun(parsed),
     };
   } catch {
     return {
@@ -214,6 +272,49 @@ export interface CreateRecordResponse {
 export type PostRecord = (
   request: CreateRequestBody,
 ) => Promise<CreateRecordResponse>;
+
+export interface CancelRequestedBody {
+  readonly app: number | string;
+  readonly id: string;
+  readonly revision: string;
+  readonly record: Readonly<{
+    cancel_requested: Readonly<{ value: readonly ["取消"] }>;
+  }>;
+}
+
+export type PutCancelRequested = (
+  app: number | string,
+  id: string,
+  revision: string,
+) => Promise<unknown>;
+
+export function buildCancelRequestedBody(
+  app: number | string,
+  id: string,
+  revision: string,
+): CancelRequestedBody {
+  if (!/^[1-9][0-9]*$/.test(id)) {
+    throw new KintoneRecordError("invalid request record ID");
+  }
+  if (!/^[1-9][0-9]*$/.test(revision)) {
+    throw new KintoneRecordError("invalid request revision");
+  }
+  return {
+    app,
+    id,
+    revision,
+    record: { cancel_requested: { value: ["取消"] } },
+  };
+}
+
+export function putCancelRequested(
+  putRecord: (body: CancelRequestedBody) => Promise<unknown>,
+  app: number | string,
+  id: string,
+  revision: string,
+): Promise<unknown> {
+  return putRecord(buildCancelRequestedBody(app, id, revision));
+}
 
 function assertValue(value: string, field: string, maximum: number): void {
   if (value.trim() === "") {
@@ -287,13 +388,15 @@ const START_PENDING_BASE_QUERY =
   'request_type in ("START") and request_state in ("REQUESTED", "ACCEPTED")';
 const START_PENDING_FIELDS = [
   "$id",
+  "$revision",
+  "request_type",
   "request_state",
   "network_id",
   "business_key",
   "scheduled_for",
   "reason",
   "作成者",
-  "作成日時",
+  "cancel_requested",
 ] as const;
 export const START_TERMINAL_QUERY =
   'request_type in ("START") and request_state in ("DONE", "REJECTED") order by $id desc limit 10';
@@ -339,16 +442,13 @@ export interface PendingStartSummary {
   readonly requests: readonly PendingStartRequest[];
 }
 
-export interface PendingStartRequest {
-  readonly id: string;
-  readonly requestState: "REQUESTED" | "ACCEPTED";
-  readonly networkId: string;
-  readonly businessKey: string | null;
-  readonly scheduledFor: string | null;
-  readonly reason: string;
-  readonly creatorName: string;
-  readonly createdAt: string;
-}
+export type PendingStartRequest = PendingRequest & {
+  readonly requestType: "START";
+  readonly target: Extract<
+    PendingRequestTarget,
+    { readonly networkId: string }
+  >;
+};
 
 export interface TerminalStartRequest {
   readonly id: string;
@@ -417,13 +517,17 @@ export async function loadPendingStartRequests(
       }
       return {
         id,
+        revision: requiredText(record, "$revision"),
+        requestType: requireLiteral(record, "request_type", ["START"] as const),
         requestState,
-        networkId: requiredText(record, "network_id"),
-        businessKey: nullableText(record, "business_key"),
-        scheduledFor: nullableText(record, "scheduled_for"),
+        target: {
+          networkId: requiredText(record, "network_id"),
+          businessKey: nullableText(record, "business_key"),
+          scheduledFor: nullableText(record, "scheduled_for"),
+        },
         reason: requiredText(record, "reason"),
-        creatorName: parseCreatorName(record, "pending START"),
-        createdAt: requiredText(record, "作成日時"),
+        creatorCode: parseCreatorCode(record, "pending START"),
+        cancelRequested: parseCancelRequested(record),
       };
     });
     return {
@@ -565,6 +669,43 @@ export async function guardPendingStartRequest(
         "START要求の重複確認ができませんでした(同じ要求が処理待ちの可能性があります)。",
     };
   }
+}
+
+export interface CancellationSnapshot {
+  readonly requestState: RequestState;
+  readonly cancelRequested: boolean;
+}
+
+export async function getCancellationSnapshot(
+  fetchRecords: FetchRecords,
+  requestAppId: number | string,
+  requestId: string,
+): Promise<CancellationSnapshot> {
+  if (!/^[1-9][0-9]*$/.test(requestId)) {
+    throw new KintoneRecordError("invalid request record ID");
+  }
+  const response = await fetchRecords({
+    app: requestAppId,
+    query: `$id = ${requestId} limit 1`,
+    fields: ["$id", "request_state", "cancel_requested"],
+  });
+  if (response.records.length !== 1) {
+    throw new KintoneRecordError("cancel readback must return one record");
+  }
+  const record = response.records[0];
+  if (record === undefined || requiredText(record, "$id") !== requestId) {
+    throw new KintoneRecordError("cancel readback ID does not match");
+  }
+  return {
+    requestState: requireLiteral(record, "request_state", [
+      "REQUESTED",
+      "ACCEPTED",
+      "DONE",
+      "REJECTED",
+      "CANCELLED",
+    ] as const),
+    cancelRequested: parseCancelRequested(record),
+  };
 }
 
 async function readCandidatePage(

@@ -3,23 +3,38 @@ import test from "node:test";
 
 import {
   buildCreateRequestBody,
+  buildCancelRequestedBody,
   createRequest,
   guardPendingRequest,
   loadPendingStartRequests,
   loadPendingRequests,
   loadTerminalStartRequests,
   PENDING_MAX_FINAL_QUERY_LENGTH,
+  PENDING_REQUEST_FIELDS,
+  putCancelRequested,
   RequestPostError,
+  START_TERMINAL_QUERY,
 } from "../../dist/plugin/request-client.js";
+import { createKintonePutCancelRequested } from "../../dist/plugin/desktop.js";
 
 const field = (value) => ({ value });
 const pending = (id, runId, state = "REQUESTED") => ({
   $id: field(String(id)),
+  $revision: field("7"),
   run_id: field(runId),
+  network_id: field(""),
+  business_key: field(""),
+  scheduled_for: field(""),
+  request_type: field("RERUN"),
   request_state: field(state),
+  作成者: field({ code: "operator@example.test", name: "運用担当" }),
+  reason: field("operator reason"),
+  cancel_requested: field([]),
 });
 const pendingStart = (id, overrides = {}) => ({
   $id: field(String(id)),
+  $revision: field("8"),
+  request_type: field("START"),
   request_state: field("REQUESTED"),
   network_id: field("monthly"),
   business_key: field("monthly@2026-09"),
@@ -27,10 +42,11 @@ const pendingStart = (id, overrides = {}) => ({
   reason: field("operator reason"),
   作成者: field({ code: "operator@example.test", name: "運用担当" }),
   作成日時: field("2026-09-01T00:00:00Z"),
+  cancel_requested: field([]),
   ...overrides,
 });
 
-test("3 request types use only the fixed human-owned POST fields", () => {
+test("4 Run request types use only the fixed human-owned POST fields", () => {
   const rerun = buildCreateRequestBody("request-app", {
     requestType: "RERUN",
     runId: "run_1",
@@ -46,7 +62,7 @@ test("3 request types use only the fixed human-owned POST fields", () => {
       rerun_from_node: field("node_2"),
     },
   });
-  for (const requestType of ["STOP", "RELEASE"]) {
+  for (const requestType of ["STOP", "RELEASE", "CLOSE"]) {
     const body = buildCreateRequestBody(300, {
       requestType,
       runId: "run_1",
@@ -136,7 +152,7 @@ test("pending GET covers REQUESTED/ACCEPTED, chunks, escapes and final query lim
   assert.ok(queries.some((query) => query.includes('attack\\"\\\\value')));
 });
 
-test("pending records page at 500 and collapse duplicates to oldest ID plus count", async () => {
+test("pending records page at 500 and preserves every request in ID order", async () => {
   let calls = 0;
   const result = await guardPendingRequest(
     async (request) => {
@@ -159,10 +175,19 @@ test("pending records page at 500 and collapse duplicates to oldest ID plus coun
   );
   assert.equal(calls, 2);
   assert.equal(result.state, "ready");
-  assert.deepEqual(result.byRunId.get("run_1"), {
-    oldestId: "2",
-    count: 501,
-    label: "要求処理待ち 501件(最古 #2)",
+  const requests = result.byRunId.get("run_1");
+  assert.equal(requests.length, 501);
+  assert.equal(requests[0].id, "2");
+  assert.equal(requests.at(-1).id, "1000");
+  assert.deepEqual(requests[0], {
+    id: "2",
+    revision: "7",
+    requestType: "RERUN",
+    requestState: "REQUESTED",
+    creatorCode: "operator@example.test",
+    reason: "operator reason",
+    target: { runId: "run_1" },
+    cancelRequested: false,
   });
 });
 
@@ -193,7 +218,7 @@ test("any pending chunk failure discards all partial results and fails open", as
   assert.equal(outside.byRunId.size, 0);
 });
 
-test("pending START details parse creator/date/nulls while count and oldestId remain compatible", async () => {
+test("pending START uses the common request-unit model", async () => {
   const gets = [];
   const result = await loadPendingStartRequests(async (request) => {
     gets.push(request);
@@ -216,35 +241,92 @@ test("pending START details parse creator/date/nulls while count and oldestId re
   assert.deepEqual(result.summary.requests, [
     {
       id: "41",
+      revision: "8",
+      requestType: "START",
       requestState: "REQUESTED",
-      networkId: "monthly",
-      businessKey: "monthly@2026-09",
-      scheduledFor: "2026-09-01T01:23:00Z",
+      target: {
+        networkId: "monthly",
+        businessKey: "monthly@2026-09",
+        scheduledFor: "2026-09-01T01:23:00Z",
+      },
       reason: "operator reason",
-      creatorName: "運用担当",
-      createdAt: "2026-09-01T00:00:00Z",
+      creatorCode: "operator@example.test",
+      cancelRequested: false,
     },
     {
       id: "42",
+      revision: "8",
+      requestType: "START",
       requestState: "ACCEPTED",
-      networkId: "monthly",
-      businessKey: null,
-      scheduledFor: null,
+      target: { networkId: "monthly", businessKey: null, scheduledFor: null },
       reason: "operator reason",
-      creatorName: "第二担当",
-      createdAt: "2026-09-01T02:34:00Z",
+      creatorCode: "second@example.test",
+      cancelRequested: false,
     },
   ]);
   assert.deepEqual(gets[0].fields, [
     "$id",
+    "$revision",
+    "request_type",
     "request_state",
     "network_id",
     "business_key",
     "scheduled_for",
     "reason",
     "作成者",
-    "作成日時",
+    "cancel_requested",
   ]);
+});
+
+test("cancel PUT is one fixed single-record call with revision and one checkbox field", async () => {
+  const calls = [];
+  await putCancelRequested(
+    async (body) => {
+      calls.push(body);
+      return { revision: "8" };
+    },
+    300,
+    "41",
+    "7",
+  );
+  assert.deepEqual(calls, [
+    {
+      app: 300,
+      id: "41",
+      revision: "7",
+      record: { cancel_requested: { value: ["取消"] } },
+    },
+  ]);
+  assert.deepEqual(buildCancelRequestedBody(300, "41", "7"), calls[0]);
+  assert.deepEqual(Object.keys(calls[0].record), ["cancel_requested"]);
+  assert.throws(() => buildCancelRequestedBody(300, "41", ""), /revision/u);
+
+  const runtimeCalls = [];
+  const api = async (url, method, body) => {
+    runtimeCalls.push({ url, method, body });
+    return {};
+  };
+  api.url = (path) => path;
+  const runtimePut = createKintonePutCancelRequested({ api });
+  await runtimePut(300, "41", "7");
+  assert.equal(runtimeCalls.length, 1);
+  assert.equal(runtimeCalls[0].method, "PUT");
+  assert.equal(runtimeCalls[0].url, "/k/v1/record.json");
+  assert.deepEqual(runtimeCalls[0].body, calls[0]);
+  assert.equal(Object.hasOwn(runtimePut, "delete"), false);
+});
+
+test("pending fields include cancellation identity and START histories exclude CANCELLED", () => {
+  for (const required of [
+    "$revision",
+    "作成者",
+    "request_type",
+    "reason",
+    "cancel_requested",
+  ]) {
+    assert.ok(PENDING_REQUEST_FIELDS.includes(required), required);
+  }
+  assert.doesNotMatch(START_TERMINAL_QUERY, /CANCELLED/u);
 });
 
 test("terminal START GET is limited newest-first and parses result fields", async () => {

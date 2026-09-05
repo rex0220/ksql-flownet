@@ -7,8 +7,11 @@ import type { BoardRequestAction } from "./board-action.js";
 import type { FetchRecords } from "./kintone-reader.js";
 import {
   createRequest,
+  getCancellationSnapshot,
   guardPendingRequest,
+  type PendingRequest,
   type PostRecord,
+  type PutCancelRequested,
 } from "./request-client.js";
 
 export interface RequestDialogTarget {
@@ -17,6 +20,7 @@ export interface RequestDialogTarget {
   readonly allowRerunFromNode: boolean;
   readonly interrupted: boolean;
   readonly cancelDetails: CancelActionDetails | null;
+  readonly terminal: boolean;
 }
 
 export interface RequestDialogOptions {
@@ -33,10 +37,21 @@ export interface RequestDialogHandle {
   close(): void;
 }
 
+export interface CancelRequestDialogOptions {
+  readonly pageDocument: Document;
+  readonly host: HTMLElement;
+  readonly requestAppId: string;
+  readonly request: PendingRequest;
+  readonly fetchRecords: FetchRecords;
+  readonly putCancelRequested: PutCancelRequested;
+  readonly onCompleted: () => void;
+}
+
 const ACTION_NAME: Readonly<Record<BoardRequestAction, string>> = {
   RERUN: "リラン要求",
   STOP: "停止要求",
   RELEASE: "解除要求",
+  CLOSE: "クローズ要求",
 };
 
 export function dialogNode(
@@ -91,6 +106,130 @@ export function definitionList(
   return list;
 }
 
+export function cancellationResultMessage(snapshot: {
+  readonly requestState: string;
+  readonly cancelRequested: boolean;
+}): string {
+  if (snapshot.requestState === "REQUESTED") {
+    return snapshot.cancelRequested
+      ? "取消受付済み・終端化待ち"
+      : "取消できませんでした。現在も未受付です。再試行してください。";
+  }
+  return "処理開始済み・取消不可";
+}
+
+function cancellationTargetText(request: PendingRequest): string {
+  if ("runId" in request.target) return `Run ID: ${request.target.runId}`;
+  return [
+    `network_id: ${request.target.networkId}`,
+    request.target.businessKey === null
+      ? null
+      : `business_key: ${request.target.businessKey}`,
+    request.target.scheduledFor === null
+      ? null
+      : `scheduled_for: ${request.target.scheduledFor}`,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(" / ");
+}
+
+export function openCancelRequestDialog(
+  options: CancelRequestDialogOptions,
+): RequestDialogHandle {
+  const { pageDocument, request } = options;
+  pageDocument.getElementById("ksql-flownet-cancel-dialog")?.remove();
+  const overlay = node(pageDocument, "div", "ksql-flownet-dialog-overlay");
+  overlay.id = "ksql-flownet-cancel-dialog";
+  const dialog = node(pageDocument, "section", "ksql-flownet-dialog");
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-labelledby", "ksql-flownet-cancel-dialog-title");
+  const header = node(pageDocument, "header", "ksql-flownet-dialog-header");
+  const heading = node(pageDocument, "div", "ksql-flownet-dialog-heading");
+  heading.append(
+    node(pageDocument, "span", "ksql-flownet-dialog-product", "kSQL-FlowNet"),
+  );
+  const title = node(
+    pageDocument,
+    "h2",
+    "ksql-flownet-dialog-title",
+    "要求の取消",
+  );
+  title.id = "ksql-flownet-cancel-dialog-title";
+  heading.append(title);
+  header.append(heading);
+  const content = node(pageDocument, "div", "ksql-flownet-dialog-content");
+  content.append(
+    definitionList(pageDocument, [
+      ["要求種別:", request.requestType],
+      ["対象:", cancellationTargetText(request), true],
+      ["理由:", request.reason],
+    ]),
+    node(
+      pageDocument,
+      "p",
+      "ksql-flownet-warning",
+      "取消は元に戻せません。再度実行するには新規に起票してください",
+    ),
+  );
+  const result = node(pageDocument, "p", "ksql-flownet-error-detail");
+  content.append(result);
+  const footer = node(pageDocument, "footer", "ksql-flownet-dialog-footer");
+  const close = node(
+    pageDocument,
+    "button",
+    "ksql-flownet-dialog-close",
+    "閉じる",
+  ) as HTMLButtonElement;
+  close.type = "button";
+  close.addEventListener("click", () => overlay.remove());
+  const send = node(
+    pageDocument,
+    "button",
+    "ksql-flownet-action",
+    "取消を確定",
+  ) as HTMLButtonElement;
+  send.type = "button";
+  let sending = false;
+  send.addEventListener("click", () => {
+    if (sending) return;
+    sending = true;
+    send.disabled = true;
+    result.textContent = "";
+    void options
+      .putCancelRequested(options.requestAppId, request.id, request.revision)
+      .then(() => {
+        result.className = "ksql-flownet-success";
+        result.textContent =
+          "取消を受け付けました。次のポーラー周期で CANCELLED になります";
+        footer.replaceChildren(close);
+        options.onCompleted();
+      })
+      .catch(() =>
+        getCancellationSnapshot(
+          options.fetchRecords,
+          options.requestAppId,
+          request.id,
+        )
+          .then((snapshot) => {
+            result.textContent = cancellationResultMessage(snapshot);
+            footer.replaceChildren(close);
+          })
+          .catch(() => {
+            result.textContent =
+              "取消結果を確認できません。処理開始済みの可能性があります。要求一覧で確認してください。";
+            footer.replaceChildren(close);
+          }),
+      );
+  });
+  footer.append(close, send);
+  dialog.append(header, content, footer);
+  overlay.append(dialog);
+  options.host.append(overlay);
+  send.focus();
+  return { close: () => overlay.remove() };
+}
+
 function releaseContext(
   pageDocument: Document,
   details: CancelActionDetails,
@@ -110,7 +249,16 @@ function cautionText(target: RequestDialogTarget): readonly string[] {
     return ["停止は次のノード境界まで効きません(実行中SQLは完走します)。"];
   }
   if (target.action === "RELEASE") {
-    return ["本人に確認しましたか?", "解除後、次の定期resumeが再開し得ます。"];
+    return [
+      "本人に確認しましたか?",
+      "解除後、次の定期resumeが再開し得ます。",
+      ...(target.terminal ? ["解除後にリラン要求を出してください。"] : []),
+    ];
+  }
+  if (target.action === "CLOSE") {
+    return [
+      "以後この Run は再開できません。再集計は補正キーで新規実行してください。",
+    ];
   }
   if (target.interrupted) {
     return [
@@ -247,7 +395,9 @@ export function openRequestDialog(
       ).then((guard) => {
         if (guard.state === "ready") {
           const existing = guard.byRunId.get(target.runId);
-          if (existing !== undefined) {
+          const pendingRequests = existing ?? [];
+          const oldest = pendingRequests[0];
+          if (oldest !== undefined) {
             content.replaceChildren(
               node(
                 pageDocument,
@@ -260,8 +410,10 @@ export function openRequestDialog(
               pageDocument,
               content,
               options.requestAppId,
-              existing.oldestId,
-              existing.label,
+              oldest.id,
+              pendingRequests.length === 1
+                ? `要求処理待ち #${oldest.id}`
+                : `要求処理待ち ${pendingRequests.length}件(最古 #${oldest.id})`,
             );
             renderFooter();
             return;
