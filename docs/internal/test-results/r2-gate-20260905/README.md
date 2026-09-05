@@ -28,4 +28,5 @@ CSV系E2E(csv1×4+csv2×4)は csv1/csv2-20260904 で合格済みのコードか�
 ## 凍結
 
 - tag 候補コミット: 本記録+本番適用記録の commit(main 先端)。以後のコード変更は R2 をやり直す
+- 例外として記録: 本番適用中に、プラグイン起動ログの版表示がハードコード `v2` で manifest(1)と食い違うことが判明し、build 時に manifest version を埋め込む修正(plugin/scripts/build.mjs・plugin/src/desktop.ts のログ 1 行)を入れた。src/ とポーラー・CLI は不変で、E2E はプラグイン bundle を実行しないため E2E は再実行せず、単体 575 件・typecheck・lint・build:plugin・pack:plugin の再実行で確認した
 - 本番適用(要求アプリ追補・プラグイン更新・VPS `92bad60`・smoke)の記録は [p2-16-production-20260905](../p2-16-production-20260905/README.md)
