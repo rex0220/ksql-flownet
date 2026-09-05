@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 
-const templatePath = resolve("templates/add-request-lifecycle-v2.console.js");
+const templatePath = resolve(
+  "templates/console/migrations/add-request-lifecycle-v2.console.js",
+);
 const aclCodes = [
   "request_state",
   "claimed_at",

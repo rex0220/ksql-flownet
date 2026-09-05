@@ -205,7 +205,7 @@ node tests\e2e\m7-04-windows-sigbreak.mjs
 
 P2-01の実機受入は、本番の操作要求アプリとは別のE2E専用アプリで行います。アプリ名は`kSQL-FlowNet 操作要求 P2-01 E2E`とし、profile `e2e`、FlowNet state/auditのスパイクアプリ、E2E JOBログアプリだけへ接続してください。ハーネスはprofile `prod`、本番アプリID 4261/4262/4249、本番要求アプリと同じID/token、`KSQL_FLOW_TEST_`以外のnetwork/node/job IDをpreflightで拒否します。
 
-作成手順: `templates/create-flownet-request-app.console.js`を一時コピーし、コピーの`APP_NAME`だけを`"kSQL-FlowNet 操作要求 P2-01 E2E"`へ変更してブラウザConsoleで実行します（正本テンプレート自体は変更しません）。
+作成手順: `templates/console/create-flownet-request-app.console.js`を一時コピーし、コピーの`APP_NAME`だけを`"kSQL-FlowNet 操作要求 P2-01 E2E"`へ変更してブラウザConsoleで実行します（正本テンプレート自体は変更しません）。
 
 作成後は`templates/README.md`のフィールド、一覧、ACLを照合します。P2-01 E2Eでは次の2 tokenをE2E要求アプリ専用で発行します。本番ポーラーtokenは追加・削除権限を持たせません。
 
@@ -247,7 +247,7 @@ node tests\e2e\p2-01-06-get-failclosed.mjs
 
 ## P2-11 START要求E2E
 
-P2-11はP2-01と同じE2E専用操作要求アプリ・環境変数・本番ID拒否・token分離を使用します。先に`templates/add-start-fields.console.js`をE2E要求アプリへ適用し、`START`、`network_id`、`business_key`、`scheduled_for`、任意化された`run_id`、対象2一覧を確認してください。実行中に使うallowlistはスクリプトが一時生成し、START対象だけへ`app_start: true`を明示します。
+P2-11はP2-01と同じE2E専用操作要求アプリ・環境変数・本番ID拒否・token分離を使用します。先に`templates/console/migrations/add-start-fields.console.js`をE2E要求アプリへ適用し、`START`、`network_id`、`business_key`、`scheduled_for`、任意化された`run_id`、対象2一覧を確認してください。実行中に使うallowlistはスクリプトが一時生成し、START対象だけへ`app_start: true`を明示します。
 
 fixtureは次の2件です。全Nodeが`idempotent: true`で、顧客管理・案件管理は参照だけを行います。JOBログアプリは既存どおり書込み結果の照合だけに使用し、E2Eから削除しません。非冪等networkは計画どおり単体S03だけで担保します。
 
@@ -275,7 +275,7 @@ node tests\e2e\p2-11-05-stale-regression.mjs
 
 ## P2-16 操作要求ライフサイクル v2 E2E
 
-P2-16 M3は、処理前取消、終端Runのhold解除、CLOSE、claim/取消およびCLOSE/RERUNの競合をCLI・ポーラー・API直接起票で確認します。ボードUIは使用しません。P2-01/P2-11と同じE2E専用操作要求アプリ、`KSQL_FLOW_TEST_` scope、token分離、安全境界を使用します。実行前に`templates/add-request-lifecycle-v2.console.js`をE2E要求アプリへ適用し、`CLOSE`、`CANCELLED`、`cancel_requested`、`03_取消済み`、フィールドアクセス権が反映済みであることを確認してください。
+P2-16 M3は、処理前取消、終端Runのhold解除、CLOSE、claim/取消およびCLOSE/RERUNの競合をCLI・ポーラー・API直接起票で確認します。ボードUIは使用しません。P2-01/P2-11と同じE2E専用操作要求アプリ、`KSQL_FLOW_TEST_` scope、token分離、安全境界を使用します。実行前に`templates/console/migrations/add-request-lifecycle-v2.console.js`をE2E要求アプリへ適用し、`CLOSE`、`CANCELLED`、`cancel_requested`、`03_取消済み`、フィールドアクセス権が反映済みであることを確認してください。
 
 追加fixture `network-p216-longfail.yaml` は、n1で顧客管理4246と案件管理4247を長時間読み取った後に決定的`ASSERT_FAILED`となり、n2を依存Nodeとして`BLOCKED`にします。SQLは`CREATE TEMP TABLE` / `SELECT` / `ASSERT`だけで、業務アプリへの書込みとIO入出力はありません。
 

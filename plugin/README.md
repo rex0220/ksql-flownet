@@ -46,7 +46,7 @@ npm exec -- kintone-plugin-packer --ppk "C:\Users\rex02\.ksql-flownet\flownet-ac
 1. kintoneシステム管理の「プラグイン」で、生成したzipを読み込みます。
 2. 対象の実行管理アプリの設定で、このプラグインを追加します。
 3. プラグイン設定では、関連レコードと異なるアプリを使う項目だけアプリIDを入力し、VPSで`app_start: true`にしたネットワークをSTART許可ネットワーク一覧へ登録して、アプリ設定を反映します。APIトークンは使用しません。
-4. [`templates/add-run-board-view.console.js`](../templates/add-run-board-view.console.js)を[`templates/README.md`](../templates/README.md)の手順で実行し、「00_Run状況」を追加します。
+4. [`templates/console/migrations/add-run-board-view.console.js`](../templates/console/migrations/add-run-board-view.console.js)を[`templates/README.md`](../templates/README.md)の手順で実行し、「00_Run状況」を追加します。
 5. ボードとNETWORK_RUN詳細を表示し、CLI `status --json`とのread-only smoke比較を行います。
 
 ## 更新手順(version 2)

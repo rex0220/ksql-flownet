@@ -7,7 +7,9 @@ import vm from "node:vm";
 import { buildCreateRequestBody } from "../../dist/plugin/request-client.js";
 import { parseRequestRecord } from "../../dist/requests/request-model.js";
 
-const templatePath = resolve("templates/create-flownet-request-app.console.js");
+const templatePath = resolve(
+  "templates/console/create-flownet-request-app.console.js",
+);
 
 async function evaluateTemplate({ existing = [] } = {}) {
   const calls = [];

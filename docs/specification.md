@@ -305,7 +305,7 @@ kintone の `$id`、`$revision`、`作成者`、`作成日時` もポーラー�
 `run_id`、`network_id`、`business_key`、`rerun_from_node`、`result_code` の入力上限は 128 Unicode 文字である。
 `reason` と `result_message` は 65,535 Unicode 文字、`claimed_host` は 256 Unicode 文字まで検証する。
 
-機械フィールド6種(`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`)のフィールドアクセス権は everyone 閲覧のみとする。`cancel_requested` は作成者を上位の編集可、everyone を閲覧のみとする。入力フィールドは作成時に入力できるようフィールド権限では固定せず、起票後の直接編集を運用違反とする。一覧には `01_未処理要求`、`02_拒否された要求` に加え、`request_state in ("CANCELLED")` の `03_取消済み` を置く。既存アプリへの追補は [`templates/add-request-lifecycle-v2.console.js`](../templates/add-request-lifecycle-v2.console.js)を使用する。
+機械フィールド6種(`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`)のフィールドアクセス権は everyone 閲覧のみとする。`cancel_requested` は作成者を上位の編集可、everyone を閲覧のみとする。入力フィールドは作成時に入力できるようフィールド権限では固定せず、起票後の直接編集を運用違反とする。一覧には `01_未処理要求`、`02_拒否された要求` に加え、`request_state in ("CANCELLED")` の `03_取消済み` を置く。既存アプリへの追補は [`templates/console/migrations/add-request-lifecycle-v2.console.js`](../templates/console/migrations/add-request-lifecycle-v2.console.js)を使用する。
 
 ### 3.5 テンプレート配布と関連レコード
 

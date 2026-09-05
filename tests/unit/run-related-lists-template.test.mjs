@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 const templatePath = new globalThis.URL(
-  "../../templates/add-run-related-lists.console.js",
+  "../../templates/console/migrations/add-run-related-lists.console.js",
   import.meta.url,
 );
 
