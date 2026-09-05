@@ -265,15 +265,25 @@ function actionContent(
       for (const pending of row.action.pending) {
         const pendingRow = element(pageDocument, "div", "ksql-flownet-pending");
         const label = `#${pending.id} ${pending.requestType} / ${pending.requestState}`;
-        pendingRow.append(
+        // 要求単位の表示は折り返し可の2行(見出し+起票者/理由)にする。
+        // 1行nowrapにすると操作列が横に伸びて他列を潰す(2026-09-05実機フィードバック)
+        const title = element(
+          pageDocument,
+          "div",
+          "ksql-flownet-pending-title",
+        );
+        title.append(
           requestAppId === null
             ? element(pageDocument, "span", undefined, label)
             : requestLink(pageDocument, requestAppId, pending.id, label),
+        );
+        pendingRow.append(
+          title,
           element(
             pageDocument,
-            "span",
-            undefined,
-            `起票者: ${pending.creatorCode} / 理由: ${pending.reason}`,
+            "div",
+            "ksql-flownet-pending-meta",
+            `起票者: ${pending.creatorCode} / 理由: ${limitDisplayValue(pending.reason)}`,
           ),
         );
         if (
