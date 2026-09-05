@@ -3,6 +3,7 @@ node_modules/
 *.log
 .env
 .env.*
+.env-*
 !.env.example
 tests/integration/results/
 tests/e2e/results/
