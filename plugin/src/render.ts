@@ -667,11 +667,31 @@ function renderTerminalTable(
         model.loginUserCode,
       ),
     );
+    // 終端Runに残った停止hold(P2-16)は activity が付かないため、状態セルにバッジで明示する。
+    // 手動(CLI)で作られたholdは操作要求アプリに要求レコードが無く、これが唯一の可視化になる。
+    const hold =
+      row.cancelDetails !== null &&
+      (row.cancelDetails.state === "REQUESTED" ||
+        row.cancelDetails.state === "ACCEPTED")
+        ? row.cancelDetails
+        : null;
+    const statusCell = element(pageDocument, "td", "ksql-flownet-cell-nowrap");
+    statusCell.append(element(pageDocument, "span", undefined, row.status));
+    if (hold !== null) {
+      statusCell.append(
+        element(
+          pageDocument,
+          "span",
+          "ksql-flownet-badge ksql-flownet-badge--stopped ksql-flownet-hold-badge",
+          "停止hold",
+        ),
+      );
+    }
     tr.append(
       recordCell(pageDocument, row),
       element(pageDocument, "td", undefined, row.businessKey),
       element(pageDocument, "td", undefined, row.runId),
-      element(pageDocument, "td", "ksql-flownet-cell-nowrap", row.status),
+      statusCell,
       element(
         pageDocument,
         "td",
@@ -689,6 +709,18 @@ function renderTerminalTable(
       actionCell,
     );
     tbody.append(tr);
+    if (hold !== null) {
+      const holdRow = element(pageDocument, "tr", "ksql-flownet-hold-row");
+      const holdCell = element(
+        pageDocument,
+        "td",
+        "ksql-flownet-hold-cell",
+        `停止hold(${hold.state}): 要求者 ${limitDisplayValue(hold.requestedBy)} / 理由 ${limitDisplayValue(hold.reason)} — 解除要求で解除してからリラン要求を出してください`,
+      );
+      holdCell.setAttribute("colspan", "7");
+      holdRow.append(holdCell);
+      tbody.append(holdRow);
+    }
     // エラー本文はメイン行に入れず全幅のサブ行で折り返し表示する
     // (1セルに長文を入れると表全体が崩れる — 2026-09-01実機フィードバック)
     const message = errorSummaryMessage(errorSummary);

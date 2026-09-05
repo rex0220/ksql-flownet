@@ -1073,3 +1073,73 @@ test("エラー本文はサブ行(colspan・折り返し)で表示し、概要�
   assert.ok(source.includes('setAttribute("colspan", "7")'));
   assert.ok(source.includes("ksql-flownet-error-message-row"));
 });
+
+test("terminal Run with a remaining hold renders a hold badge and a hold detail row (P2-16)", () => {
+  const document = new FakeDocument();
+  const root = new FakeElement("div", document);
+  const row = {
+    runId: "netrun_held",
+    recordId: "1602",
+    recordUrl: "/k/1/show#record=1602",
+    businessKey: "KSQL_FLOW_TEST_held_key",
+    status: "FAILED",
+    updatedAt: "2026-09-05T04:25:00Z",
+    activity: null,
+    resumeAllowed: true,
+    lifecycleStatus: "ACTIVE",
+    action: { kind: "actions", actions: ["RELEASE"] },
+    actionError: null,
+    cancelDetails: {
+      state: "REQUESTED",
+      requestedBy: "KSQL_FLOW_TEST_direct_requester",
+      reason: "UI受入用の停止要求",
+    },
+    errorSummary: { state: "ready", items: [] },
+  };
+  renderBoard(
+    root,
+    {
+      activeSection: { state: "ready", rows: [], error: null },
+      attentionSection: { state: "ready", rows: [row], error: null },
+      attentionRemainingCount: 0,
+      pendingWarning: null,
+      pendingStartCount: null,
+      pendingStartRequests: null,
+      terminalStartRequests: null,
+      requestEnabled: true,
+      requestAppId: "300",
+      loginUserCode: "operator@example.test",
+      judgedAt: Date.parse("2026-09-05T04:30:00Z"),
+      state: "ready",
+      rows: [],
+      error: null,
+    },
+    { onReload: () => {}, onAction: () => {} },
+  );
+  const text = allText(root);
+  assert.match(text, /停止hold\(REQUESTED\)/u);
+  assert.match(text, /要求者 KSQL_FLOW_TEST_direct_requester/u);
+  assert.match(text, /理由 UI受入用の停止要求/u);
+  assert.match(text, /解除要求で解除してからリラン要求/u);
+  assert.ok(
+    allNodes(root).some(
+      (node) =>
+        node.className ===
+          "ksql-flownet-badge ksql-flownet-badge--stopped ksql-flownet-hold-badge" &&
+        node.textContent === "停止hold",
+    ),
+  );
+  assert.equal(
+    allNodes(root).filter((node) => node.className === "ksql-flownet-hold-row")
+      .length,
+    1,
+  );
+  assert.equal(
+    allNodes(root).filter((node) => node.textContent === "解除要求").length,
+    1,
+  );
+  assert.equal(
+    allNodes(root).filter((node) => node.textContent === "リラン要求").length,
+    0,
+  );
+});

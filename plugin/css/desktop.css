@@ -187,6 +187,20 @@
   border-top: 2px solid #cfd7da;
 }
 
+.ksql-flownet-hold-badge {
+  margin-left: 6px;
+}
+
+/* 終端Runに残った停止hold(P2-16)の補足行: エラー行と区別する薄い黄 */
+.ksql-flownet-hold-row td {
+  padding: 4px 12px 10px;
+  border-top: 0;
+  background: #fff8e1;
+  color: #6d5100;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .ksql-flownet-record-cell {
   width: 7em;
   min-width: 7em;
