@@ -22,8 +22,8 @@ flowchart LR
 | 項目 | 要件 |
 | --- | --- |
 | kintone | cybozu.com の kintone。アプリ作成権限と、システム管理(プラグイン・アプリテンプレートの読込)の権限を持つアカウント |
-| 実行サーバー | Linux 1 台。Node.js 22 以上、git。kintone へ HTTPS で発信できること。受信ポート・固定 IP・ドメインは不要 |
-| kSQL-Flow のジョブ資材 | [ksql-flow-template](https://github.com/rex0220/ksql-flow-template) から作った自分のリポジトリ(`ksql.config.json`・`.env`・`jobs/`)。kSQL-Flow はこのリポジトリの `npm install` で入る |
+| 実行サーバー | Linux 1 台。Node.js 22 以上、git。kintone へ HTTPS で発信できること。kSQL-FlowNet の稼働用の待受ポート・固定 IP・ドメインは不要。管理用の SSH 接続経路は別途必要 |
+| kSQL-Flow のジョブ資材 | [ksql-flow-template](https://github.com/rex0220/ksql-flow-template) から作った自分のリポジトリ(`ksql.config.json`・`.env`・`jobs/`)。kSQL-Flow はこのリポジトリの `npm install` で入る。業務アプリのトークン発行と SQL の `--dry-run` 検証は [kSQL-Flow README のクイックスタート](https://github.com/rex0220/ksql-flow#readme)に従う |
 | 配布物 | アプリテンプレート `templates/ksql-flownet-apps-1.0.0.zip`、プラグイン `flownet-activity-plugin.zip`(GitHub Release 添付)、kSQL-FlowNet 本体(git clone または npm) |
 
 JOBログアプリ(kSQL-Flow の実行ログ)は次のどちらかで用意する。
@@ -53,7 +53,7 @@ JOBログアプリ(kSQL-Flow の実行ログ)は次のどちらかで用意す�
 | JOBログ | 閲覧 | kSQL-FlowNet(Attempt 照合) | `KSQL_FLOW_LOG_APP_ID` / `KSQL_FLOW_LOG_API_TOKEN` |
 | JOBログ | 閲覧・追加・編集 | kSQL-Flow(ジョブ実行ログの書込) | ジョブ資材の `.env` の `KSQL_TOKEN_LOGS`(kSQL-Flow 側) |
 
-トークン値は控えた端末からサーバーの環境ファイルへ直接転記する。リポジトリ・チャット・Console・文書へ貼らない。
+各アプリでトークンを生成して権限を設定したら保存し、**「アプリを更新」**して運用環境へ反映する(更新するまでトークンは有効にならない)。トークン値は控えた端末からサーバーの環境ファイルへ直接転記する。リポジトリ・チャット・Console・文書へ貼らない。
 
 ## 4. kintone: アクセス権
 
@@ -73,10 +73,12 @@ JOBログアプリ(kSQL-Flow の実行ログ)は次のどちらかで用意す�
 | アプリ | 管理者・サービス用 | 一次対応者(ボード利用者) | その他の利用者 |
 | --- | --- | --- | --- |
 | 実行管理・監査履歴 | 管理 | レコード閲覧 | 閲覧不要 |
-| 操作要求 | 管理 | レコード閲覧・追加 | 閲覧不要 |
+| 操作要求 | 管理 | レコード閲覧・追加・編集 | 閲覧不要 |
 | JOBログ | 管理(kSQL-Flow 運用者) | レコード閲覧 | 閲覧不要 |
 
-実行管理・監査履歴は機械専用であり、人はレコードを編集・削除しない。操作要求も既存レコードの編集はせず、常に新規追加で依頼する(仕様書 §8)。
+操作要求アプリの一次対応者に**レコード編集**が要るのは、ボードの「取消」が既存レコードの `cancel_requested` を更新する操作であり、kintone のレコード更新にはアプリのレコード編集権限が必要だからである。編集できるフィールドはフィールドアクセス権で `cancel_requested`(作成者のみ)に絞られ、機械フィールドは閲覧のみのままになる。
+
+実行管理・監査履歴は機械専用であり、人はレコードを編集・削除しない。操作要求も取消フラグの更新を除いて既存レコードは編集せず、常に新規追加で依頼する(仕様書 §8)。
 
 ## 5. kintone: プラグインの設定
 
@@ -84,7 +86,7 @@ JOBログアプリ(kSQL-Flow の実行ログ)は次のどちらかで用意す�
 
 | タブ | 設定項目 | 値 |
 | --- | --- | --- |
-| 基本設定 | START を許可するネットワーク | 手順 8 の allowlist で `app_start: true` にする network を `ネットワーク名, network_id[, 入力モード[, business_key テンプレート]]` の CSV で 1 行ずつ。例: `月次案件集計(当月分の起動), monthly_deal_summary, 定期` |
+| 基本設定 | START を許可するネットワーク | 手順 8 の allowlist で `app_start: true` にする network を `ネットワーク名, network_id[, 入力モード[, business_key テンプレート]]` の CSV で 1 行ずつ。例: `月次集計(当月分の起動), monthly_summary, 定期`(手順 8 の例と同じ network) |
 | 詳細設定 | 監査履歴アプリ ID・操作要求アプリ ID・JOBログアプリ ID | **空欄**のまま。実行管理アプリの関連レコードから自動検出される。別のアプリを指す場合だけ ID を入力する |
 
 保存すると既定でアプリ設定が運用環境へ反映される(反映に失敗した場合はアプリ設定画面から「アプリを更新」する)。実行管理アプリの一覧「00_Run状況」を開き、空のボードと「新規実行」ボタンが表示されること、ブラウザ Console に `kSQL-FlowNet Run状況 plugin v1 loaded` が出ることを確認する。START 許可 CSV は表示用の写しであり、実行可否はサーバー側の allowlist が決める(仕様書 §7.4)。
@@ -101,7 +103,10 @@ JOBログアプリ(kSQL-Flow の実行ログ)は次のどちらかで用意す�
     ├── ksql.config.json          # kSQL-Flow のプロファイル(実行ログ = JOBログアプリ)
     ├── .env                      # kSQL-Flow 用トークン(0600・git 管理外)
     ├── node_modules/@rex0220/ksql-flow/   # npm install で入る
-    └── flownet/<flow>/network.yaml と jobs/*.sql
+    └── flownet/
+        └── monthly-summary/          # flow ごとに 1 フォルダー
+            ├── network.yaml
+            └── jobs/20_deal_summary.sql   # network.yaml からの相対パス jobs/… で参照
 /root/.ksql-flownet.env           # kSQL-FlowNet の環境変数(0600)
 /root/flownet-request-allowlist.yaml
 /var/log/ksql/                    # cron のログ
@@ -192,7 +197,7 @@ network_lock:
 nodes:
   - id: deal_summary
     job_id: ms_deal_summary          # prod:ms_deal_summary が 64 文字以内
-    sql: jobs/20_deal_summary.sql
+    sql: jobs/20_deal_summary.sql    # = /opt/ksql/my-ksql-jobs/flownet/monthly-summary/jobs/20_deal_summary.sql
     depends_on: []
     trigger_rule: all_success
     idempotent: true                 # ボードから START するには全ノード true
@@ -236,6 +241,10 @@ exec node --env-file=.env /opt/ksql/ksql-flownet/dist/cli/index.js \
   --resume --scheduled-for "$SCHEDULED_FOR" "$@"
 ```
 
+```sh
+chmod +x /opt/ksql/my-ksql-jobs/run_monthly_summary.sh
+```
+
 `--env-file=.env` でジョブ資材の `.env`(kSQL-Flow のトークン)を子プロセスへ渡す。kSQL-FlowNet 側の変数は cron 行で環境ファイルを `source` する(手順 10)。
 
 ## 9. サーバー: 検証と初回 smoke
@@ -258,21 +267,23 @@ node /opt/ksql/ksql-flownet/dist/cli/index.js status monthly_summary --json
 
 exit 0 で `status` の Run が `SUCCESS` になり、ボード「00_Run状況」には表示されない(未終端 Run がない)ことを確認する。監査履歴アプリに Invocation・Attempt、JOBログアプリに相関 ID 付きのジョブログができている。
 
-**操作要求の smoke**(何も実行せずに経路だけ確認する):
+**操作要求の smoke**(起票・取消・ポーラーの書戻しの経路を、何も実行せずに確認する。手順 4 の権限を検証するため、管理者ではなく**一次対応者のアカウント**で行う):
 
-1. ボードの「新規実行」から、手順 5 で許可した network の START を起票する(補正モードで業務キーに `-smoke` 等を付ける)
-2. ヘッダーの「処理待ちの START 要求」から直後に「取消」を押す
-3. ポーラーを 1 回手動実行する
+1. 操作要求アプリの一覧「01_未処理要求」が空であることを確認する(他の未処理要求があると、次のポーラー実行がそれを処理する)
+2. ボードの「新規実行」から、手順 5 で許可した network の START を起票する(補正モードで業務キーに `-smoke` 等を付ける)
+3. ヘッダーの「処理待ちの START 要求」から直後に「取消」を押す
+4. 操作要求アプリで該当レコードを再読込し、`request_state` が `REQUESTED`、`cancel_requested` が `取消` であることを確認する。**確認できなければポーラーを実行しない**(取消が効いていない要求は、ポーラーが受理すると新規実行になる)。取消が失敗する典型は手順 4 のレコード編集権限の不足である
+5. ポーラーを 1 回手動実行する
 
 ```sh
 node --env-file=.env /opt/ksql/ksql-flownet/dist/cli/index.js poll-requests
 ```
 
-標準出力に `requested=1 claimed=0 … cancelled=1` が出て、操作要求レコードが `CANCELLED / CANCELLED_BY_REQUESTER` になれば、起票・取消・ポーラー・書戻しの経路が通っている。Run は作られない。
+標準出力に `requested=1 claimed=0 … cancelled=1` が出て、操作要求レコードが `CANCELLED / CANCELLED_BY_REQUESTER` になれば合格である。Run は作られない。この smoke が確認するのは起票・取消・ポーラーの書戻しまでであり、allowlist による START の受理と子プロセスの起動は含まない。それらは運用開始後の最初の START(または手順 8 の `poll-requests --check` と初回の定期実行)で確認する。
 
 ## 10. サーバー: cron 登録
 
-cron は 2 本である。定期実行は flow ごとに 1 行、ポーラーは全 network で 1 行(仕様書 §4.7)。発火時刻はサーバーのタイムゾーンに従う。
+root の `crontab -e` で登録する。cron は 2 本で、定期実行は flow ごとに 1 行、ポーラーは全 network で 1 行(仕様書 §4.7)。発火時刻はサーバーのタイムゾーンに従う。cron の `PATH` は SSH シェルより短いため、`node` が `/usr/bin` 以外(nvm 等)にある場合は `which node` の絶対パスを 2 行と起動スクリプトの `node` に使う。
 
 ```cron
 0 7 1 * * . /root/.ksql-flownet.env && /opt/ksql/my-ksql-jobs/run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1

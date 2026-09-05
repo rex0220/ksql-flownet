@@ -21,7 +21,7 @@
 | 6 kSQL-Flow とジョブ資材 | clone、`npm install`、`.env` 雛形、`validate --check-logapp` の実行と報告 | `.env` へトークン値を転記 |
 | 7 kSQL-FlowNet 本体 | clone、`npm ci`、`npm run build`、`--version` の確認 | なし |
 | 8 環境ファイル・network 定義・allowlist・起動スクリプト | 雛形作成(0600・LF)、既存ジョブからの network.yaml 起案、`validate`・`plan`、allowlist・起動スクリプトの作成 | 環境ファイルへトークン値を転記。network.yaml と `app_start` のレビュー |
-| 9 検証と初回 smoke | `poll-requests --check`、初回定期実行、`status --json`、手動ポーラー実行と結果照合 | ボードからの起票と取消 |
+| 9 検証と初回 smoke | `poll-requests --check`、初回定期実行、`status --json`、取消済み確認と手動ポーラー実行、結果照合 | 一次対応者アカウントでのボードからの起票と取消 |
 | 10 cron 登録 | crontab のバックアップと 2 行の追加、次周期のログ確認 | 発火時刻の決定 |
 | 11 引き継ぎ | 文書の所在を整理して報告 | 一次対応者への周知 |
 
@@ -97,11 +97,12 @@ exit 0 でなければ cron 登録に進まず、原因を報告して止まっ�
 監査履歴とJOBログに相関付きレコードができたことを報告して。
 ```
 
-(人がボードから START を起票して取消した後)
+(人が一次対応者のアカウントでボードから START を起票して取消した後)
 
 ```
-ポーラーを 1 回手動実行して、出力の requested/claimed/cancelled と、
-操作要求レコードの request_state と result_code を報告して。
+操作要求アプリの未処理要求が #<ID> の 1 件だけで、その request_state が REQUESTED、cancel_requested が 取消 であることを
+API で確認して。確認できなければポーラーを実行せず報告して。確認できたらポーラーを 1 回手動実行し、
+出力の requested/claimed/cancelled と、操作要求レコードの request_state と result_code を報告して。
 ```
 
 **手順 10**
