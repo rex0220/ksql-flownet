@@ -36,10 +36,10 @@ UI・仕様の変更はR2以降凍結する(発生したらR2からやり直し)
 
 v1.0.0 に [P2-16](./p2-16-request-lifecycle-v2-spec.md)(FROZEN v1)を同梱する。理由: 後回しにするとテンプレート・導入手順書・記事・R2〜R8 のリリース作業一式を v1.1.0 で二重に行うことになり、実装工数を上回る。R3 以降は未着手のため凍結やり直しの損失は E2E 再実行と本番再デプロイのみ。
 
-- [ ] M0: `templates/add-request-lifecycle-v2.console.js`(CLOSE/CANCELLED 選択肢・`cancel_requested`・一覧・フィールド権限)、fault-hook の対象指定+barrier、E2E decoder/terminal 集合の `CANCELLED` 対応。E2E 要求アプリへ追補適用(ユーザー)+「作成者」フィールド権限の実機確認(U-4)
-- [ ] M1〜M2: 契約層・ポーラー・`archive-run`(Codex 実装 → Claude レビュー → 単体)
-- [ ] M3: 実機 E2E(受入 M3 印)+P2-01/P2-11 回帰
-- [ ] M4: ボード(取消・解除・クローズ・PUT)→ ユーザー受入
+- [x] (2026-09-05 完了) M0: `templates/add-request-lifecycle-v2.console.js`(CLOSE/CANCELLED 選択肢・`cancel_requested`・一覧・フィールド権限)、fault-hook の対象指定+barrier、E2E decoder/terminal 集合の `CANCELLED` 対応。E2E 要求アプリへ追補適用(ユーザー)+「作成者」フィールド権限の実機確認(U-4)
+- [x] (2026-09-05 完了) M1〜M2: 契約層・ポーラー・`archive-run`(Codex 実装 → Claude レビュー → 単体)
+- [x] (2026-09-05 完了・test-results/p2-16-m3-20260905) M3: 実機 E2E(受入 M3 印)+P2-01/P2-11 回帰
+- [x] (2026-09-05 完了・test-results/p2-16-m4-20260905) M4: ボード(取消・解除・クローズ・PUT)→ ユーザー受入
 - [ ] M5: 文書改訂(統合仕様書・P2-01・一次対応・runbook・templates/README)
 - [ ] 本番適用(本番要求アプリ追補 → プラグイン → VPS → smoke)→ 記録
 - [ ] **R2 をやり直す**(下記。2026-09-04 の合格記録は P2-16 前の状態として保持)
