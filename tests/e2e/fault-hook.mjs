@@ -1,6 +1,7 @@
-import { appendFileSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { createFaultFetch } from "./fault-hook-core.mjs";
 
 const expectedCli = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -24,58 +25,10 @@ if (isFlowNet) {
       "M7 fault hook requires M7_FAULT_CONTROL_FILE, M7_FAULT_LOG_FILE, and KSQL_FLOWNET_BASE_URL",
     );
 
-  globalThis.fetch = async function m7FaultFetch(input, init = {}) {
-    const request = input instanceof globalThis.Request ? input : null;
-    const url = new globalThis.URL(request?.url ?? input);
-    const method = String(
-      init.method ?? request?.method ?? "GET",
-    ).toUpperCase();
-    const mode = readControlMode(controlFile);
-    const targeted = url.host === targetHost;
-    const blocked =
-      targeted &&
-      (mode === "block" || (mode === "block-writes" && method !== "GET"));
-    const heartbeat =
-      targeted && method === "PUT" && isHeartbeatBody(init.body);
-
-    appendFileSync(
-      logFile,
-      `${JSON.stringify({
-        at: new Date().toISOString(),
-        method,
-        path: url.pathname,
-        targeted,
-        blocked,
-        heartbeat,
-      })}\n`,
-      "utf8",
-    );
-
-    if (blocked) {
-      throw new TypeError("fetch failed", {
-        cause: new Error("M7 injected kintone network interruption"),
-      });
-    }
-    return originalFetch(input, init);
-  };
-}
-
-function readControlMode(path) {
-  try {
-    const value = readFileSync(path, "utf8").trim();
-    return ["pass", "block", "block-writes"].includes(value) ? value : "pass";
-  } catch (error) {
-    if (error?.code === "ENOENT") return "pass";
-    throw error;
-  }
-}
-
-function isHeartbeatBody(body) {
-  if (typeof body !== "string") return false;
-  try {
-    const value = JSON.parse(body);
-    return Object.hasOwn(value?.record ?? {}, "heartbeat_at");
-  } catch {
-    return false;
-  }
+  globalThis.fetch = createFaultFetch({
+    originalFetch,
+    controlFile,
+    logFile,
+    targetHost,
+  });
 }

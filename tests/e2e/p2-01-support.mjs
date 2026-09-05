@@ -131,8 +131,9 @@ function rawField(record, name) {
   return record[name]?.value ?? null;
 }
 
-function decodeRequest(record) {
+export function decodeRequest(record) {
   const creator = rawField(record, "作成者");
+  const cancelRequested = rawField(record, "cancel_requested");
   return {
     id: rawField(record, "$id"),
     revision: Number(rawField(record, "$revision")),
@@ -146,6 +147,10 @@ function decodeRequest(record) {
     scheduledFor: rawField(record, "scheduled_for") || null,
     rerunFromNode: rawField(record, "rerun_from_node") || null,
     reason: rawField(record, "reason"),
+    cancelRequested:
+      cancelRequested === null
+        ? null
+        : Array.isArray(cancelRequested) && cancelRequested.includes("取消"),
     requestState: rawField(record, "request_state"),
     claimedAt: rawField(record, "claimed_at") || null,
     claimedHost: rawField(record, "claimed_host") || null,
@@ -199,6 +204,9 @@ export async function createRequest(settings, input) {
       : { scheduled_for: { value: input.scheduledFor ?? "" } }),
     rerun_from_node: { value: input.rerunFromNode ?? "" },
     reason: { value: input.reason },
+    ...(input.cancelRequested === true
+      ? { cancel_requested: { value: ["取消"] } }
+      : {}),
     request_state: { value: machine.requestState ?? "REQUESTED" },
     ...(machine.claimedAt === undefined
       ? {}

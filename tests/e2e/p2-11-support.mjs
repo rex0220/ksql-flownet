@@ -21,7 +21,11 @@ import {
 } from "./p2-01-support.mjs";
 
 export const P2_11_PREFIX = P2_01_PREFIX;
-export const TERMINAL_REQUEST_STATES = new Set(["DONE", "REJECTED"]);
+export const TERMINAL_REQUEST_STATES = new Set([
+  "DONE",
+  "REJECTED",
+  "CANCELLED",
+]);
 
 export function startInput(scope, label, input) {
   assert.ok(scope.startsWith(P2_11_PREFIX));
@@ -33,6 +37,9 @@ export function startInput(scope, label, input) {
     businessKey: input.businessKey,
     scheduledFor: input.scheduledFor,
     reason: requestReason(scope, label),
+    ...(input.cancelRequested === undefined
+      ? {}
+      : { cancelRequested: input.cancelRequested }),
     ...(input.machine === undefined ? {} : { machine: input.machine }),
   };
 }
@@ -170,13 +177,28 @@ export async function listRuns(settings, selector = {}) {
 }
 
 export async function assertStartCorrelation(settings, request, businessKey) {
+  const expectedRequestedBy = `app-request:${request.id}:${encodeURIComponent(request.creatorCode)}`;
+  if (request.requestState === "CANCELLED") {
+    const invocations = (
+      await getAllPersistenceRecords(settings, "audit")
+    ).filter(
+      (record) =>
+        field(record, "record_type") === "RUN_INVOCATION" &&
+        field(record, "requested_by") === expectedRequestedBy,
+    );
+    assert.deepEqual(
+      invocations,
+      [],
+      "CANCELLED START要求はInvocationを作成しません",
+    );
+    return { graph: null, expectedRequestedBy };
+  }
   const graph = await loadRunGraph(settings, businessKey);
   assert.ok(
     graph.invocations.length > 0,
     "STARTはInvocationを1件以上作成します",
   );
   const invocation = graph.invocations.at(-1);
-  const expectedRequestedBy = `app-request:${request.id}:${encodeURIComponent(request.creatorCode)}`;
   assert.equal(invocation.requestedBy, expectedRequestedBy);
   assert.match(request.resultMessage ?? "", /invocation_id=/u);
   assert.match(
@@ -201,7 +223,9 @@ export function graphIdentity(graph) {
 // 不変を意味するため、stateアプリはNETWORK_LOCKのみ増分・改版を許容し、
 // それ以外のrecord_typeと監査アプリは完全一致で検証する。
 export async function persistenceSnapshot(settings) {
-  const snapshot = { audit: (await snapshotPersistenceRevisions(settings)).audit };
+  const snapshot = {
+    audit: (await snapshotPersistenceRevisions(settings)).audit,
+  };
   const records = await getAllPersistenceRecords(settings, "state");
   snapshot.state = Object.fromEntries(
     records.map((record) => [

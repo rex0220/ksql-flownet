@@ -175,7 +175,29 @@ node tests\e2e\m7-04-windows-sigbreak.mjs
 | `m7-03-control-plane-api-calls.mjs` | 3 Nodeの参照系Run、`status --json`、`LOCK_NOT_FOUND`となるforce-unlockについて、records/file/その他とheartbeat PUTのcontrol-plane API呼出数を別々に記録 |
 | `m7-04-windows-sigbreak.mjs`        | n1実行中のFlowNetへ`SIGBREAK`を送り、graceful drainか単純終了かを記録し、残ったRUNNING孤児をforce-unlockとresume孤児裁定で回収できること                |
 
-`fault-hook.mjs`は`NODE_OPTIONS=--import`でFlowNet起動時だけ読み込みます。`process.argv[1]`がこのリポジトリの`dist/cli/index.js`と一致するときだけfetchを包むため、子のkSQL-Flowプロセスは遮断しません。制御ファイルは`pass` / `block` / `block-writes`を受け付け、通常試験は全通信を止める`block`を使用します。JSONLログは時刻、HTTP method、URL path、遮断有無、heartbeat分類だけを保存し、URL query、header、body、API tokenは保存しません。
+`fault-hook.mjs`は`NODE_OPTIONS=--import`でFlowNet起動時だけ読み込みます。`process.argv[1]`がこのリポジトリの`dist/cli/index.js`と一致するときだけfetchを包むため、子のkSQL-Flowプロセスは遮断しません。制御ファイルは従来どおり`pass` / `block` / `block-writes`を受け付け、通常試験は全通信を止める`block`を使用します。
+
+対象を限定して競合順序を固定する場合は、制御ファイルへ次のJSON形式をUTF-8で書きます。`path`はURL pathに対する正規表現、`method`は省略可能なHTTP methodです。`body.app`と`body.id`はJSON body直下、`body.field`は`record`直下のキーの存在だけを照合します。各barrierはプロセス内で1回だけ発火し、複数barrierは独立して動作します。`release`には事前に存在しないreleaseファイルの絶対パスを指定してください。
+
+```json
+{
+  "mode": "pass",
+  "barriers": [
+    {
+      "id": "claim-before",
+      "match": {
+        "path": "^/k/v1/record\\.json$",
+        "method": "PUT",
+        "body": { "app": 123, "field": "request_state", "id": "456" }
+      },
+      "phase": "before",
+      "release": "C:\\temp\\claim-before.release"
+    }
+  ]
+}
+```
+
+`phase: before`は一致したfetchを送信前に止めます。`phase: after-success`はfetchの2xx応答後に止め、非2xx応答は停止せずそのまま返します。どちらもreleaseファイルの出現を100ms間隔で待ち、120秒でタイムアウトします。到達時は通常の通信ログとは別のJSONL行へ`barrier_id`、`phase`、method、path、時刻を記録し、`after-success`だけ`response_status`も記録します。全ログを通じてURL query、header、body、API tokenは保存しません。
 
 `m7-02`と`m7-04`は30秒leaseの失効を待つ回収工程があるため、完了まで数分かかる場合があります。`m7-04`はWindows専用です。これらのスクリプトをCIや非Windows環境で実行しないでください。
 
