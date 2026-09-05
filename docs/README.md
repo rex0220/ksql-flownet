@@ -4,9 +4,9 @@
 
 | 文書 | 内容 |
 | --- | --- |
-| [統合仕様書](./specification.md) | 現在の実装の仕様。アーキテクチャ、kintoneアプリ構成、network定義、CLI、操作要求とポーラー(RERUN/STOP/RELEASE/START)、ボードプラグイン、セキュリティ境界、既知の制約 |
-| [一次対応1ページ](./ops-first-response.md) | ボードの見方と操作要求の起票手順。状態別の一次対応 |
-| [復旧runbook](./runbook-recovery.md) | 障害時の復旧手順。STALE・ロック・UNKNOWNの決着、定義デプロイ時の手順 |
+| [統合仕様書](./specification.md) | 現在の実装の仕様。アーキテクチャ、kintoneアプリ構成、network定義、CLI、操作要求とポーラー(RERUN/STOP/RELEASE/START/CLOSE・claim前取消)、ボードプラグイン、セキュリティ境界、既知の制約 |
+| [一次対応1ページ](./ops-first-response.md) | ボードの見方と操作要求の起票・取消・解除・クローズ手順。状態別の一次対応 |
+| [復旧runbook](./runbook-recovery.md) | 障害時の復旧手順。STALE・ロック・UNKNOWN・CLOSE部分成功の決着、定義デプロイ時の手順 |
 | [CSV入出力の運用](./csv-io-operations.md) | 入力CSVをサーバーへ置く/出力CSVを取り出す構成と手順。パス規約・不変条件・エラー早見 |
 | [スケジュール連携の運用パターン](./scheduling-patterns.md) | 本体がスケジューラを持たない理由と、network 間の順序・即時連鎖・営業日判定を外部で実現するパターン |
 | [Execution Contract v1](./execution-contract-v1.md) | kSQL-Flow(実行プレーン)とのCLI境界契約 |

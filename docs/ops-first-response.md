@@ -59,11 +59,15 @@ STARTは、失敗した既存Runのやり直しではなく、**まだRunがな�
 | 02に未完了Runが残り、01は空 | **途中で中断している可能性**(電源断・プロセス停止など) | **連絡**(「Run IDと画面の状態」を伝える) |
 | 03_停止要求に行がある | 誰かが意図して止めています(`RELEASED`以外の間は再開されません) | 止めた本人・二次対応者に確認 |
 
-## ボードまたは操作要求アプリからの再開・停止・解除
+## 起票を取り消したい
+
+「処理待ち」の要求がまだ`REQUESTED`で、要求の作成者が自分の場合だけ、要求行の「取消」を押せます。確認画面の種別・対象・理由を確認して実行してください。取消は元に戻せず、必要になった場合は新しい要求を起票します。既に`ACCEPTED`になり処理開始済みなら取消できません。開始後にRunを止める役割は`STOP`です。取消済み要求は操作要求アプリの「03_取消済み」で確認でき、`CANCELLED_BY_REQUESTER`は何も実行していないことを表します。
+
+## ボードまたは操作要求アプリからの再開・停止・解除・クローズ
 
 操作には次の2経路があります。
 
-1. **ボードから起票(推奨)**: 「00_Run状況」の対象行で「リラン要求」「停止要求」「解除要求」を押し、理由を入力して確認します。「終了済み・対応が必要なRun」のFAILED/CANCELLEDもボードからリラン要求できます。
+1. **ボードから起票(推奨)**: 「00_Run状況」の対象行で「リラン要求」「停止要求」「解除要求」「クローズ要求」を押し、理由を入力して確認します。「終了済み・対応が必要なRun」のFAILED/CANCELLEDでは、holdがあれば解除要求、holdがなければリラン要求とクローズ要求を選べます。
 2. **操作要求アプリ直接(従来)**: 「kSQL-FlowNet 操作要求」アプリで新しいレコードを追加し、`run_id`、理由、操作種別を入力します。
 
 どちらの経路でも既存要求を編集して再利用しないでください。完了は操作要求レコードの`request_state`と`result_code`で確認します。
@@ -73,14 +77,40 @@ STARTは、失敗した既存Runのやり直しではなく、**まだRunがな�
 | `RERUN` | INTERRUPTEDを1回再開する、または原因修正済みのRunを再開する | `request_state=DONE`かつ`result_code=OK`を確認する。`REJECTED / LOCK_CONFLICT`、`RETRY_BRAKE`など結果が`OK`以外、再中断、同じ操作を繰り返す状況なら二次対応者へ連絡 |
 | `STOP` | 未完了Runを安全な区切りで止める | 要求が`DONE`でも、停止が効くのは**次ノード境界**。実行中SQLは途中停止しない |
 | `RELEASE` | STOPによるholdを解除する | 解除だけで自動再開しない。ただし次の定期`resume`がRunを再開し得るため、再開してよい状態でだけ行う |
+| `CLOSE` | FAILED/CANCELLED Runをリランせず片付ける | RunはARCHIVEDになり、以後再開できない。再集計が必要なら別の補正キーで新規実行する |
 
 STOPしたRunは、**止めた直後は上のブロック(黄)、完全に止まると下の要対応ブロックへ**移ります。
+
+### 失敗した Run を片付けたい
+
+FAILED/CANCELLEDでholdがないRunだけ「クローズ要求」を使用します。確認画面どおりCLOSEは不可逆で、ARCHIVEDになった同じRunは再開できません。将来同じ対象期間を再集計する可能性がある場合も、元のRunを戻すのではなく、新しい補正キーでSTARTします。
+
+### 停止後に失敗した Run を動かしたい
+
+状態欄に「停止hold」があるFAILED/CANCELLED Runでは、先に「解除要求」を出します。解除完了後にボードを再読込し、「リラン要求」を出します。通常運用でCLIは不要です。
 
 M3実機受入では、kill起因のINTERRUPTEDに対するリラン要求が`REJECTED / LOCK_CONFLICT`になりました。この場合は再要求せず、停止確認とlock回収が必要なため二次対応者へ連絡してください。
 
 `rerun_from_node`は二次対応者から、原因修正後のRETRY_BRAKE解除として具体的なNode IDを指示された場合だけ入力します。UNKNOWNや非冪等Nodeを推測で指定しないでください。
 
 RERUN/STOP/RELEASE要求が`REJECTED / STALE`なら、実行済みか未実行かを画面だけでは確定できません。**再要求は禁止**です。要求レコードIDとRun IDを控えて二次対応者へ連絡し、実行管理・監査履歴・JOBログの照合が終わるまで待ってください。STARTは上のSTART専用手順に従います。
+
+## 結果コード早見
+
+| result_code | 一次判断 |
+| --- | --- |
+| `CANCELLED_BY_REQUESTER` | claim前に取消済み。何も実行していない |
+| `RUN_ARCHIVED` | RunはARCHIVED済み。対応完了 |
+| `RUN_ALREADY_ARCHIVED` | 既にARCHIVEDだった。追加処理なし |
+| `RUN_ARCHIVED_AUDIT_PENDING` | RunはARCHIVED済み。監査補完が必要なため要求ID・Run ID・messageのevent_idを二次対応者へ渡す |
+| `RUN_ARCHIVED_LOCK_UNRELEASED` | RunはARCHIVED済み。ロック回収が必要なため二次対応者へ渡す |
+| `RUN_STATUS_NOT_CLOSABLE` | SUCCESSはクローズ対象外。何もしない |
+| `RUN_UNKNOWN_NOT_CLOSABLE` | UNKNOWNの裁定が先。何も操作せず二次対応者へ連絡 |
+| `RUN_NOT_TERMINAL` | 実行中または未開始。クローズせず状態に応じて待つ |
+| `RUN_ALREADY_ON_HOLD` / `RUN_ON_HOLD` | hold中。停止者へ確認し、必要なら解除要求 |
+| `LOCK_CONFLICT` / `LOCK_UNAVAILABLE` / `LEASE_INTERRUPTED` | 同じ要求を繰り返さず二次対応者へ連絡 |
+| `RUN_READ_FAILED` / `ARCHIVE_WRITE_FAILED` | Runは変わっていないことをCLIが確認済み。要求ID・Run IDを二次対応者へ渡す |
+| `ARCHIVE_UNCONFIRMED` | ARCHIVEDかACTIVEか不明。同じ要求を繰り返さず直ちに二次対応者へ連絡 |
 
 ## してはいけないこと
 

@@ -24,7 +24,7 @@
 | 11 | `docs/runbook-recovery.md` §6（96行）と `docs/specification.md` §5.1 | 高 | 復旧runbookのコマンドが `run-network <network_id>` となっているが、CLI第1引数はnetwork定義ファイルのpathでありIDではない。記載どおりでは定義ファイルを読めず、復旧resumeに失敗する。今回追補の§4.7と§5.1に照らしても文書間不整合。 | `src/cli/index.ts:19-27`、`src/cli/run-network-command.ts:182-259`、`src/domain/load-network.ts:11-27`、`docs/specification.md:496-498`。 | `<network.yamlのpath>`（例: `/opt/ksql/my-ksql-jobs/flownet/monthly-summary/network.yaml`）へ変更する。`network_id`を取る`status`等と混同しない注記を付ける。 |
 | 12 | `docs/runbook-recovery.md` 151行・177行、`docs/specification.md` §5.4／§6.7 | 中 | 同じrunbook内で151行は`RETRY_BRAKE`を現行機能として説明する一方、177行は「連続失敗ブレーキは未実装」としている。後者は現実装と追補仕様に対して古く、定期resumeが無制限にAttemptを増やすという案内も現在は正しくない。 | `src/orchestration/sequential-scheduler.ts:782-840`、`docs/specification.md:569-570,732`、`tests/unit/sequential-scheduler.test.mjs:643-775`。 | 177行の未実装記述とP2-03参照を削除し、151行へ統合する。「3連続後は通常resumeでブレーキされ、原因修正後にrerun-fromで明示解除」と現行挙動に揃える。 |
 | 13 | `docs/csv-io-operations.md` §2・§3（30-40,75-81行） | 中 | 「rootのみアクセス可を推奨」し、転送例も`root@VPS`に固定しているため、CSV授受のたびにroot SSH資格情報を使う運用を促す。実装が要求するのはIO rootの存在・読書き権限でありroot実行そのものではない。権限事故と鍵漏えい時の影響が大きい。 | `src/io/io-config.ts:9-44` は絶対pathの既存directoryだけを要求し、rootを要求しない。危険な案内箇所は `docs/csv-io-operations.md:30-40,75-81`。 | 専用サービスアカウント／転送アカウントを作り、IO directoryだけに最小権限を与える例を基本にする。root運用が既存本番の制約なら「限定された管理者のみ・root SSH鍵を一般担当者へ配らない」を明記する。 |
-| 14 | `docs/scheduling-patterns.md` 全体（23,44,49,63,90行等） | 低 | `§5.1`、`§7.2`、`§9`、`§8.1`がどの文書の節か明示されず、この文書自身には該当小節がないものもある。63行だけは「kSQL-Flow仕様 §5.3」と書き分けているため、参照先の体系がさらに判別しにくい。 | 参照表記は `docs/scheduling-patterns.md:23,44,49,63,90`。参照先候補は `docs/specification.md:492-506,751-773,952-986,988-1010`。 | FlowNet統合仕様への参照はすべて `[統合仕様書 §x.y](./specification.md)` 形式に統一する。kSQL-Flow外部仕様には取得可能なURLまたは文書名・versionを付ける。 |
+| 14 | `docs/scheduling-patterns.md` 全体（23,44,49,63,90行等） | 低 | `§5.1`、`§7.2`、`§9`、`§8.1`がどの文書の節か明示されず、この文書自身には該当小節がないものもある。63行だけは「kSQL-Flow仕様 §5.3」と書き分けているため、参照先の体系がさらに判別しにくい。 | 参照表記は `docs/scheduling-patterns.md:23,44,49,63,90`。参照先候補は `docs/specification.md:492-506,751-773,952-986,988-1010`。 | FlowNet統合仕様への参照はすべて `[統合仕様書 §x.y](../specification.md)` 形式に統一する。kSQL-Flow外部仕様には取得可能なURLまたは文書名・versionを付ける。 |
 
 ## 確認済み一覧
 
@@ -67,6 +67,6 @@
 | 11 | 採用 | runbook §6 の第1引数を `<network.yamlのパス>` へ修正し、network ID を取る `status` との混同注意を追記 |
 | 12 | 採用 | runbook 177行の「ブレーキ未実装」を現行挙動(3連続で RETRY_BRAKE、`rerun_from_node` で明示解除)へ差し替え |
 | 13 | 採用 | csv-io-operations §2 を転送用アカウント(`csvxfer`)+IO ルート限定権限を基本とし、root 鍵運用を続ける場合の制限を明記。scp 例も転送用アカウントへ |
-| 14 | 採用 | scheduling-patterns の節参照を `[統合仕様書 §x.y](./specification.md)` 形式へ統一。kSQL-Flow 仕様は文書名・節名を明記 |
+| 14 | 採用 | scheduling-patterns の節参照を `[統合仕様書 §x.y](../specification.md)` 形式へ統一。kSQL-Flow 仕様は文書名・節名を明記 |
 
 未確認事項3点(kSQL-Flow 実装コードの直接照合・Administrator 作成者・実機再実行)は、それぞれ kSQL-Flow 仕様書・kintone 仕様・既存 test-results を根拠とし、本レビューでは再実行していない。

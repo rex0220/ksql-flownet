@@ -125,12 +125,65 @@ ksql-flownet run-network <network.yamlのパス> --resume-run <run_id> ...
 | `RERUN` | `run_id`、理由。必要時だけ`rerun_from_node` | 要求が`DONE`。`result_code`と実行管理・監査履歴も確認 | hold中、LIVE、SUCCESS、照合不能なRunは拒否される |
 | `STOP` | `run_id`、理由 | 要求が`DONE`になり、Runが次ノード境界で停止 | 実行中のSQLは途中停止しない |
 | `RELEASE` | `run_id`、理由 | 要求が`DONE`になりholdが解除 | RELEASE自身はRunを再開しない。ただし定期`--resume`が次回起動時に再開し得る |
+| `CLOSE` | `run_id`、理由 | 要求が`DONE`になり、Runの`lifecycle_status`が`ARCHIVED` | FAILED/CANCELLEDかつholdなしだけ。不可逆で同じRunは再開できない |
 
-**停止要求後にRunがFAILEDになった場合**(実行中のSQLが失敗)、holdが残ったままボードには「リラン要求」が出るが、RERUNは`RUN_ON_HOLD`、解除要求は`RUN_NOT_ON_HOLD`で拒否される。二次対応者がCLIでholdを解除してからリランする:
+**停止要求後にRunがFAILEDになった場合**(実行中のSQLが失敗)も、ボードは「停止hold」バッジと「解除要求」を表示する。解除要求が`DONE / RELEASED`になったことを確認してからリラン要求を出す。CLI `cancel-run --release`は、ボードまたは操作要求アプリを使用できない場合の代替である:
 
 ```
 ksql-flownet cancel-run --run-id <run_id> --release --reason-file <理由ファイル>
 ```
+
+### CLOSE(archive-run)の復旧
+
+CLOSEはFAILED/CANCELLED Runを不可逆に`ARCHIVED`へ変更し、`OPERATION_AUDIT / RUN_ARCHIVED`を記録する。要求の`result_message`にある`event_id=archive_<uuid>`を控え、次のcode別に処理する。
+
+#### `LOCK_CONFLICT`
+
+`archive-run`はstale lockを自動奪取しない。次の順で回収する。
+
+1. `ksql-flownet status <network_id> --profile <profile> --run-id <run_id> --json`で`lock.stale_candidate`、owner、lease、Run状態を確認する。
+2. stale候補でも停止の証明ではないため、本runbook手順2で旧owner停止を確認する。
+3. 本runbook手順3の`force-unlock-network`で回収する。
+4. `lock: null`を確認してから、新しいCLOSE要求を1件起票する。
+
+#### `RUN_ARCHIVED_AUDIT_PENDING`
+
+Runは既にARCHIVEDであり、再CLOSEでは監査を補完できない。要求の`result_message`から`event_id`と内部code(`ARCHIVE_AUDIT_FAILED` / `AUDIT_CONFLICT` / `LEASE_INTERRUPTED_AFTER_ARCHIVE`)を控える。監査履歴アプリで**同じ`event_id`の`RUN_ARCHIVED`が存在しないことを確認してから**、`OPERATION_AUDIT`を手動で1件追記する。既存レコードがある、または内容が食い違う場合は重複追加せず調査する。
+
+手動追記する主な物理フィールドは`record_type=OPERATION_AUDIT`、`run_id`、`result_code=RUN_ARCHIVED`、`resolved_at=<archived_at>`である。`reason`には次のJSONを保存する。値は要求レコード、Runの更新前後、環境変数・実行ホストの記録から確定し、推測で埋めない。
+
+```json
+{
+  "event_id": "archive_<uuid>",
+  "event_type": "RUN_ARCHIVED",
+  "run_id": "<run_id>",
+  "result_code": "RUN_ARCHIVED",
+  "requested_by": "<KSQL_FLOWNET_REQUESTED_BY>",
+  "reason": "<CLOSE理由>",
+  "archived_at": "<Runのupdated_at>",
+  "previous_status": "FAILED | CANCELLED",
+  "run_revision_before": 123,
+  "service_principal": "<KSQL_FLOWNET_SERVICE_PRINCIPALまたは実行ホスト>"
+}
+```
+
+`resolved_at`は`archived_at`と同値を入れる。物理列は分精度だが、`reason` JSONの`archived_at`は秒付きの値を維持する。`record_key`は実装の`uniqueKey`へ渡す`OP:<event_id>`、すなわち`OP:archive_<uuid>`を設定する。
+
+#### `RUN_ARCHIVED_LOCK_UNRELEASED`
+
+RunはARCHIVED済みである。`status --json`で残留lockを確認し、本runbook手順2〜3の停止確認と`force-unlock-network`で回収する。再CLOSEは不要である。
+
+#### `ARCHIVE_UNCONFIRMED`
+
+`status --json`で対象Runの`lifecycle_status`を確認する。
+
+- `ARCHIVED`なら、監査履歴で`result_message`の`event_id`に対応する`RUN_ARCHIVED`の有無を確認する。無ければ上記`RUN_ARCHIVED_AUDIT_PENDING`の補完手順へ進む。
+- `ACTIVE`なら、lockが解放済みであることを確認して新しいCLOSE要求を起票する。lockが残っていれば先にstale回収を行う。
+- status取得不能または値が矛盾する場合は再CLOSEせず、実行管理と監査履歴を照合する。
+
+### 取消済み要求の見方
+
+操作要求アプリの「03_取消済み」は`request_state=CANCELLED`の要求を表示する。`result_code=CANCELLED_BY_REQUESTER`はポーラーがclaim前の取消を受理し、子プロセスもRun操作も実行していないことを意味する。取消前後の操作者証跡はkintoneのレコード変更履歴で確認する。CANCELLED要求は再利用せず、必要なら新しい要求を起票する。
 
 ### START要求(P2-11)
 

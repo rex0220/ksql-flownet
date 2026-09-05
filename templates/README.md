@@ -25,7 +25,7 @@ kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「�
 
 操作要求アプリは、同じスペースで`create-flownet-request-app.console.js`を実行して別に作成します。テンプレートは本番用とE2E用で共通ですが、アプリinstanceとAPIトークンは分離し、破壊的な競合・stale試験を本番要求へ混在させないでください。同名の「kSQL-FlowNet 操作要求」が存在する場合も、既存アプリを変更せず中止します。
 
-操作要求アプリには`request_type`（`RERUN` / `STOP` / `RELEASE` / `START`）、`run_id`、`network_id`、`business_key`、`scheduled_for`、`rerun_from_node`、`reason`、`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`を作成します。`network_id`と`business_key`は文字列1行、`scheduled_for`は日時です。STARTでは`run_id`を空にするためアプリ上は任意ですが、既存3種ではポーラーが引き続き必須として検証します。`request_state`の初期値は`REQUESTED`です。一覧は`01_未処理要求`（`REQUESTED`/`ACCEPTED`）と`02_拒否された要求`（`REJECTED`）の2件で、STARTの3入力欄も表示します。
+操作要求アプリには`request_type`（`RERUN` / `STOP` / `RELEASE` / `START` / `CLOSE`）、`run_id`、`network_id`、`business_key`、`scheduled_for`、`rerun_from_node`、`reason`、`request_state`、`cancel_requested`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`を作成します。`network_id`と`business_key`は文字列1行、`scheduled_for`は日時、`cancel_requested`は値`取消`のチェックボックスです。STARTでは`run_id`を空にするためアプリ上は任意ですが、他の操作ではポーラーが必須として検証します。`request_state`の初期値は`REQUESTED`で、終端値に`CANCELLED`を含みます。一覧は`01_未処理要求`（`REQUESTED`/`ACCEPTED`）、`02_拒否された要求`（`REJECTED`）、`03_取消済み`（`CANCELLED`）です。
 
 [P2-11](../docs/internal/p2-11-adhoc-start-spec.md)（START要求）のM1 schemaは本スクリプトへ反映済みです。STARTの起動可否は**三重ゲート**（①操作要求アプリのレコード追加権限 × ②VPS上のallowlistで対象networkに`app_start: true`を明示 × ③network定義の全実行対象ノードが明示的に`idempotent: true`）で決まり、`app_start`は省略時`false`です。アプリ側の設定だけでは起動できません。
 
@@ -33,10 +33,10 @@ kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「�
 
 ### 本番用操作要求アプリの作成gate
 
-1. 本番スペースで`create-flownet-request-app.console.js`を実行し、作成されたフィールド、初期値`REQUESTED`、2一覧を確認してデプロイします。途中で一覧作成が失敗した場合は、表示された状態を確認して`finish-request-app-views.console.js`で一覧だけを再開します。
-2. 要求者のACLはレコード**追加・閲覧のみ**を基本とし、少なくとも`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`を人に編集させない設定を推奨します。既存要求の編集・削除で再要求させず、毎回新規追加させます。
+1. 本番スペースで`create-flownet-request-app.console.js`を実行し、作成されたフィールドと初期値`REQUESTED`を確認してデプロイします。既存アプリには続けて`add-request-lifecycle-v2.console.js`を実行し、CLOSE、CANCELLED、`cancel_requested`、`03_取消済み`、フィールドアクセス権のpreviewを確認して再デプロイします。途中で一覧作成が失敗した場合は、表示された状態を確認して`finish-request-app-views.console.js`で既存一覧だけを再開します。
+2. 機械フィールド6種(`request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message`)はeveryone閲覧のみ、`cancel_requested`は作成者を上位の編集可・everyoneを閲覧のみとします。取消は`REQUESTED`の間だけ有効で不可逆です。その他の既存要求フィールドは編集・削除で再利用せず、毎回新規追加します。
 3. ポーラー専用APIトークンは**レコード閲覧・編集のみ**とし、追加・削除権限を付けません。E2E清掃用tokenとは分離し、token値を文書・Console出力・リポジトリへ残しません。
-4. `01_未処理要求`（REQUESTED/ACCEPTED）と`02_拒否された要求`（REJECTED）を確認します。必要なら「REQUESTEDのまま1時間経過」を条件とするkintoneリマインダーを任意設定します。通知は補助であり、一覧確認を置き換えません。
+4. `01_未処理要求`（REQUESTED/ACCEPTED）、`02_拒否された要求`（REJECTED）、`03_取消済み`（CANCELLED）を確認します。必要なら「REQUESTEDのまま1時間経過」を条件とするkintoneリマインダーを任意設定します。通知は補助であり、一覧確認を置き換えません。
 5. 本番のアプリID、token、絶対allowlist pathを秘密環境ファイルへ設定し、cronを有効にする前に`ksql-flownet poll-requests --check`を実行します。成功するまで本番スケジュールへ接続しません。
 
 ## 既存アプリのレイアウト幅調整
@@ -70,7 +70,7 @@ kSQL-FlowNetのControl Planeで使用する機械専用の「実行管理」「�
 
 実行管理・監査履歴アプリのアクセス権はアプリ管理者とサービスアカウントに限定し、一般ユーザーには閲覧権限のみを付与する構成を推奨します。
 
-操作要求アプリでは、要求者にレコード追加・閲覧を許可し、機械所有の状態・claim・結果フィールドは編集させないでください。ポーラー用トークンはレコード閲覧・編集のみ（追加・削除なし）とします。作成者・作成日時のkintoneシステムフィールドを要求者の真正性と順序の根拠に使うため、自己申告の要求者フィールドは追加しません。
+操作要求アプリでは、要求者にレコード追加・閲覧を許可し、機械所有の状態・claim・結果フィールドはeveryone閲覧のみにしてください。`cancel_requested`だけは作成者を上位の編集可、everyoneを閲覧のみにします。ポーラー用トークンはレコード閲覧・編集のみ（追加・削除なし）とします。作成者・作成日時のkintoneシステムフィールドを要求者の真正性と順序の根拠に使うため、自己申告の要求者フィールドは追加しません。
 
 ## 既知の制約
 
