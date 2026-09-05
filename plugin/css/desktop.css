@@ -173,8 +173,9 @@
 }
 
 .ksql-flownet-start-request-reason {
+  min-width: 12em;
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .ksql-flownet-start-request-result {
@@ -194,11 +195,10 @@
 }
 
 .ksql-flownet-operation-cell {
-  width: 9em;
+  /* P2-16: 終端Runはリラン+クローズの2ボタンになるため、固定幅をやめて折り返しを許す */
   min-width: 9em;
-  max-width: 9em;
   text-align: center !important;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .ksql-flownet-badge {
@@ -282,7 +282,7 @@
   gap: 8px;
   align-items: center;
   justify-content: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   white-space: nowrap;
 }
 
