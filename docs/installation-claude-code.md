@@ -93,7 +93,7 @@ exit 0 でなければ cron 登録に進まず、原因を報告して止まっ�
 ```
 
 ```
-初回の定期実行 ./run_<flow 名>.sh を実行し、exit code、status <network_id> --json の Run 状態、
+初回の定期実行 ./run_<flow 名>.sh を実行し、exit code、status <network_id> --profile prod --json の Run 状態、
 監査履歴とJOBログに相関付きレコードができたことを報告して。
 ```
 

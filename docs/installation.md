@@ -264,7 +264,7 @@ node --env-file=.env /opt/ksql/ksql-flownet/dist/cli/index.js poll-requests --ch
 
 ```sh
 ./run_monthly_summary.sh
-node /opt/ksql/ksql-flownet/dist/cli/index.js status monthly_summary --json
+node /opt/ksql/ksql-flownet/dist/cli/index.js status monthly_summary --profile prod --json
 ```
 
 exit 0 で `status` の Run が `SUCCESS` になり、ボード「00_Run状況」には表示されない(未終端 Run がない)ことを確認する。監査履歴アプリに Invocation・Attempt、JOBログアプリに相関 ID 付きのジョブログができている。
