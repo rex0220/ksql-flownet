@@ -66,7 +66,7 @@ JOBログアプリ(kSQL-Flow の実行ログ)は次のどちらかで用意す�
 | `request_state`、`claimed_at`、`claimed_host`、`claim_heartbeat_at`、`result_code`、`result_message` | Everyone 閲覧のみ(ポーラーが API トークンで書く。トークン書込はフィールドアクセス権の影響を受けない) |
 | `cancel_requested` | 作成者 編集可、Everyone 閲覧のみ(起票者本人だけがボードから取消できる) |
 
-**JOBログアプリ**: kSQL-Flow の `scripts/logapp_v04_field_acl.console.js` を同様に実行し、相関 5 フィールドを Everyone 閲覧のみにする(kSQL-Flow の template/README の手順)。
+**JOBログアプリのフィールドアクセス権**: アプリの画面を開き、Console で [`templates/console/set-joblog-field-acl.console.js`](../templates/console/set-joblog-field-acl.console.js) を実行する(アプリ ID を入力)。kSQL-FlowNet が Attempt の照合に使う相関 5 フィールド(`correlation_id`・`attempt_id`・`execution_id`・`job_id`・`runner_execution_started_at`)を Everyone 閲覧のみにする。kSQL-Flow ランナーの API トークン書込は影響を受けない。
 
 **アプリのアクセス権(推奨)**:
 

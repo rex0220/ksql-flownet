@@ -10,6 +10,7 @@ templates/
     ├── create-flownet-apps.console.js          実行管理+監査履歴の新規作成
     ├── create-flownet-request-app.console.js   操作要求の新規作成
     ├── finish-request-app-views.console.js     ↑が一覧設定で失敗したときの再開
+    ├── set-joblog-field-acl.console.js         JOBログの相関フィールドを閲覧のみに
     ├── migrations/                             既存アプリへの追補(適用順は下表)
     └── e2e/                                    E2E fixture アプリ(本番では使わない)
 ```
@@ -53,6 +54,14 @@ templates/
 | `create-flownet-apps.console.js`        | 実行管理+監査履歴 | フィールド・レイアウト幅・`01_要対応ノード`/`02_未完了Run`/`03_停止要求` まで。**`00_Run状況` と関連レコードは含まない**ので、続けて `add-run-board-view` と `add-run-related-lists` を適用する。同名アプリがあれば中止   |
 | `create-flownet-request-app.console.js` | 操作要求          | START 3欄(`network_id`・`business_key`・`scheduled_for`)込みの P2-11 schema と `01_未処理要求`/`02_拒否された要求`。**lifecycle v2 は含まない**ので、続けて `add-request-lifecycle-v2` を適用する。同名アプリがあれば中止 |
 | `finish-request-app-views.console.js`   | (再開用)          | 上記が一覧設定で失敗したとき、作成済み preview アプリへ一覧2件を設定してデプロイする。`APP_ID` を書き換えて実行                                                                                                           |
+
+### アクセス権(`console/`)
+
+| スクリプト                        | 対象              | 内容                                                                                                                                                                                                                                                                 |
+| --------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `set-joblog-field-acl.console.js` | kSQL-Flow JOBログ | 相関 5 フィールド(`correlation_id`・`attempt_id`・`execution_id`・`job_id`・`runner_execution_started_at`)を Everyone 閲覧のみにする。テンプレートから作った JOBログにも既存の JOBログ(kSQL-Flow template v0.4 以降)にも使う。ランナーのトークン書込は影響を受けない |
+
+操作要求アプリのフィールドアクセス権は `migrations/add-request-lifecycle-v2.console.js` が適用する(テンプレートから作った直後のアプリに実行すると、フィールド・一覧は既存のためアクセス権だけを適用する)。
 
 E2E 用の操作要求アプリは `create-flownet-request-app.console.js` を一時コピーし、`APP_NAME` だけを変えて作ります(正本は変更しない)。本番と E2E でアプリ instance と API トークンを分離してください。
 
