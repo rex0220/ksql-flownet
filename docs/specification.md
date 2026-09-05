@@ -384,6 +384,43 @@ nodes:
 | `day` | `{yyyy}`, `{MM}`, `{dd}` | 未対応プレースホルダー |
 | `month` | `{yyyy}`, `{MM}` | `{dd}`、未対応プレースホルダー |
 
+**`network_id` と `business_key` に何を書くか。** 2 つは役割が違う。`network_id` は「どの処理(DAG)か」を表し、定義者が YAML に 1 度だけ書く。`business_key` は「その処理のどの回(対象期間・対象データ)か」を表し、実行のたびに決まる。Run は `profile × network_id × business_key` で一意になる(§5.3)ので、`business_key` に network の名前を含める義務はないが、Run 一覧・JOBログ・CSV パスでは `business_key` だけが見えるため、`{network_id}@…` の形にしておくと判別しやすい(§4.7 の例はすべてこの形)。
+
+| 識別子 | 意味 | 誰がいつ決めるか | 書く場所・一致させる場所 | 決め方の目安 |
+| --- | --- | --- | --- | --- |
+| `network_id` | 処理(DAG)の論理名 | 定義者が YAML 作成時に 1 度 | YAML `network_id`、allowlist の `network_id`、プラグイン START 許可 CSV の 2 列目、操作要求 `network_id`、`status <network_id>`。すべて同じ文字列 | 英数字とアンダースコアの短い名前(例: `monthly_summary`)。profile 内で一意。変更すると別 network 扱いになり既存 Run と結びつかない |
+| `business_key` | その処理の 1 回分(対象期間・対象データ)の名前 | 定期: cron の `--scheduled-for` から YAML の `format` で自動導出。補正・任意キー: 起票者・CLI 実行者が指定 | CLI `--business-key`、操作要求 `business_key`、Run の `business_key`、CSV パスの `{business_key}` | 同じキーは同じ Run(SUCCESS なら NOOP、失敗なら resume)。再集計は別キー(例: `…-correction-1`)。128 UTF-16 単位以内、`:`・NUL 不可 |
+
+YAML との対応と、キーが決まってから使われるまでの流れ:
+
+```mermaid
+flowchart LR
+  subgraph YAML["network.yaml(定義者が書く)"]
+    NID["network_id:<br>monthly_summary"]
+    POL["business_key_policy:<br>type: scheduled_period<br>period: month<br>format: '{network_id}@{yyyy}-{MM}'"]
+  end
+  subgraph IN["実行のたびの入力(cron / ボード / CLI)"]
+    SF["定期<br>--scheduled-for 2026-09-01T00:00+09:00"]
+    BK["補正・任意キー<br>--business-key monthly_summary@2026-09-correction-1"]
+  end
+  POL -->|"format を展開"| D["業務キー導出(§4.6)"]
+  NID -->|"{network_id}"| D
+  SF -->|"timezone で暦日に"| D
+  BK -->|"指定値をそのまま採用"| D
+  D --> KEY["business_key<br>monthly_summary@2026-09"]
+  NID --> RUN["Run の一意性<br>profile × network_id × business_key<br>→ record_key(§5.3)"]
+  KEY --> RUN
+  RUN --> USE["Run 一覧・ボード・JOBログ相関・監査<br>CSV パスの {business_key}"]
+```
+
+同じ YAML に対する入力と結果の例:
+
+| 起動 | 入力 | 採用される `business_key` | Run |
+| --- | --- | --- | --- |
+| 9 月の cron | `--scheduled-for 2026-09-01T00:00:00+09:00` | `monthly_summary@2026-09`(format から導出) | 初回は新規、同月の再発火は完走済みなら NOOP |
+| 9 月分の補正(ボード) | `business_key = monthly_summary@2026-09-correction-1`、`scheduled_for = 9 月 1 日` | 指定値そのまま。`scheduled_for` は `as_of` に使う | 別キーなので新規 Run |
+| 任意キー(`type: explicit` の network) | `--business-key sales_import_20260904` | 指定値そのまま(`--scheduled-for` は禁止) | キーが同じなら同じ Run |
+
 ### 4.4 Network ロック
 
 | フィールド | 規則 |
