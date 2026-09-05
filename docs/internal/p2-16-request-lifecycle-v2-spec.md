@@ -55,7 +55,7 @@ v1.0.0 の操作要求は「起票 → ポーラーが claim → 実行 → DONE
 | `run_id` / `result_code` | 対象 Run / `RUN_ARCHIVED` |
 | `reason` JSON | `requested_by`・`reason`・`archived_at`・`previous_status`(`FAILED` / `CANCELLED`)・`run_revision_before` |
 | `service_principal` | 既存運用監査と同じ(`KSQL_FLOWNET_SERVICE_PRINCIPAL`) |
-| `resolved_at`(物理列) | `archived_at` と同値。既存 serializer は event type ごとに日時欄を選ぶため、`RUN_ARCHIVED` では `archived_at` を `resolved_at` へ格納し、decoder も同じ対応で復元する |
+| `resolved_at`(物理列) | `archived_at` と同値。既存 serializer は event type ごとに日時欄を選ぶため、`RUN_ARCHIVED` では `archived_at` を `resolved_at` へ格納し、decoder も同じ対応で復元する。物理列は kintone DATETIME のため**分精度**(秒は切り捨て)で、秒付きの正は `reason` JSON の `archived_at`(統合仕様書 §9) |
 
 書込応答が失われた場合は同一 `event_id` を再読取し、**`event_id` / `run_id` / `event_type` / `previous_status` / `run_revision_before` が完全一致**すれば成功とみなす(§5.3 部分成功表)。`event_id` が存在するのに他の項目が一致しない場合は `AUDIT_CONFLICT`(Run は ARCHIVED 済み・監査補完要)として fail-closed にする(既存の運用監査は `event_id` 一致だけで同一判定しているため、archive では判定を強める)。
 

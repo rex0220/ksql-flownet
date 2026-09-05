@@ -30,6 +30,8 @@ const P2_01_FIXTURES = new Set([
   "network-drill.yaml",
   "network-p211-explicit.yaml",
   "network-p211-scheduled.yaml",
+  "network-midfail.yaml",
+  "network-p216-longfail.yaml",
   "network-csv1-import.yaml",
   "network-csv2-export.yaml",
 ]);
@@ -393,6 +395,7 @@ export function startPollRequests(settings, allowlistPath, options = {}) {
     ),
     KSQL_FLOWNET_REQUEST_STALE_AFTER_MS: String(options.staleAfterMs ?? 5_000),
     KSQL_FLOWNET_HOST: `${P2_01_PREFIX}poller`,
+    ...options.environment,
   });
   return startProcess(process.execPath, [FLOWNET_CLI, "poll-requests"], {
     env: environment,

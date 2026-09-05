@@ -241,7 +241,27 @@ export async function persistenceSnapshot(settings) {
 
 export async function assertPersistenceUnchanged(settings, before) {
   const after = await persistenceSnapshot(settings);
-  assert.deepEqual(after.audit, before.audit, "監査アプリは完全不変であること");
+  const changedAuditIds = [
+    ...new Set([...Object.keys(before.audit), ...Object.keys(after.audit)]),
+  ].filter((id) => before.audit[id] !== after.audit[id]);
+  if (changedAuditIds.length > 0) {
+    // 診断: 変更された監査レコードの種別・状態を失敗メッセージへ含める(値は秘匿対象外の要約のみ)
+    const records = await getAllPersistenceRecords(
+      settings,
+      "audit",
+      `$id in (${changedAuditIds.map((id) => `"${id}"`).join(",")})`,
+    );
+    const summary = records.map((record) =>
+      [
+        `#${field(record, "$id")}`,
+        field(record, "record_type"),
+        `status=${field(record, "status")}`,
+        `result=${field(record, "result_code")}`,
+        `rev=${before.audit[field(record, "$id")] ?? "-"}->${field(record, "$revision")}`,
+      ].join(" "),
+    );
+    assert.fail(`監査アプリは完全不変であること: ${summary.join(" | ")}`);
+  }
   for (const [id, entry] of Object.entries(before.state)) {
     const current = after.state[id];
     assert.ok(current, `既存stateレコード#${id}が消えています`);

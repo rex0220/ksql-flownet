@@ -273,6 +273,38 @@ node tests\e2e\p2-11-05-stale-regression.mjs
 
 `p2-11-05-stale-regression`はclaim後にポーラーが失われた永続状態を`ACCEPTED`要求として再現し、STALE回収、自動再claimなし、Run/Invocation不増加、人の再要求がNOOPへ収束することを確認します。同じシナリオで`app_start:false` networkのRERUNと、`run-network --scheduled-for ... --resume`のcron相当経路も確認します。P2-01のSTOP/RELEASE全体の実機証拠は既存`p2-01-04-stop-release.mjs`を引き続き正とします。
 
+## P2-16 操作要求ライフサイクル v2 E2E
+
+P2-16 M3は、処理前取消、終端Runのhold解除、CLOSE、claim/取消およびCLOSE/RERUNの競合をCLI・ポーラー・API直接起票で確認します。ボードUIは使用しません。P2-01/P2-11と同じE2E専用操作要求アプリ、`KSQL_FLOW_TEST_` scope、token分離、安全境界を使用します。実行前に`templates/add-request-lifecycle-v2.console.js`をE2E要求アプリへ適用し、`CLOSE`、`CANCELLED`、`cancel_requested`、`03_取消済み`、フィールドアクセス権が反映済みであることを確認してください。
+
+追加fixture `network-p216-longfail.yaml` は、n1で顧客管理4246と案件管理4247を長時間読み取った後に決定的`ASSERT_FAILED`となり、n2を依存Nodeとして`BLOCKED`にします。SQLは`CREATE TEMP TABLE` / `SELECT` / `ASSERT`だけで、業務アプリへの書込みとIO入出力はありません。
+
+`. .\tests\e2e\setup-env.ps1`、`npm run build`を済ませ、他のポーラーとE2Eを停止してから、次の順序で必ず直列実行してください。fault-hookの制御・到達ログ・releaseファイルは一時fixture内だけに作成され、通常終了と例外終了のどちらでも削除されます。
+
+```powershell
+node tests\e2e\p2-16-01-cancel-before-claim.mjs
+node tests\e2e\p2-16-04-close.mjs
+node tests\e2e\p2-16-03-terminal-hold-release.mjs
+node tests\e2e\p2-16-05-close-rerun-race.mjs
+node tests\e2e\p2-16-02-cancel-claim-race.mjs
+```
+
+| スクリプト                       | 受入  | 実測内容                                                                                                      |
+| -------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------- |
+| `p2-16-01-cancel-before-claim`   | 1・12 | valid/invalid STARTのclaim前取消、`CANCELLED_BY_REQUESTER`、claim/Invocationなし、state/audit不変             |
+| `p2-16-02-cancel-claim-race`     | 2     | claim PUTのbefore/after-success barrierで取消先勝ちとclaim先勝ちを固定し、409と到達ログを確認                 |
+| `p2-16-03-terminal-hold-release` | 4     | STOP後の決定的失敗、FAILED+hold、status JSONのhold、RELEASE後null、RERUN Invocation作成                       |
+| `p2-16-04-close`                 | 6・7  | FAILEDのARCHIVED化、監査5項目、lock tombstone、resume拒否、再CLOSE NOOP、およびSUCCESS/RUNNING/hold拒否       |
+| `p2-16-05-close-rerun-race`      | 8b    | resumeがheartbeat後にNetwork lockを保持している間のCLOSE競合、解放後ARCHIVED、以後のresume拒否とAttempt不増加 |
+
+長時間SQLを複数回使うため、5本合計の目安は約10〜20分です。データ件数やkintone API応答によって延びます。barrierは120秒でタイムアウトするため、到達待ち中に制御ファイルや子プロセスを手動操作しないでください。結果JSONにはtoken値、実アプリID、要求reason本文を保存せず、要求結果と監査の一致はbooleanまたは識別子だけで記録します。
+
+通常は各スクリプトの`finally`と共通gateが要求レコード、state/audit fixture、ローカルworkdir、fault-hookファイルを清掃します。端末強制終了などで残った場合は、結果またはエラー表示の`KSQL_FLOW_TEST_...` scopeを確認し、他のE2Eプロセスが停止していることを確認してから次を実行してください。JOBログは証跡として削除しません。
+
+```powershell
+node tests\e2e\p2-11-ui-driver.mjs cleanup <KSQL_FLOW_TEST_...scope>
+```
+
 ## CSV取込 段階1 E2E
 
 CSV段階1は、既存のE2E state/audit/JOBログアプリに加えて、取込先を専用fixtureアプリへ分離します。顧客管理・案件管理は書込先にせず、本番JOBログアプリも使用しません。fixtureアプリには次のフィールドだけを作成し、E2E用tokenへレコード閲覧・追加・編集・削除権限を付与してください。

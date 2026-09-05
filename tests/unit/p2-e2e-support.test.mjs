@@ -11,6 +11,10 @@ import {
   startInput,
   TERMINAL_REQUEST_STATES,
 } from "../e2e/p2-11-support.mjs";
+import {
+  buildFaultControl,
+  extractRunArchivedAuditFields,
+} from "../e2e/p2-16-support.mjs";
 
 const field = (value) => ({ value });
 
@@ -110,4 +114,54 @@ test("CANCELLED START相関はInvocationなしを正常な終端として検証�
     result.expectedRequestedBy,
     "app-request:9:operator%40example.test",
   );
+});
+
+test("P2-16 fault制御JSONは対象app/record/fieldとphase/releaseを固定する", () => {
+  const control = buildFaultControl({
+    barrierId: `${P2_01_PREFIX}claim-before`,
+    app: 123,
+    recordId: "456",
+    field: "claimed_at",
+    phase: "before",
+    release: "C:\\tmp\\claim-before.release",
+  });
+  assert.deepEqual(control, {
+    mode: "pass",
+    barriers: [
+      {
+        id: `${P2_01_PREFIX}claim-before`,
+        match: {
+          path: "^/k/v1/record\\.json$",
+          method: "PUT",
+          body: { app: 123, field: "claimed_at", id: "456" },
+        },
+        phase: "before",
+        release: "C:\\tmp\\claim-before.release",
+      },
+    ],
+  });
+});
+
+test("P2-16 RUN_ARCHIVED監査JSONから契約上の5項目だけを抽出する", () => {
+  const extracted = extractRunArchivedAuditFields(
+    JSON.stringify({
+      event_id: "archive_123",
+      event_type: "RUN_ARCHIVED",
+      run_id: "run_1",
+      result_code: "RUN_ARCHIVED",
+      requested_by: `${P2_01_PREFIX}operator`,
+      reason: `${P2_01_PREFIX}unit:archive`,
+      archived_at: "2026-09-05T12:34:56.000Z",
+      previous_status: "FAILED",
+      run_revision_before: 7,
+      service_principal: `${P2_01_PREFIX}service`,
+    }),
+  );
+  assert.deepEqual(extracted, {
+    requested_by: `${P2_01_PREFIX}operator`,
+    reason: `${P2_01_PREFIX}unit:archive`,
+    archived_at: "2026-09-05T12:34:56.000Z",
+    previous_status: "FAILED",
+    run_revision_before: 7,
+  });
 });

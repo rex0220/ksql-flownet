@@ -1,0 +1,22 @@
+schema_version: 1
+network_id: p216_longfail
+description: P2-16 long read followed by deterministic failure
+business_key_policy:
+  type: explicit
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 60
+  heartbeat_interval_sec: 15
+nodes:
+  - id: n1_longfail
+    job_id: p216_longfail
+    sql: jobs/p216-longfail.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true
+  - id: n2_dependent
+    job_id: p216_dependent
+    sql: jobs/success-n2-aggregate.sql
+    depends_on: [n1_longfail]
+    trigger_rule: all_success
+    idempotent: true
