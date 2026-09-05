@@ -170,6 +170,20 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     return next(stored, { ...stored.value, ...update });
   }
 
+  async archiveRun(
+    runId: string,
+    expectedRevision: number,
+    at: string,
+  ): Promise<Versioned<NetworkRun>> {
+    const stored = this.required(this.runs, runId, "run");
+    assertRevision(stored, expectedRevision);
+    return next(stored, {
+      ...stored.value,
+      lifecycle_status: "ARCHIVED",
+      updated_at: at,
+    });
+  }
+
   async createInvocation(
     invocation: RunInvocation,
   ): Promise<Versioned<RunInvocation>> {
@@ -444,6 +458,15 @@ export class InMemoryPersistenceRepository implements PersistenceRepository {
     const stored = { value: structuredClone(audit), revision: 1 };
     this.operationAudits.push(stored);
     return copy(stored);
+  }
+
+  async getOperationAuditByEventId(
+    eventId: string,
+  ): Promise<Versioned<OperationAudit> | null> {
+    const stored = this.operationAudits.find(
+      ({ value }) => value.event_id === eventId,
+    );
+    return stored === undefined ? null : copy(stored);
   }
 
   async listInconsistencies(runId: string): Promise<Inconsistency[]> {

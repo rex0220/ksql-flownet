@@ -8,9 +8,67 @@ import {
 } from "../../dist/requests/kintone-request-store.js";
 import {
   parseRequestRecord,
+  parseRequestEnvelope,
   RequestValidationError,
   REQUEST_VALUE_LIMITS,
 } from "../../dist/requests/request-model.js";
+
+test("cancel_requestedは配列契約をfail-closedでparseし最小envelopeでは不正を識別する", () => {
+  assert.equal(
+    parseRequestRecord(rawRecord({ cancel_requested: ["取消"] }))
+      .cancelRequested,
+    true,
+  );
+  assert.equal(
+    parseRequestRecord(rawRecord({ cancel_requested: [] })).cancelRequested,
+    false,
+  );
+  assert.equal(parseRequestRecord(rawRecord()).cancelRequested, false);
+  for (const value of [
+    "取消",
+    ["unknown"],
+    ["取消", "unknown"],
+    ["取消", "取消"],
+  ]) {
+    assert.throws(
+      () => parseRequestRecord(rawRecord({ cancel_requested: value })),
+      RequestValidationError,
+    );
+    assert.equal(
+      parseRequestEnvelope(rawRecord({ cancel_requested: value }))
+        .cancelRequested,
+      "INVALID",
+    );
+  }
+});
+
+test("CLOSEとCANCELLEDの契約を検証する", () => {
+  assert.equal(
+    parseRequestRecord(rawRecord({ request_type: "CLOSE" })).requestType,
+    "CLOSE",
+  );
+  assert.throws(
+    () => parseRequestRecord(rawRecord({ request_type: "CLOSE", run_id: "" })),
+    RequestValidationError,
+  );
+  const cancelled = parseRequestRecord(
+    rawRecord({
+      request_state: "CANCELLED",
+      result_code: "CANCELLED_BY_REQUESTER",
+    }),
+  );
+  assert.equal(cancelled.requestState, "CANCELLED");
+  assert.throws(
+    () =>
+      parseRequestRecord(
+        acceptedRecord({
+          request_state: "CANCELLED",
+          result_code: "CANCELLED_BY_REQUESTER",
+        }),
+      ),
+    RequestValidationError,
+  );
+});
 
 const response = (body, status = 200) =>
   new Response(JSON.stringify(body), {

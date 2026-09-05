@@ -45,6 +45,8 @@ Commands:
                       force-release a stale Network lock with an audit record
   cancel-run --run-id <run_id> [--release] --reason-file <path>
                       request or release a Run hold at the next node boundary
+  archive-run <network.yaml> --run-id <run_id> --reason-file <path> [--profile <profile>]
+                      archive a terminal failed or cancelled Run
   status <network_id> --profile <profile>
          [--run-id <run_id> | --business-key <key>] [--json]
                       inspect lock and Run recovery state (read-only)
@@ -146,6 +148,12 @@ async function main(args: readonly string[]): Promise<void> {
   if (command === "cancel-run") {
     const { runCancelRunCommand } = await import("./cancel-run-command.js");
     process.exitCode = await runCancelRunCommand(commandArgs);
+    return;
+  }
+
+  if (command === "archive-run") {
+    const { runArchiveRunCommand } = await import("./archive-run-command.js");
+    process.exitCode = await runArchiveRunCommand(commandArgs);
     return;
   }
 

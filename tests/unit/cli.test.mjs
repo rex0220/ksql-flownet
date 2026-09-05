@@ -20,6 +20,7 @@ import {
   runRunNetworkCommand,
 } from "../../dist/cli/run-network-command.js";
 import { runPollRequestsCommand } from "../../dist/cli/poll-requests-command.js";
+import { runArchiveRunCommand } from "../../dist/cli/archive-run-command.js";
 import { EnsureRunError } from "../../dist/orchestration/ensure-run.js";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -158,10 +159,71 @@ Commands:
                       force-release a stale Network lock with an audit record
   cancel-run --run-id <run_id> [--release] --reason-file <path>
                       request or release a Run hold at the next node boundary
+  archive-run <network.yaml> --run-id <run_id> --reason-file <path> [--profile <profile>]
+                      archive a terminal failed or cancelled Run
   status <network_id> --profile <profile>
          [--run-id <run_id> | --business-key <key>] [--json]
                       inspect lock and Run recovery state (read-only)
 `,
+  );
+});
+
+test("archive-runは引数を検証しstdout 1行JSONと厳格なexit codeを返す", async (context) => {
+  const stdout = [];
+  const stderr = [];
+  context.mock.method(process.stdout, "write", (value) => {
+    stdout.push(String(value));
+    return true;
+  });
+  context.mock.method(process.stderr, "write", (value) => {
+    stderr.push(String(value));
+    return true;
+  });
+  assert.equal(
+    await runArchiveRunCommand([], {
+      execute: async () => {
+        throw new Error("unused");
+      },
+    }),
+    1,
+  );
+  stdout.length = 0;
+  stderr.length = 0;
+  const value = {
+    outcome: "ARCHIVED",
+    run_id: "run_1",
+    event_id: "archive_1",
+    run_revision: 2,
+    audit: "RECORDED",
+    lock_released: true,
+  };
+  assert.equal(
+    await runArchiveRunCommand(
+      ["network.yaml", "--run-id", "run_1", "--reason-file", "reason.txt"],
+      { readFile: () => "reason", execute: async () => value },
+    ),
+    0,
+  );
+  assert.equal(stdout.length, 1);
+  assert.deepEqual(JSON.parse(stdout[0]), value);
+  assert.match(stderr[0], /^ARCHIVED:/);
+  stdout.length = 0;
+  stderr.length = 0;
+  assert.equal(
+    await runArchiveRunCommand(
+      ["network.yaml", "--run-id", "run_1", "--reason-file", "reason.txt"],
+      {
+        readFile: () => "reason",
+        execute: async () => ({
+          outcome: "ALREADY_ARCHIVED",
+          run_id: "run_1",
+          event_id: "archive_2",
+          run_revision: 2,
+          lock_released: true,
+        }),
+      },
+    ),
+    1,
   );
 });
 

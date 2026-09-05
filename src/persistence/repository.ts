@@ -22,7 +22,8 @@ export type RepositoryErrorCode =
   | "RECORD_NOT_FOUND"
   | "MULTIPLE_RECORDS"
   | "UNIQUE_KEY_TOO_LONG"
-  | "REMOTE_ERROR";
+  | "REMOTE_ERROR"
+  | "AUDIT_CONFLICT";
 
 export class RepositoryError extends Error {
   readonly code: RepositoryErrorCode;
@@ -140,6 +141,11 @@ export interface PersistenceRepository {
     expectedRevision: number,
     update: RunAggregateUpdate,
   ): Promise<Versioned<NetworkRun>>;
+  archiveRun(
+    runId: string,
+    expectedRevision: number,
+    at: string,
+  ): Promise<Versioned<NetworkRun>>;
   createInvocation(
     invocation: RunInvocation,
   ): Promise<Versioned<RunInvocation>>;
@@ -175,6 +181,9 @@ export interface PersistenceRepository {
   appendOperationAudit(
     audit: OperationAudit,
   ): Promise<Versioned<OperationAudit>>;
+  getOperationAuditByEventId(
+    eventId: string,
+  ): Promise<Versioned<OperationAudit> | null>;
   listInconsistencies(runId: string): Promise<Inconsistency[]>;
 }
 

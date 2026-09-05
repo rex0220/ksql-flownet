@@ -454,6 +454,53 @@ test("kintone: Network lock強制回収監査をJSON reason方式で追記する
   assert.deepEqual(JSON.parse(call.body.record.reason.value), audit);
 });
 
+test("kintone: archiveRunとRUN_ARCHIVED監査をround-tripし5項目不一致をAUDIT_CONFLICTにする", async () => {
+  const fake = createKintoneFake();
+  const repo = repository(fake);
+  const created = await repo.createRun({ ...makeRun(), status: "FAILED" });
+  const archived = await repo.archiveRun(
+    "run_1",
+    created.revision,
+    "2026-09-05T00:00:00Z",
+  );
+  assert.equal(archived.value.lifecycle_status, "ARCHIVED");
+  const put = fake.calls.find(
+    ({ method, body }) =>
+      method === "PUT" && body.record.lifecycle_status?.value === "ARCHIVED",
+  );
+  assert.deepEqual(Object.keys(put.body.record).sort(), [
+    "lifecycle_status",
+    "updated_at",
+  ]);
+  const audit = {
+    event_id: "archive_fixed",
+    event_type: "RUN_ARCHIVED",
+    run_id: "run_1",
+    result_code: "RUN_ARCHIVED",
+    requested_by: "operator",
+    reason: "close",
+    archived_at: "2026-09-05T00:00:00Z",
+    previous_status: "FAILED",
+    run_revision_before: created.revision,
+    service_principal: "svc",
+  };
+  await repo.appendOperationAudit(audit);
+  assert.deepEqual(
+    (await repo.getOperationAuditByEventId(audit.event_id)).value,
+    audit,
+  );
+  const post = fake.calls.find(
+    ({ method, body }) =>
+      method === "POST" && body.record.record_key.value === "OP:archive_fixed",
+  );
+  assert.equal(post.body.record.resolved_at.value, audit.archived_at);
+  await assert.rejects(
+    () => repo.appendOperationAudit({ ...audit, run_revision_before: 99 }),
+    (error) =>
+      error instanceof RepositoryError && error.code === "AUDIT_CONFLICT",
+  );
+});
+
 test("kintone: Attempt ResolutionのD-13必須記録を監査appで往復する", async () => {
   const fake = createKintoneFake({ truncateDateTimesOnRead: true });
   const repo = repository(fake);

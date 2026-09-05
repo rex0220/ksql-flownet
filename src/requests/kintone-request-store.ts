@@ -6,9 +6,11 @@ import {
 } from "../persistence/kintone/client.js";
 import {
   parseRequestRecord,
+  parseRequestEnvelope,
   RequestValidationError,
   type RequestRecord,
   type TerminalRequestState,
+  type RequestEnvelope,
   validateRequestRecord,
 } from "./request-model.js";
 
@@ -28,6 +30,8 @@ export interface RequestResult {
 export interface InvalidRequestRecord {
   readonly id: string;
   readonly revision: number;
+  readonly requestState: RequestEnvelope["requestState"];
+  readonly cancelRequested: RequestEnvelope["cancelRequested"];
   readonly issues: readonly {
     readonly code: string;
     readonly field: string;
@@ -101,8 +105,10 @@ export class KintoneRequestStore {
     const invalid: InvalidRequestRecord[] = [];
     let skipped = 0;
     for (const record of records) {
-      const identity = this.readIdentity(record);
-      if (identity === null) {
+      let envelope: RequestEnvelope;
+      try {
+        envelope = parseRequestEnvelope(record);
+      } catch {
         skipped += 1;
         continue;
       }
@@ -110,10 +116,39 @@ export class KintoneRequestStore {
         valid.push(parseRequestRecord(record));
       } catch (error) {
         if (!(error instanceof RequestValidationError)) throw error;
-        invalid.push({ ...identity, issues: error.issues });
+        invalid.push({
+          id: envelope.id,
+          revision: envelope.revision,
+          requestState: envelope.requestState,
+          cancelRequested: envelope.cancelRequested,
+          issues: error.issues,
+        });
       }
     }
     return { valid, invalid, skipped };
+  }
+
+  async cancelBeforeClaim(
+    request: RequestEnvelope,
+    result: RequestResult,
+  ): Promise<boolean> {
+    if (
+      request.requestState !== "REQUESTED" ||
+      request.cancelRequested !== true ||
+      result.state !== "CANCELLED"
+    )
+      throw new Error("cancellation requires REQUESTED -> CANCELLED");
+    try {
+      await this.client.putRecordById(request.id, request.revision, {
+        request_state: field("CANCELLED"),
+        result_code: field(result.code),
+        result_message: field(result.message),
+      });
+      return true;
+    } catch (error) {
+      if (conflict(error)) return false;
+      throw error;
+    }
   }
 
   async listAccepted(): Promise<readonly RequestRecord[]> {
@@ -231,7 +266,7 @@ export class KintoneRequestStore {
     return this.resultRecord(current, result, revision);
   }
 
-  private async getById(id: string): Promise<RequestRecord | null> {
+  async getById(id: string): Promise<RequestRecord | null> {
     const records = await this.client.getRecords(`$id in ("${id}") limit 1`);
     const record = records[0];
     return record === undefined ? null : parseRequestRecord(record);

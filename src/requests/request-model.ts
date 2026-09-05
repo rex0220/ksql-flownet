@@ -1,6 +1,12 @@
 import type { KintoneRecord } from "../persistence/kintone/client.js";
 
-export const REQUEST_TYPES = ["RERUN", "STOP", "RELEASE", "START"] as const;
+export const REQUEST_TYPES = [
+  "RERUN",
+  "STOP",
+  "RELEASE",
+  "START",
+  "CLOSE",
+] as const;
 export type RequestType = (typeof REQUEST_TYPES)[number];
 
 export const REQUEST_STATES = [
@@ -8,9 +14,21 @@ export const REQUEST_STATES = [
   "ACCEPTED",
   "DONE",
   "REJECTED",
+  "CANCELLED",
 ] as const;
 export type RequestState = (typeof REQUEST_STATES)[number];
-export type TerminalRequestState = Extract<RequestState, "DONE" | "REJECTED">;
+export type TerminalRequestState = Extract<
+  RequestState,
+  "DONE" | "REJECTED" | "CANCELLED"
+>;
+
+export type CancelRequestedEnvelope = boolean | "INVALID";
+export interface RequestEnvelope {
+  readonly id: string;
+  readonly revision: number;
+  readonly requestState: RequestState;
+  readonly cancelRequested: CancelRequestedEnvelope;
+}
 
 export const REQUEST_VALUE_LIMITS = {
   runId: 128,
@@ -37,6 +55,7 @@ export interface RequestRecord {
   readonly rerunFromNode: string | null;
   readonly reason: string;
   readonly requestState: RequestState;
+  readonly cancelRequested: boolean;
   readonly claimedAt: string | null;
   readonly claimedHost: string | null;
   readonly claimHeartbeatAt: string | null;
@@ -104,6 +123,25 @@ function creatorCode(record: KintoneRecord): string {
     ]);
   }
   return value.code;
+}
+
+function cancelRequested(record: KintoneRecord): boolean {
+  if (!Object.hasOwn(record, "cancel_requested")) return false;
+  const value = rawValue(record, "cancel_requested");
+  if (
+    !Array.isArray(value) ||
+    value.length > 1 ||
+    value.some((item) => item !== "取消")
+  ) {
+    throw new RequestValidationError([
+      {
+        code: "FIELD_TYPE_INVALID",
+        field: "cancel_requested",
+        message: 'must be [] or ["取消"]',
+      },
+    ]);
+  }
+  return value.length === 1;
 }
 
 function choice<T extends string>(
@@ -303,7 +341,49 @@ export function validateRequestRecord(
       message: "terminal requests require a result code",
     });
   }
+  if (record.requestState === "CANCELLED" && claimCount !== 0) {
+    issues.push({
+      code: "STATE_FIELDS_INVALID",
+      field: "request_state",
+      message: `${record.requestState} must not contain claim fields`,
+    });
+  }
   return issues;
+}
+
+export function parseRequestEnvelope(record: KintoneRecord): RequestEnvelope {
+  const revisionText = stringValue(record, "$revision");
+  let cancellation: CancelRequestedEnvelope;
+  try {
+    cancellation = cancelRequested(record);
+  } catch {
+    cancellation = "INVALID";
+  }
+  const envelope: RequestEnvelope = {
+    id: stringValue(record, "$id"),
+    revision: Number(revisionText),
+    requestState: choice(
+      stringValue(record, "request_state"),
+      REQUEST_STATES,
+      "request_state",
+    ),
+    cancelRequested: cancellation,
+  };
+  const issues: RequestValidationIssue[] = [];
+  if (!/^\d+$/.test(envelope.id))
+    issues.push({
+      code: "ID_INVALID",
+      field: "$id",
+      message: "must be decimal",
+    });
+  if (!Number.isSafeInteger(envelope.revision) || envelope.revision < 1)
+    issues.push({
+      code: "REVISION_INVALID",
+      field: "$revision",
+      message: "must be a positive integer",
+    });
+  if (issues.length > 0) throw new RequestValidationError(issues);
+  return envelope;
 }
 
 export function parseRequestRecord(record: KintoneRecord): RequestRecord {
@@ -329,6 +409,7 @@ export function parseRequestRecord(record: KintoneRecord): RequestRecord {
       REQUEST_STATES,
       "request_state",
     ),
+    cancelRequested: cancelRequested(record),
     claimedAt: optionalString(record, "claimed_at"),
     claimedHost: optionalString(record, "claimed_host"),
     claimHeartbeatAt: optionalString(record, "claim_heartbeat_at"),

@@ -1,4 +1,5 @@
 import type {
+  CancelRequest,
   NetworkRun,
   NodeAttempt,
   NodeState,
@@ -54,6 +55,11 @@ export interface RunSummaryOutput {
   readonly started_at: string | null;
   readonly finished_at: string | null;
   readonly updated_at: string;
+  readonly hold: {
+    readonly state: "REQUESTED" | "ACCEPTED";
+    readonly requested_by: string;
+    readonly requested_at: string;
+  } | null;
   readonly activity?: RunActivity;
 }
 
@@ -110,6 +116,7 @@ interface NodeStateOutput {
 function summary(
   run: NetworkRun,
   activity: RunActivity | null,
+  cancelRequest: Versioned<CancelRequest> | null,
 ): RunSummaryOutput {
   return {
     run_id: run.run_id,
@@ -121,6 +128,16 @@ function summary(
     started_at: run.started_at,
     finished_at: run.finished_at,
     updated_at: run.updated_at,
+    hold:
+      cancelRequest !== null &&
+      (cancelRequest.value.state === "REQUESTED" ||
+        cancelRequest.value.state === "ACCEPTED")
+        ? {
+            state: cancelRequest.value.state,
+            requested_by: cancelRequest.value.requested_by,
+            requested_at: cancelRequest.value.requested_at,
+          }
+        : null,
     ...(activity === null ? {} : { activity }),
   };
 }
@@ -176,6 +193,7 @@ async function detail(
         cancelState: cancelRequest?.value.state ?? null,
         nowMs: currentTime,
       }),
+      cancelRequest,
     ),
     invocations: invocations.map(({ value }) => ({
       invocation_id: value.invocation_id,
@@ -201,10 +219,8 @@ async function detail(
         idempotent: value.idempotent,
         latest_attempt_no: value.latest_attempt_no,
         active_attempt_id: value.active_attempt_id,
-        latest_attempt:
-          latest === undefined ? null : attemptSummary(latest),
-        active_attempt:
-          active === undefined ? null : attemptSummary(active),
+        latest_attempt: latest === undefined ? null : attemptSummary(latest),
+        active_attempt: active === undefined ? null : attemptSummary(active),
       };
     }),
     reconciliation: {
@@ -314,6 +330,7 @@ export async function inspectStatus(
           cancelState: cancelRequest?.value.state ?? null,
           nowMs: currentTime,
         }),
+        cancelRequest,
       );
     }),
   );

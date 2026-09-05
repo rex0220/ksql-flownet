@@ -615,6 +615,23 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     return { value, revision: expectedRevision + 1 };
   }
 
+  async archiveRun(
+    runId: string,
+    expectedRevision: number,
+    at: string,
+  ): Promise<Versioned<NetworkRun>> {
+    const current = await this.requiredRunById(runId);
+    const recordKey = runRecordKey(current.value);
+    await this.put(this.state, recordKey, expectedRevision, {
+      lifecycle_status: field("ARCHIVED"),
+      updated_at: field(at),
+    });
+    return {
+      value: { ...current.value, lifecycle_status: "ARCHIVED", updated_at: at },
+      revision: expectedRevision + 1,
+    };
+  }
+
   private async requiredRunById(runId: string): Promise<Versioned<NetworkRun>> {
     let records: KintoneRecord[];
     try {
@@ -1020,6 +1037,7 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     const key = uniqueKey(`OP:${value.event_id}`);
     const networkForceRelease =
       value.event_type === "NETWORK_LOCK_FORCE_RELEASED";
+    const archived = value.event_type === "RUN_ARCHIVED";
     const record: KintoneRecord = {
       record_key: field(key),
       record_type: field("OPERATION_AUDIT"),
@@ -1037,15 +1055,46 @@ export class KintonePersistenceRepository implements PersistenceRepository {
           ? value.occurred_at
           : value.event_type === "JOB_LOCK_FORCE_UNLOCK_RECORDED"
             ? value.recorded_at
-            : value.released_at,
+            : archived
+              ? value.archived_at
+              : value.released_at,
       ),
     };
     return this.createWithAdjudication(
       this.audit,
       key,
       record,
-      () => value,
-      (found) => found.event_id === value.event_id,
+      (found) => JSON.parse(text(found, "reason")) as OperationAudit,
+      (found) =>
+        found.event_id === value.event_id &&
+        (!archived ||
+          (found.event_type === "RUN_ARCHIVED" &&
+            found.run_id === value.run_id &&
+            found.previous_status === value.previous_status &&
+            found.run_revision_before === value.run_revision_before)),
+      archived ? "AUDIT_CONFLICT" : undefined,
+    );
+  }
+
+  async getOperationAuditByEventId(
+    eventId: string,
+  ): Promise<Versioned<OperationAudit> | null> {
+    const key = uniqueKey(`OP:${eventId}`);
+    let records: KintoneRecord[];
+    try {
+      records = await this.audit.getRecords(inQuery("record_key", key));
+    } catch (error) {
+      mapError(error);
+    }
+    if (records.length === 0) return null;
+    if (records.length !== 1)
+      throw new RepositoryError(
+        "MULTIPLE_RECORDS",
+        "multiple operation audits matched",
+      );
+    return versioned(
+      records[0]!,
+      (record) => JSON.parse(text(record, "reason")) as OperationAudit,
     );
   }
 
@@ -1095,6 +1144,7 @@ export class KintonePersistenceRepository implements PersistenceRepository {
     record: KintoneRecord,
     decode: (r: KintoneRecord) => T,
     same: (value: T) => boolean,
+    mismatchCode?: "AUDIT_CONFLICT",
   ): Promise<Versioned<T>> {
     try {
       const created = await client.postRecord(record);
@@ -1124,6 +1174,12 @@ export class KintonePersistenceRepository implements PersistenceRepository {
       if (records.length === 1) {
         const found = versioned(records[0]!, decode);
         if (same(found.value)) return found;
+        if (mismatchCode !== undefined)
+          throw new RepositoryError(
+            mismatchCode,
+            "operation audit event_id belongs to different archive facts",
+            error,
+          );
       }
       if (error instanceof KintoneTransportError)
         throw new RepositoryError(

@@ -118,7 +118,7 @@ function repositoryFixture(overrides = {}) {
       return [];
     },
     async getCancelRequest() {
-      return null;
+      return overrides.cancelRequest ?? null;
     },
     async upsertNodeState(value) {
       writes.push(value);
@@ -134,6 +134,63 @@ function repositoryFixture(overrides = {}) {
     },
   };
 }
+
+test("holdはcancel state 4通りで終端/非終端のlist/detail双方に必須", async () => {
+  for (const state of ["REQUESTED", "ACCEPTED", "RELEASED", null]) {
+    for (const terminal of [false, true]) {
+      const cancelRequest =
+        state === null
+          ? null
+          : {
+              value: {
+                run_id: "run_1",
+                state,
+                requested_by: "operator",
+                requested_at: T0,
+              },
+              revision: 1,
+            };
+      for (const detail of [false, true]) {
+        const repository = repositoryFixture({ cancelRequest });
+        if (terminal) {
+          const original = repository.getRun;
+          repository.getRun = async (id) => {
+            const found = await original(id);
+            return {
+              ...found,
+              value: { ...found.value, status: "FAILED", finished_at: T0 },
+            };
+          };
+          repository.listRuns = async () => [
+            { value: run({ status: "FAILED", finished_at: T0 }), revision: 1 },
+          ];
+        }
+        const output = await inspectStatus(
+          {
+            networkId: "net",
+            profile: "prod",
+            ...(detail ? { runId: "run_1" } : {}),
+          },
+          {
+            repository,
+            lockReader: {
+              async getNetworkLock() {
+                return null;
+              },
+            },
+          },
+        );
+        assert.deepEqual(
+          output.runs[0].hold,
+          state === "REQUESTED" || state === "ACCEPTED"
+            ? { state, requested_by: "operator", requested_at: T0 }
+            : null,
+        );
+        assert.ok(Object.hasOwn(output.runs[0], "hold"));
+      }
+    }
+  }
+});
 
 test("shared status-activity vectors cover every activity and lease boundary", () => {
   const vectors = JSON.parse(

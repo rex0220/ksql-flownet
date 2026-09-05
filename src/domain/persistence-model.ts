@@ -219,7 +219,21 @@ export interface NetworkLockForceReleaseOperationAudit {
   post_release_revision: number;
 }
 
+export interface RunArchivedOperationAudit {
+  event_id: `archive_${string}`;
+  event_type: "RUN_ARCHIVED";
+  run_id: string;
+  result_code: "RUN_ARCHIVED";
+  requested_by: string;
+  reason: string;
+  archived_at: string;
+  previous_status: "FAILED" | "CANCELLED";
+  run_revision_before: number;
+  service_principal: string;
+}
+
 export type OperationAudit =
   | ReconciliationOperationAudit
   | JobLockRecoveryOperationAudit
-  | NetworkLockForceReleaseOperationAudit;
+  | NetworkLockForceReleaseOperationAudit
+  | RunArchivedOperationAudit;
