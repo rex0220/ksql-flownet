@@ -1,6 +1,6 @@
 # kSQL-FlowNet 導入手順書
 
-kintone と実行サーバーを 0 から準備し、ボードからの操作要求と cron の定期実行が動く状態(本番運用の開始点)までを 1 本の手順にまとめる。仕様の根拠は[統合仕様書](./specification.md)、配布物の詳細は [templates/README.md](../templates/README.md) と [plugin/README.md](../plugin/README.md) にある。
+kintone と実行サーバーを 0 から準備し、ボードからの操作要求と cron の定期実行が動く状態(本番運用の開始点)までを 1 本の手順にまとめる。仕様の根拠は[統合仕様書](./specification.md)、配布物の詳細は [templates/README.md](../templates/README.md) と [plugin/README.md](../plugin/README.md) にある。サーバー側の作業を Claude Code に任せる場合の分担と指示文は [Claude Code 併用版](./installation-claude-code.md)を参照。
 
 ## 0. 全体の流れ
 
