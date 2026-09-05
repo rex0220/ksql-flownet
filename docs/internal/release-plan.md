@@ -67,8 +67,8 @@ v1.0.0 に [P2-16](./p2-16-request-lifecycle-v2-spec.md)(FROZEN v1)を同梱す�
 
 新規ユーザーが0から本番運用に到達する1本の手順書 `docs/installation.md` を作成する(既存の断片: templates/README・plugin/README・specification §2 を導線として束ねる)。
 
-- [ ] 章立て: ①前提(kintone・サーバー要件 — specification §2参照) ②アプリテンプレートのインポート ③APIトークン発行と権限(削除不要) ④操作要求アプリのACL推奨設定 ⑤プラグインzipの読み込みとアプリへの追加・設定(START許可CSV含む) ⑥サーバー構築(Node 22+、npm install、環境変数、allowlist、cron 2本) ⑦`validate`・`poll-requests --check`・初回smoke ⑧日常運用への引き継ぎ(一次対応1ページ・復旧runbook)
-- [ ] docs/README.md索引へ追加
+- [x] (2026-09-05 完了・docs/installation.md、11節) 章立て: ①前提(kintone・サーバー要件 — specification §2参照) ②アプリテンプレートのインポート ③APIトークン発行と権限(削除不要) ④操作要求アプリのACL推奨設定 ⑤プラグインzipの読み込みとアプリへの追加・設定(START許可CSV含む) ⑥サーバー構築(Node 22+、npm install、環境変数、allowlist、cron 2本) ⑦`validate`・`poll-requests --check`・初回smoke ⑧日常運用への引き継ぎ(一次対応1ページ・復旧runbook)
+- [x] (2026-09-05 完了) docs/README.md索引へ追加(ルートREADME/README.jaにも導線)
 - [ ] スクリーンショットの要否を決める(Qiita記事側に載せるなら手順書はテキストでよい)
 
 ## R5. クリーンインストール検証

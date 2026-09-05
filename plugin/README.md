@@ -1,6 +1,6 @@
 # kSQL-FlowNet Run Activityプラグイン
 
-実行管理アプリのカスタマイズビュー「00_Run状況」とNETWORK_RUNの詳細画面を拡張するデスクトップ用プラグインです。配布version 2ではactivity表示、RERUN/STOP/RELEASE/CLOSE要求、未終端Runと要対応(終端)の2セクションに加え、ボードヘッダーの「新規実行」からSTART要求を起票できます。ヘッダーには「処理待ちのSTART要求 N件」も表示します。画面は補助表示であり、判断が割れた場合はCLI `status --json`を正とします。
+実行管理アプリのカスタマイズビュー「00_Run状況」とNETWORK_RUNの詳細画面を拡張するデスクトップ用プラグインです。リリース版(version 1)はactivity表示、RERUN/STOP/RELEASE/CLOSE要求、未終端Runと要対応(終端)の2セクションに加え、ボードヘッダーの「新規実行」からSTART要求を起票でき、処理前の要求を起票者本人が取り消せます。ヘッダーには「処理待ちのSTART要求 N件」も表示します。画面は補助表示であり、判断が割れた場合はCLI `status --json`を正とします。
 
 ## 設定と権限
 
@@ -49,10 +49,10 @@ npm exec -- kintone-plugin-packer --ppk "C:\Users\rex02\.ksql-flownet\flownet-ac
 4. [`templates/console/migrations/add-run-board-view.console.js`](../templates/console/migrations/add-run-board-view.console.js)を[`templates/README.md`](../templates/README.md)の手順で実行し、「00_Run状況」を追加します。
 5. ボードとNETWORK_RUN詳細を表示し、CLI `status --json`とのread-only smoke比較を行います。
 
-## 更新手順(version 2)
+## 更新手順
 
-1. 更新前に、「新規実行」ボタンと処理待ちSTART件数が追加されることを一次対応者へ周知します。
-2. 同じ署名鍵で作成したversion 2のzipをkintoneシステム管理へ読み込み、既存プラグインを更新します。
+1. 更新前に、画面の変更点を一次対応者へ周知します。
+2. 同じ署名鍵で作成した新版のzipをkintoneシステム管理へ読み込み、既存プラグインを更新します。
 3. 本番の実行管理アプリでプラグイン設定を開き、監査履歴アプリに加えて**本番の操作要求アプリ**とSTART許可ネットワーク一覧を指定し、保存・アプリ設定反映を行います。
 4. ボードが2セクションで表示され、「新規実行」、処理待ちSTART件数、既存のpendingバッジと状態別ボタンが仕様どおりであることを確認します。操作要求アプリIDを空にした環境ではSTART UIが表示されないことも確認します。
 5. 「新規実行」を開き、3モード、候補2群、ネットワーク名の選択肢、選択中のnetwork_id補助表示と「その他(自由入力)」、注意文を確認します。許可済みの最小STARTを1件起票し、操作要求レコードの`network_id`、作成者、最終`DONE/REJECTED`と`result_code`、作成されたRunを相関します。実行管理・監査履歴アプリへのwriteがないことも確認します。

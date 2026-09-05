@@ -13,6 +13,8 @@ Combined with the "Run status" board plugin and the operation-request app on
 kintone, operators can trigger rerun, stop, release, and new-run (START)
 requests from the UI.
 
+- **Installation guide**: [docs/installation.md](./docs/installation.md)
+  (kintone apps, tokens, plugin, server, cron — from zero to production)
 - **Specification and operations docs**: [docs/README.md](./docs/README.md)
   (integrated specification, first-response one-pager, recovery runbook)
 - **Creating the kintone apps**: [templates/README.md](./templates/README.md)

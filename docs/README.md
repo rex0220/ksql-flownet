@@ -4,6 +4,7 @@
 
 | 文書 | 内容 |
 | --- | --- |
+| [導入手順書](./installation.md) | kintone(テンプレート・トークン・アクセス権・プラグイン)と実行サーバー(kSQL-Flow・FlowNet・環境ファイル・allowlist・cron)を 0 から本番運用の開始点まで |
 | [統合仕様書](./specification.md) | 現在の実装の仕様。アーキテクチャ、kintoneアプリ構成、network定義、CLI、操作要求とポーラー(RERUN/STOP/RELEASE/START/CLOSE・claim前取消)、ボードプラグイン、セキュリティ境界、既知の制約 |
 | [一次対応1ページ](./ops-first-response.md) | ボードの見方と操作要求の起票・取消・解除・クローズ手順。状態別の一次対応 |
 | [復旧runbook](./runbook-recovery.md) | 障害時の復旧手順。STALE・ロック・UNKNOWN・CLOSE部分成功の決着、定義デプロイ時の手順 |

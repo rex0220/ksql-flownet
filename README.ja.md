@@ -6,6 +6,7 @@ kSQL-FlowNetは、複数の[kSQL-Flow](https://www.npmjs.com/package/@rex0220/ks
 
 kintone上の「Run状況」ボードプラグインと操作要求アプリを組み合わせることで、リラン・停止・解除・新規実行(START)を画面から指示できます。
 
+- **導入手順書**: [docs/installation.md](./docs/installation.md)(kintoneアプリ・トークン・プラグイン・サーバー・cronを0から本番運用まで)
 - **仕様・運用文書**: [docs/README.md](./docs/README.md)(統合仕様書・一次対応1ページ・復旧runbook)
 - **kintoneアプリの作成**: [templates/README.md](./templates/README.md)
 - **ボードプラグイン**: [plugin/README.md](./plugin/README.md)
