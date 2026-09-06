@@ -64,3 +64,12 @@
 | ChatGPT 構成 | 3 枚目の図は cron の NEW/RESUME/NOOP に限定し START は本文で | 採用 | 必須 1 と同じ反映 |
 | ChatGPT 軽微 1 | 「VPS など 1 台」は限定しすぎ | 不採用 | 仕様書 §2.2 は実行サーバーを 1 台用意する構成を前提としており(ロック所有者の識別も単一ホスト前提)、記事もそれに合わせる |
 | ChatGPT 軽微 2 | 起票はボード経由だけでなく操作要求アプリへの直接起票も正式 | 採用 | 「人が起票(ボードまたは操作要求アプリ)」へ(一次対応手順・仕様書 §6 と一致) |
+
+## 第 6 巡(c70a593 に対して)
+
+| # | 指摘 | 裁定 | 反映・根拠 |
+| --- | --- | --- | --- |
+| ChatGPT 1 | `RUN_ALREADY_EXISTS` は正規の理由コードか | 不採用(確認済み・そのまま) | `src/orchestration/ensure-run.ts` の invocation_result_code、`src/requests/request-result.ts` の START 拒否コードとして実装されている正式名称。仕様書 §6.7・§7.4 にも記載 |
+| ChatGPT 2 | cron の発火時刻は OS/cron のタイムゾーンに従うことを明記 | 採用 | cron 例の前に「サーバーのタイムゾーンを Asia/Tokyo に設定した例。発火時刻は network 定義の timezone ではなく OS/cron 側に従う」を追加(仕様書 §2.2 運用上の注意と同じ) |
+| ChatGPT 任意 1 | 構成図の「cron 2 本」に「(この例)」 | 採用 | ラベルを変更 |
+| ChatGPT 任意 2 | 「cron は network ごとに 1 行」は連携スクリプトの場合に厳密でない | 採用 | 「network ごと、または複数 network を連携させるシェルスクリプトごとに設定。ポーラーは全体で 1 本」へ |

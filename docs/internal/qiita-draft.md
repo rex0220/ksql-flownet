@@ -38,7 +38,7 @@ kSQL-Flow(SQL の実行)と kSQL-FlowNet(実行の管理)の分担はこうで�
 flowchart TB
   subgraph VPS["実行サーバー(VPS など 1 台。SSH で構築)"]
     direction TB
-    CRON["cron 2 本<br>定刻の run-network / 5 分ごとの poll-requests"]
+    CRON["cron 2 本(この例)<br>定刻の run-network / 5 分ごとの poll-requests"]
     FN["kSQL-FlowNet CLI<br>(npm i -g @rex0220/ksql-flownet)"]
     KF["kSQL-Flow CLI<br>(ジョブ資材の node_modules)"]
     subgraph REPO["ジョブ資材リポジトリ(git clone)"]
@@ -163,7 +163,7 @@ nodes:
 
 ## スケジュールの仕組み
 
-kSQL-FlowNet はスケジューラを持ちません。定刻の起動は OS の cron が担い、cron は「いつ」を決めるだけで「何を・どのキーで」は network 定義と起動時刻から決まります。
+kSQL-FlowNet はスケジューラを持ちません。定刻の起動は OS の cron が担い、cron は「いつ」を決めるだけで「何を・どのキーで」は network 定義と起動時刻から決まります。以下はサーバーのタイムゾーンを `Asia/Tokyo` に設定した例です。cron の発火時刻は network 定義の `timezone`(業務キーの導出に使う)ではなく、OS / cron 側のタイムゾーンに従います。
 
 ```cron
 # 毎月 1 日 7:00 に月次集計を起動(起動スクリプトが当月 1 日を --scheduled-for に渡す)
@@ -192,7 +192,7 @@ flowchart LR
 - **未実行の過去分は日付を渡すだけ**: `SCHEDULED_FOR=2026-07-01T00:00:00+09:00 ./run_monthly_summary.sh` のように対象期間を明示すると、該当月の業務キーで Run が作られる。既に完走済みなら NOOP になり、再計算したい場合は別の補正キーを使う(書込先が単一スロットの集計は上書きに注意)
 - **定刻以外の起動はボードから**: 補正キー付きの START 要求を起票すると、ポーラーが同じ `run-network` を起動する。cron の行を増やす必要はない
 
-network を複数持つ場合、cron は network ごとに 1 行、ポーラーは全体で 1 本です。「A が終わってから B」を network をまたいで表現したいときは、A と B を順に呼ぶシェルスクリプトを 1 本置き、`run-network` の exit code(成功・NOOP は 0、それ以外は非 0)を使い、`set -e` で後続を止めます。詳しくは[スケジュール連携の運用パターン](https://github.com/rex0220/ksql-flownet/blob/main/docs/scheduling-patterns.md)にまとめています。
+network を複数持つ場合、定刻起動の cron は network ごと、または複数の network を連携させるシェルスクリプトごとに設定します。ポーラーは全体で 1 本です。「A が終わってから B」を network をまたいで表現したいときは、A と B を順に呼ぶシェルスクリプトを 1 本置き、`run-network` の exit code(成功・NOOP は 0、それ以外は非 0)を使い、`set -e` で後続を止めます。詳しくは[スケジュール連携の運用パターン](https://github.com/rex0220/ksql-flownet/blob/main/docs/scheduling-patterns.md)にまとめています。
 
 ## 運用はボードから
 
