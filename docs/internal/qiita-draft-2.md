@@ -47,7 +47,7 @@ kintone 側が先です。サーバー側の環境ファイルに 4 アプリの
 
 システム管理 → アプリテンプレートに `ksql-flownet-apps-1.0.0.zip` を登録し、運用するスペースで「アプリを作成 → テンプレートから作成」を選びます。実行管理・監査履歴・操作要求・JOBログの 4 アプリが一度にでき、実行管理アプリの関連レコード 3 種は新しいアプリを指した状態になります。
 
-![テンプレートから作成された 4 アプリ](画像URL_apps)
+![テンプレートから作成された 4 アプリ(スペースのアプリ一覧。アイコンと名前はテンプレートに含まれる)](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/3e241a8d-9a71-4ee3-bbb4-3b5179662f46.png)
 
 4 アプリの ID(URL の `/k/<ID>/`)を控えます。既に kSQL-Flow を運用中で JOBログアプリがある場合は、実行管理アプリの関連レコード `related_job_logs` の参照先を既存アプリに付け替え、テンプレートが作った JOBログは削除します。
 
@@ -72,7 +72,7 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 - 操作要求アプリの画面で [`add-request-lifecycle-v2.console.js`](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/templates/console/migrations/add-request-lifecycle-v2.console.js) を実行 → 機械が書く 6 フィールドは Everyone 閲覧のみ、取消フラグ `cancel_requested` は作成者だけ編集可
 - JOBログアプリの画面で [`set-joblog-field-acl.console.js`](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/templates/console/set-joblog-field-acl.console.js) を実行 → 相関 5 フィールドを Everyone 閲覧のみ
 
-![フィールドアクセス権の適用結果](画像URL_field_acl)
+![JOBログアプリの「フィールドのアクセス権」画面。スクリプト適用後は Everyone が閲覧のみになる](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/331d9455-2877-4b58-830d-eaf41dfe9c70.png)
 
 アプリのアクセス権は、導入・保守を行う管理者と、運用開始後にボードを使う一次対応者で分けます。導入管理者は、手順 3 で API トークンを発行するため 4 アプリすべてのアプリ管理権限が必要です。さらに手順 4 では操作要求・JOBログ、手順 5 では実行管理の設定を変更します。
 
@@ -95,7 +95,7 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 
 保存すると運用環境へ反映されます。実行管理アプリの一覧「00_Run状況」を開き、空のボードと「新規実行」ボタンが出れば kintone 側は完了です。
 
-![設定直後の空のボード](画像URL_empty_board)
+![プラグイン設定後の「00_Run状況」ボード(筆者の環境。導入直後は進行中・要対応とも 0 件で「新規実行」ボタンだけがある状態)](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/5b3bb061-097b-47d4-97e7-80a85530b34a.png)
 
 ## サーバー側
 
@@ -111,6 +111,9 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 | タイムゾーン | `Asia/Tokyo`(cron の発火時刻に効く) |
 | Node.js | 22 系を NodeSource の apt リポジトリから導入(`/usr/bin/node` に入るので cron からもそのまま見える) |
 | 費用 | 時間課金で月額上限 1,065 円(税込)。長期契約の割引(まとめトク)なら 12 か月契約で月 488 円(税込)。いずれも 2026 年 9 月時点の[公式料金ページ](https://vps.conoha.jp/pricing/)の表示で、キャンペーン価格は含めていません |
+
+![ConoHa VPS の申込画面。Ubuntu 24.04・1 GB プラン(CPU 2 コア・SSD 100 GB)を選んだ状態](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/a4aa612d-bac8-404d-8ced-3b30e9e62c5d.png)
+
 
 既にプラグインと外部 API を利用できる kintone 契約がある場合、追加のランニングコストはこの VPS 代だけです。kintone 側はアプリ 4 つとプラグインを既存の契約内に置くので追加費用はなく、kSQL-FlowNet・kSQL-Flow は MIT ライセンスの npm パッケージです。
 
