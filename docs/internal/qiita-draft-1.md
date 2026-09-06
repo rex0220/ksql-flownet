@@ -112,6 +112,23 @@ node --version   # v22.x
 
 ConoHa のコントロールパネル側では、セキュリティグループで SSH(22)だけを許可し、それ以外の受信は閉じておきます。kintone への通信は外向きの HTTPS(443)なので、受信の許可は要りません。SSH はパスワード認証を無効にして鍵のみにしておくと安全です。
 
+#### 初期設定を Claude Code に任せる
+
+サーバー側の作業は、作業 PC の Claude Code に SSH 経由で実行させることができます。人がやるのは ConoHa のコントロールパネルでの操作(VPS の作成、SSH 鍵の登録、セキュリティグループで 22 番だけ許可)と、IP アドレスと鍵ファイルの場所を伝えることだけです。
+
+Claude Code を kSQL-Flow のジョブ資材リポジトリで開き、次を貼り付けます。
+
+```
+実行サーバー root@<IP>(鍵 ~/.ssh/<鍵ファイル>)に SSH で接続し、次の初期設定を行って。
+1. timedatectl でタイムゾーンを Asia/Tokyo にする
+2. apt update と git・ufw の導入、ufw で OpenSSH だけ許可して有効化
+3. NodeSource の apt リポジトリから Node.js 22 を導入
+4. node --version、git --version、timedatectl、ufw status の結果を報告して
+コマンドは実行前に 1 つずつ見せて。パスワードやトークンは扱わないこと。
+```
+
+Claude Code は各コマンドを実行前に表示し、承認してから流します。実行後の報告が `v22.x` / `Asia/Tokyo` / `OpenSSH ALLOW` になっていれば、以降の手順 6〜10 も同じ要領で任せられます(手順ごとの指示文は[Claude Code 併用版の導入手順](https://github.com/rex0220/ksql-flownet/blob/main/docs/installation-claude-code.md)にあります)。トークン値だけは AI に渡さず、人が SSH でエディタを開いて転記します。
+
 以下は root で SSH して行います。配置はこの形です。
 
 ```
