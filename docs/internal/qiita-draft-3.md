@@ -70,6 +70,24 @@ flowchart LR
   A["intake_gate<br>顧客マスタ読取ゲート"] --> B["test_data_gate<br>テストデータ検査(ASSERT)"] --> C["monthly_deal_summary<br>集計して UPSERT"]
 ```
 
+### DAG とは
+
+network は DAG(有向非巡回グラフ)です。ノードを点、`depends_on` を「依存先 → 自分」の矢印としたとき、矢印をたどって元のノードに戻る経路(循環)がないグラフを指します。kSQL-FlowNet はこの形しか受け付けず、`validate` は自己依存・未知ノードへの依存・循環を拒否します。
+
+DAG にすると、実行順が矢印から一意に決まります。「依存先がすべて終わってから自分が動く」ように並べた順序を **トポロジカル順** と呼び、上の 3 ノードなら `intake_gate → test_data_gate → monthly_deal_summary` の 1 通りです。分岐・合流があると並べ方が複数ありえます。
+
+```mermaid
+flowchart LR
+  E["extract"] --> A["check_a"]
+  E --> B["check_b"]
+  A --> S["summary"]
+  B --> S
+```
+
+この形では `check_a` と `check_b` は互いに依存しないので、どちらを先に動かしても正しい順序です。kSQL-FlowNet は **YAML の `nodes` に書いた順** で決め(同じ定義なら常に同じ順)、並列には動かさず 1 ノードずつ直列に進めます。`summary` は `check_a` と `check_b` の両方が SUCCESS になってから起動し(`trigger_rule: all_success`)、どちらかが FAILED なら起動しません。
+
+つまり定義者が決めるのは「何が何に依存するか」だけで、「何番目に動くか」は書きません。順序を変えたいときは矢印(`depends_on`)を変えます。
+
 この YAML で決めたことを、上から順に見ていきます。
 
 ## 決めること 1: `network_id` と `business_key`
