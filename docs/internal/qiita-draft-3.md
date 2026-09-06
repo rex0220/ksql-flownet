@@ -1,0 +1,215 @@
+<!-- タイトル: 【kSQL-FlowNet #3】network 定義編: 既存の kSQL-Flow ジョブを DAG にする
+- 連載 #3(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31)
+- タグ案: kintone, SQL, YAML, DAG
+- 画像は `画像URL_*` の行を差し替える(検証スペースのテストデータで撮影)
+-->
+
+[#1](https://qiita.com/rex0220/items/24470d6223c1b4ed4031) で全体像、[#2](https://qiita.com/rex0220/items/2308e4ccf5a363680d31) で導入を書きました。今回は **手元にある kSQL-Flow のジョブ(SQL ファイル)を、どう network.yaml に束ねるか** です。仕様の正は[統合仕様書 §4](https://github.com/rex0220/ksql-flownet/blob/main/docs/specification.md)で、この記事は「決めること」と「決め方」に絞ります。
+
+**この回で分かること**
+
+- YAML の 3 つの識別子(`network_id` / `business_key` / ノードの `id` と `job_id`)にそれぞれ何を書くか
+- 先頭に「ゲート」を置く理由と、`idempotent: true` と書いてよいジョブの条件
+- `validate` と `plan` で何が検査され、何が検査されないか
+
+**前提**
+
+- kSQL-Flow で単独実行できる SQL ジョブが 1 本以上ある(`-- @ksql name:` ヘッダ付き)
+- #2 の手順 6〜8 まで済んでいる(ジョブ資材リポジトリと kSQL-FlowNet が入り、環境ファイルがある)
+
+## 題材: 月次案件集計
+
+kSQL Flow 連載で使ってきた「案件管理を会社別に集計して顧客管理へ UPSERT する」月次ジョブを、3 ノードの network にします。SQL は既に 3 本あります。
+
+| SQL | `@ksql name` | 何をするか | 書込 |
+| --- | --- | --- | --- |
+| `jobs/00_intake_count.sql` | `intake_count` | 顧客マスタが読めることを確認するだけの軽量ゲート | なし |
+| `jobs/10_test_data_gate.sql` | `test_data_gate` | テスト案件にマイナス売上があれば `ASSERT` で異常停止 | なし |
+| `jobs/monthly_deal_summary.sql` | `monthly_deal_summary` | 当月受注予定を会社別に集計し、顧客管理へ会社名キーで UPSERT | あり(UPSERT) |
+
+kSQL-Flow だけで動かしていたときは、この 3 本を `run-all` の並び順と `@ksql depends_on` で制御していました。network にすると、順序・失敗時の停止・再開・記録が kSQL-FlowNet の仕事になります。
+
+## network.yaml
+
+```yaml
+# flownet/monthly-summary/network.yaml
+schema_version: 1
+network_id: monthly_deal_summary
+description: 当月受注予定の案件を会社別に集計し顧客管理へ UPSERT する月次バッチ
+business_key_policy:
+  type: scheduled_period
+  period: month
+  timezone: Asia/Tokyo
+  format: "{network_id}@{yyyy}-{MM}"
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 300
+  heartbeat_interval_sec: 60
+nodes:
+  - id: intake_gate
+    job_id: intake_count
+    sql: ../../jobs/00_intake_count.sql
+    depends_on: []
+    trigger_rule: all_success
+    idempotent: true # 読取ゲートのみ・書込なし
+  - id: test_data_gate
+    job_id: test_data_gate
+    sql: ../../jobs/10_test_data_gate.sql
+    depends_on: [intake_gate]
+    trigger_rule: all_success
+    idempotent: true # 読取 ASSERT のみ・書込なし
+  - id: monthly_deal_summary
+    job_id: monthly_deal_summary
+    sql: ../../jobs/monthly_deal_summary.sql
+    depends_on: [test_data_gate]
+    trigger_rule: all_success
+    idempotent: true # 会社名キー UPSERT で毎回全対象を書き直す
+```
+
+```mermaid
+flowchart LR
+  A["intake_gate<br>顧客マスタ読取ゲート"] --> B["test_data_gate<br>テストデータ検査(ASSERT)"] --> C["monthly_deal_summary<br>集計して UPSERT"]
+```
+
+この YAML で決めたことを、上から順に見ていきます。
+
+## 決めること 1: `network_id` と `business_key`
+
+役割が違います。
+
+| 識別子 | 意味 | 誰がいつ決めるか | 一致させる場所 |
+| --- | --- | --- | --- |
+| `network_id` | 処理(DAG)の名前 | 定義者が YAML に 1 度 | allowlist の `network_id`、プラグインの START 許可 CSV、操作要求の `network_id`、`status <network_id>` |
+| `business_key` | その処理の 1 回分(対象期間・対象データ)の名前 | 定期: `--scheduled-for` から `format` で自動導出。補正・任意: 起票者が指定 | Run の一意性(`profile × network_id × business_key`)、Run 一覧、JOBログの相関、CSV パス |
+
+```mermaid
+flowchart LR
+  subgraph YAML["network.yaml"]
+    NID["network_id:<br>monthly_deal_summary"]
+    POL["business_key_policy.format:<br>'{network_id}@{yyyy}-{MM}'"]
+  end
+  SF["--scheduled-for<br>2026-09-01T00:00+09:00"] --> D["業務キー導出"]
+  POL --> D
+  NID --> D
+  D --> KEY["monthly_deal_summary@2026-09"]
+  KEY --> RUN["Run は profile × network_id × business_key で 1 つ"]
+```
+
+決め方の目安です。
+
+- `network_id` は英数字とアンダースコアの短い名前。**変えると別 network 扱い**になり、既存の Run と結びつかなくなるので、最初に決めたら変えません
+- `business_key` に network 名を含める義務はありません(一意性は network ごとに判定されます)。それでも `{network_id}@` を前置するのは、Run 一覧・JOBログ・CSV パスでは `business_key` しか見えないからです。複数 network を運用すると `2026-09` だけでは何の Run か分かりません
+- `period` は `month` か `day`。`format` に使えるプレースホルダーは `{network_id}` `{yyyy}` `{MM}` `{dd}` だけです
+- 定期実行しない(対象期間の概念がない)処理は `type: explicit` にし、起動のたびに `--business-key` を渡します。取込ファイル名をキーにする、といった使い方です
+
+## 決めること 2: ノードの `id` と `job_id`
+
+ノードは「1 つの SQL ファイルを 1 回の kSQL-Flow ジョブとして実行する単位」です。SQL の中に何文あっても 1 ノードで、文単位には分かれません。識別子は 3 つあります。
+
+| 識別子 | 役割 | 決め方 |
+| --- | --- | --- |
+| `id` | DAG 内の名前。`depends_on` の参照先で、実行管理アプリの Node State や監査履歴の Attempt に `node_id` として残る | 役割が分かる名前(`intake_gate`、`deal_summary`)。ボードのエラー要約に `validate: ASSERT_FAILED` のように出るので、人が読む前提で付ける |
+| `job_id` | kSQL-Flow 側のジョブ名。SQL ヘッダの `-- @ksql name:` と **一致必須** | SQL 側が正。既存ジョブを流用するなら SQL の名前をそのまま書く |
+| `sql` | 実行するファイル(YAML からの相対パス) | network 専用の SQL は `jobs/` 配下、複数 network で共用する SQL は共有 `jobs/` を `../../jobs/…` で参照 |
+
+`job_id` には 1 つ制約があります。kSQL-Flow のジョブロックのキーが `profile:job_id` で、**64 文字(UTF-16 単位)以内**という実測上限があります。`prod:monthly_deal_summary` は 25 文字なので余裕ですが、長い名前を付けるときは注意してください。この超過は `validate` では検出されず、実行時に `VALIDATION_ERROR` になります。
+
+`id` と `job_id` を同じにしてもかまいません。分けているのは、`id` は DAG の中での役割名、`job_id` は kSQL-Flow のジョブ名、と別の名前空間だからです。上の例では `intake_gate`(役割)と `intake_count`(ジョブ)のように分けています。
+
+## 決めること 3: ゲートを先頭に置く
+
+network の先頭 2 ノードは何も書きません。読み取って条件を検査し、満たさなければ `ASSERT` で止めるだけです。これを「ゲート」と呼んでいます。
+
+- **業務異常で止める**: `test_data_gate` はテスト案件にマイナス売上があれば `ASSERT` 違反で FAILED になり、後続の集計は起動しません。集計 SQL の中にも同じ `ASSERT` はありますが、ゲートを別ノードにすると **どこで止まったかが Node State に残り**、ボードのエラー要約に `test_data_gate: ASSERT_FAILED` と出ます
+- **対象 0 件は正常スキップ**: 集計 SQL の `EXIT SUCCESS IF … = 0` は「異常ではないが書くものがない」ケースで、ノードは SUCCESS(結果コード `NO_DATA`)になります。`ASSERT`(異常停止・アラート対象)と `EXIT SUCCESS IF`(正常スキップ・アラートなし)の使い分けは kSQL Flow 連載の #8 と同じです
+- **上流 network の結果を待つゲート**: 「日次取込が今日の分を終えてから月次を動かしたい」のような network をまたぐ順序は、kSQL-FlowNet では表現できません(network 間の依存は未対応)。代わりに下流の先頭に「上流の結果データが揃っているか」を検査するゲートを置き、揃っていなければ FAILED にして、上流完了後にリランします(fail-closed)。パターンは #5 で扱います
+
+## 決めること 4: `idempotent: true` と書いてよい条件
+
+`idempotent` は全ノード必須のフィールドで、kSQL-FlowNet はこれを **定義者の宣言として信じます**。システムが冪等性を検証するわけではありません。宣言は 3 か所で使われます。
+
+| 場面 | `true` のとき | `false` のとき |
+| --- | --- | --- |
+| 失敗後の resume / ボードのリラン | 失敗ノードから再実行する | 実行済みの `false` ノードが対象にあると resume 自体が拒否される。人が `resolve-node` で証跡付きに解決してから続行する |
+| ボードからの START | 全ノードが `true` の network だけ許可(三重ゲートの 1 つ) | その network は cron か CLI からしか起動できない |
+| UNKNOWN(結果 JSON が読めない)の扱い | 冪等でも自動再実行はしない。`resolve-node` で人が解決する | 同左 |
+
+`true` と書いてよいのは、**同じ業務キーで何度実行しても結果が同じになる**ジョブです。判断の目安です。
+
+- 読取と `ASSERT` / `EXIT SUCCESS IF` だけ → `true`
+- 重複禁止フィールドをキーにした `UPSERT` で、対象を毎回全件書き直す → `true`(上の集計 SQL がこれです)
+- `INSERT` で追記する、`UPDATE … SET x = x + 1` のように現在値に依存する、外部へ通知を送る → `false`
+- `@NOW()` など as-of 由来の時刻関数は、Run の `as_of` に固定されるので冪等性を崩しません。`@` なしの `TODAY()` は kintone 側で評価されるため崩します(kSQL-Flow の検証で警告が出ます)
+
+迷ったら `false` にしておき、失敗時は人が判断する側に倒します。`false` のノードがある network はボードから START できなくなるだけで、cron からの定期実行と resume はできます。
+
+## 決めること 5: ロックの時間と同時 Run 数
+
+```yaml
+max_active_runs: 1
+network_lock:
+  lease_duration_sec: 300
+  heartbeat_interval_sec: 60
+```
+
+- `network_lock` は network 単位の実行排他です。`lease_duration_sec` はロックの有効期限、`heartbeat_interval_sec` は実行中に期限を延ばす間隔で、heartbeat は lease の 3 分の 1 以下にします。プロセスが落ちても lease が切れれば次の起動が引き継げます。ノード 1 本が数分かかるなら lease を 300 秒程度、短いジョブなら 180 秒で足ります
+- `max_active_runs` は **並列度ではありません**。「未完了の Run(業務キー違い)をいくつ持てるか」で、実行は常に直列です。月次で前月の失敗 Run を残したまま当月を動かしたい、という場合だけ 2 以上にします
+
+## 検査する: `validate` と `plan`
+
+```sh
+cd /opt/ksql/my-ksql-jobs && . /root/.ksql-flownet.env
+ksql-flownet validate flownet/monthly-summary/network.yaml
+ksql-flownet plan flownet/monthly-summary/network.yaml --scheduled-for 2026-09-01T00:00:00+09:00
+```
+
+```
+Valid network definition: flownet/monthly-summary/network.yaml
+Business key: monthly_deal_summary@2026-09
+Execution plan:
+1. intake_gate | job_id=intake_count | idempotent=true | depends_on=-
+2. test_data_gate | job_id=test_data_gate | idempotent=true | depends_on=intake_gate
+3. monthly_deal_summary | job_id=monthly_deal_summary | idempotent=true | depends_on=test_data_gate
+```
+
+| 検査するもの | 検査しないもの |
+| --- | --- |
+| YAML のスキーマ(未知のフィールド・重複キーは拒否)、`depends_on` の参照先と循環、`business_key_policy` の整合、SQL ファイルの存在と読取可能 | SQL の構文・アプリ定義との整合(kSQL-Flow の `validate -f` で行う)、`job_id` と `@ksql name` の一致(実行時に `KSQL_FLOW_EXIT_MISMATCH`)、ジョブロックキーの 64 文字 |
+
+`plan` は業務キーと実行順を表示するだけで、kintone にも SQL にも触れません。定義を変えたら `validate` → `plan` → kSQL-Flow 側の `validate -f` と `--dry-run`、の順で確認します。
+
+## 置き場所と変更の流し方
+
+```
+my-ksql-jobs/
+├── jobs/                          # 複数 network で共用する SQL
+│   ├── 00_intake_count.sql
+│   └── 10_test_data_gate.sql
+└── flownet/
+    └── monthly-summary/
+        ├── network.yaml            # network_id: monthly_deal_summary
+        └── jobs/                   # この network 専用の SQL(あれば)
+```
+
+- 1 network = 1 YAML。ボード・ポーラーから使う network は allowlist に絶対パスで登録します
+- 定義と SQL は git で配置し、サーバー上で直接編集しません。**Run は作成時に定義と SQL を bundle として保存する**ので、配置後に SQL を変えても、途中まで進んだ既存 Run の resume は保存時の SQL で続きます。変更を新しい Run から効かせたいだけなら、配置するだけで済みます
+- 定義を変えるときはポーラーを止め、`validate` と `poll-requests --check` を通してから再開します(#2 の手順 9)
+
+## まとめ
+
+| 決めること | 決め方 |
+| --- | --- |
+| `network_id` | 処理の名前。最初に決めたら変えない |
+| `business_key_policy` | 定期なら `scheduled_period`(`{network_id}@{yyyy}-{MM}`)、期間の概念がなければ `explicit` |
+| ノードの `id` / `job_id` / `sql` | `id` は役割名、`job_id` は SQL の `@ksql name`、`sql` は相対パス。`profile:job_id` は 64 文字以内 |
+| ゲート | 先頭に読取専用の検査ノード。異常は `ASSERT`、対象なしは `EXIT SUCCESS IF` |
+| `idempotent` | 何度流しても同じ結果になるときだけ `true`。迷えば `false` |
+| ロック | lease は最長ノードより長く、heartbeat は lease の 1/3 以下 |
+
+## 次回
+
+#4 運用編。ボードの 3 セクションの読み方、START の 3 モード、取消・リラン・停止・解除・クローズの使い分け、結果コードの早見を書きます。
+
+- 統合仕様書 §4(network 定義): https://github.com/rex0220/ksql-flownet/blob/main/docs/specification.md
+- #2 導入編: https://qiita.com/rex0220/items/2308e4ccf5a363680d31
+- #1 全体像: https://qiita.com/rex0220/items/24470d6223c1b4ed4031
