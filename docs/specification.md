@@ -92,6 +92,7 @@ Control Plane と Execution Plane の CLI 境界は [kSQL-Flow Execution Contrac
 | profile | kSQL-Flow の接続先環境の名前(例: `prod`)。kSQL-Flow 設定ファイルで定義され、Run の一意性・ジョブロック・Network ロックの各キーの先頭要素になる |
 | network | 複数の kSQL-Flow ジョブを DAG として束ねた定義(1 YAML)。§4 |
 | Node(ノード) | network の 1 ステップ。1 つの SQL ファイルを 1 回の kSQL-Flow ジョブとして実行する単位。§4.5 |
+| トポロジカル順 | DAG のノードを「依存先(`depends_on`)がすべて先に来る」ように 1 列に並べた順序。並べ方が複数あるとき(独立したノード同士)は YAML の `nodes` の記述順で決める(安定=同じ定義なら常に同じ順)。`plan` が表示し、実行はこの順に 1 件ずつ進む |
 | 業務キー(business key) | 「どの処理単位の実行か」を表す文字列(例: `monthly_summary@2026-09`)。同じ profile・network・業務キーの Run は 1 つしか存在できず、これが重複実行防止の基礎になる。§4.3 |
 | Run | profile・network・業務キーで一意な実行単位。状態を持ち、失敗しても同じ Run を再開(resume)できる |
 | Invocation | Run に対する CLI の 1 回の起動(cron・ポーラー・手動)。1 つの Run は新規起動と再開で複数の Invocation を持つ |
