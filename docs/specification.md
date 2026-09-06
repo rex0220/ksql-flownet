@@ -164,19 +164,31 @@ flowchart LR
 | スケジューラ | cron 2 本: 定期実行の `run-network --resume --scheduled-for …` と、5 分間隔の `poll-requests` |
 | 設定ファイル | 操作要求 allowlist(YAML・絶対パスで配置)、kSQL-Flow の接続設定 |
 
-主な環境変数(すべて実行サーバー側。トークン値はリポジトリ・文書へ書かない):
+環境変数の一覧(すべて実行サーバー側。雛形はリポジトリ直下の `.env.example`。トークン値はリポジトリ・文書へ書かない):
 
-| 変数 | 内容 |
-| --- | --- |
-| `KSQL_FLOWNET_BASE_URL` / `KSQL_FLOWNET_PROFILE` | kintone ベース URL とプロファイル名 |
-| `KSQL_FLOWNET_STATE_APP_ID` / `KSQL_FLOWNET_STATE_API_TOKEN` | 実行管理アプリ |
-| `KSQL_FLOWNET_AUDIT_APP_ID` / `KSQL_FLOWNET_AUDIT_API_TOKEN` | 監査履歴アプリ |
-| `KSQL_FLOWNET_REQUEST_APP_ID` / `KSQL_FLOWNET_REQUEST_API_TOKEN` / `KSQL_FLOWNET_REQUEST_ALLOWLIST_PATH` | ポーラー(操作要求アプリと allowlist) |
-| `KSQL_FLOW_BIN` / `KSQL_FLOW_BIN_ARGS` / `KSQL_FLOW_CONFIG` / `KSQL_FLOW_WORKDIR` | kSQL-Flow CLI の起動方法・設定・作業ディレクトリ |
-| `KSQL_FLOW_LOG_APP_ID` / `KSQL_FLOW_LOG_API_TOKEN` | JOBログアプリ(閲覧) |
-| `KSQL_FLOWNET_IO_DIR` / `KSQL_FLOWNET_IO_RETENTION_DAYS` | CSV 入出力の IO ルート(絶対パス。YAML の `nodes[].inputs` または `nodes[].outputs` を持つ network で必須。入力ファイルは `<IO_DIR>/in`、出力ファイルは `<IO_DIR>/out` 配下)と、入力ファイルの保持日数(既定 90)。§4.5、[CSV入出力の運用](./csv-io-operations.md) |
-| 任意: `KSQL_FLOWNET_REQUESTED_BY` / `KSQL_FLOWNET_HOST` / `KSQL_FLOWNET_OWNER_INSTANCE_ID` / `KSQL_FLOW_GRACE_PERIOD_MS` / `KSQL_FLOWNET_REQUEST_HEARTBEAT_INTERVAL_MS` / `KSQL_FLOWNET_REQUEST_STALE_AFTER_MS` | 相関表示・ロック所有者識別・停止猶予・ポーラー間隔の上書き |
-| 復旧コマンドの操作者のみ: `KSQL_FLOWNET_SERVICE_PRINCIPAL`(`resolve-node` / `record-job-unlock` / `force-unlock-network` で必須)/ `KSQL_FLOWNET_GCP_ACCESS_TOKEN`(`force-unlock-network --stop-method cloud_run_job_execution` のみ) | 操作者の認証主体・Cloud Run 実行の停止確認([復旧 runbook](./runbook-recovery.md)) |
+| 変数 | 必須 | 既定値 | 意味 |
+| --- | --- | --- | --- |
+| `KSQL_FLOWNET_BASE_URL` | 必須 | なし | kintone のベース URL(`https://<subdomain>.cybozu.com`) |
+| `KSQL_FLOWNET_PROFILE` | 必須 | なし | kSQL-Flow 設定のプロファイル名。Run・ロックのキーの先頭要素(§1.4) |
+| `KSQL_FLOWNET_STATE_APP_ID` / `KSQL_FLOWNET_STATE_API_TOKEN` | 必須 | なし | 実行管理アプリの ID と API トークン(閲覧・追加・編集) |
+| `KSQL_FLOWNET_AUDIT_APP_ID` / `KSQL_FLOWNET_AUDIT_API_TOKEN` | 必須 | なし | 監査履歴アプリの ID と API トークン(閲覧・追加・編集) |
+| `KSQL_FLOW_LOG_APP_ID` / `KSQL_FLOW_LOG_API_TOKEN` | 必須 | なし | JOBログアプリの ID と API トークン(閲覧)。Attempt と JOBログの照合に使う。kSQL-Flow 側の書込トークン(ジョブ資材の `.env`)とは別 |
+| `KSQL_FLOW_BIN` | 必須 | なし | kSQL-Flow CLI の実行ファイル(例: `node`、グローバル導入なら `ksql-flow`) |
+| `KSQL_FLOW_BIN_ARGS` | 任意 | 空 | `KSQL_FLOW_BIN` に前置する引数。JSON 配列(`'["node_modules/@rex0220/ksql-flow/dist/cli.js"]'`)または空白区切り。相対パスは cwd(ジョブ資材リポジトリ)基準 |
+| `KSQL_FLOW_CONFIG` | 必須 | なし | kSQL-Flow の設定ファイル(`ksql.config.json`)。相対パスは cwd 基準 |
+| `KSQL_FLOW_WORKDIR` | 必須 | なし | Execution Result など kSQL-Flow 起動時の作業ディレクトリ(絶対パス。無ければ作成) |
+| `KSQL_FLOW_GRACE_PERIOD_MS` | 任意 | `30000` | STOP 時に実行中の kSQL-Flow 子プロセスへ与える猶予(ミリ秒) |
+| `KSQL_FLOWNET_REQUEST_APP_ID` / `KSQL_FLOWNET_REQUEST_API_TOKEN` | ポーラーで必須 | なし | 操作要求アプリの ID と API トークン(閲覧・編集。追加・削除は付けない) |
+| `KSQL_FLOWNET_REQUEST_ALLOWLIST_PATH` | ポーラーで必須 | なし | allowlist YAML の絶対パス(§6.6) |
+| `KSQL_FLOWNET_REQUEST_HEARTBEAT_INTERVAL_MS` | 任意 | `60000` | claim 中の heartbeat 間隔(§6.2) |
+| `KSQL_FLOWNET_REQUEST_STALE_AFTER_MS` | 任意 | `900000`(15 分) | heartbeat が途絶えた要求を stale とみなす時間(§6.2) |
+| `KSQL_FLOWNET_IO_DIR` | CSV 入出力を持つ network で必須 | なし | IO ルートの絶対パス(存在するディレクトリ)。入力は `<IO_DIR>/in`、出力は `<IO_DIR>/out` 配下。§4.5、[CSV入出力の運用](./csv-io-operations.md) |
+| `KSQL_FLOWNET_IO_RETENTION_DAYS` | 任意 | `90` | 入力ファイルの保持日数(正の整数) |
+| `KSQL_FLOWNET_REQUESTED_BY` | 任意 | OS のユーザー名、無ければ `unknown` | Invocation・監査の `requested_by`。cron では `cron@<host>` のような固定値を置く。ポーラーは要求ごとに `app-request:<request_id>:<起票者>` で上書きする(§8.3)。復旧コマンドでは必須 |
+| `KSQL_FLOWNET_HOST` | 任意 | OS のホスト名 | ロック所有者・claim ホストの識別に使うホスト名 |
+| `KSQL_FLOWNET_OWNER_INSTANCE_ID` | 任意 | `local-pid://<host>/<pid>` | Network ロック所有者のインスタンス識別。同一ホストで複数インスタンスを区別する場合だけ指定する |
+| `KSQL_FLOWNET_SERVICE_PRINCIPAL` | 復旧コマンドで必須 | なし(`archive-run` だけは `KSQL_FLOWNET_HOST` またはホスト名へフォールバック) | `resolve-node` / `record-job-unlock` / `force-unlock-network` を実行する操作者の認証主体。監査に記録される([復旧 runbook](./runbook-recovery.md)) |
+| `KSQL_FLOWNET_GCP_ACCESS_TOKEN` | `--stop-method cloud_run_job_execution` でのみ必須 | なし | Cloud Run 実行の停止確認に使うアクセストークン(`run.executions.get` の最小権限) |
 
 運用上の注意:
 
