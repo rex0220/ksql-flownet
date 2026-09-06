@@ -37,3 +37,4 @@ CSV系E2E(csv1×4+csv2×4)は csv1/csv2-20260904 で合格済みのコードか�
 - R6 で package.json を公開設定(private 削除・publishConfig・repository/homepage/bugs/keywords・files から dist/plugin と *.map を除外)へ変更した時点で全ゲートを再実行: `format:check` / `lint` / `typecheck` / `build` / 単体 **579/579**(テンプレートスクリプトのテスト +4)合格
 - `npm pack --dry-run`: 130 ファイル・124.9 kB(dist・schemas・README 2 本・LICENSE・package.json)。tarball をグローバル導入(一時 prefix)して `--version`=1.0.0、`--help`、`validate` の動作を確認
 - E2E は再実行しない(runtime 不変のため)。tag 候補は R6 のメタデータ commit 以降の main 先端
+- GitHub Actions(ubuntu・Node 22/24)は 9/2 のワークフロー追加以来、単体テスト 3 本の Windows 固定パスで失敗し続けていた(runtime の不具合ではない)。テストを OS 非依存パス+tmpdir へ修正(`41c7230`・`34c1433`)し、run 34007713359 で **初めて success**。Linux VPS 上でも `npm test` 579/579 を確認
