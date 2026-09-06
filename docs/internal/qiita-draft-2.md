@@ -1,5 +1,5 @@
 <!-- タイトル: 【kSQL-FlowNet #2】導入編: kintone とサーバーを 0 から運用開始まで
-- 連載 #2(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031)
+- 連載 #2(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031)。公開: https://qiita.com/rex0220/items/2308e4ccf5a363680d31(2026-09-06)
 - タグ案: kintone, SQL, Node.js, バッチ処理
 - 画像は `画像URL_*` の行を差し替える(検証スペースのテストデータで撮影。実アプリ ID・ドメイン・トークンを写さない)
 -->
