@@ -15,7 +15,7 @@
 
 - #1 [kintone のバッチを「ジョブの網」として運用する](https://qiita.com/rex0220/items/24470d6223c1b4ed4031)(本記事)
 - #2 [導入編: kintone とサーバーを 0 から運用開始まで](https://qiita.com/rex0220/items/2308e4ccf5a363680d31)
-- #3 network 定義編: 既存の kSQL-Flow ジョブを DAG にする(予定)
+- #3 [network 定義編: 既存の kSQL-Flow ジョブを DAG にする](https://qiita.com/rex0220/items/45f04c2748570953629b)
 - #4 運用編: ボードから動かす(予定)
 - #5 スケジュール連携編: cron と network の分担(予定)
 - #6 障害対応編: 判定できないときに止まる設計(予定)

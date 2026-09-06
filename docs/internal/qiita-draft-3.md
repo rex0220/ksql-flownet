@@ -1,5 +1,5 @@
 <!-- タイトル: 【kSQL-FlowNet #3】network 定義編: 既存の kSQL-Flow ジョブを DAG にする
-- 連載 #3(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31)
+- 連載 #3(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31)。公開: https://qiita.com/rex0220/items/45f04c2748570953629b(2026-09-07)
 - タグ案: kintone, SQL, YAML, DAG
 -->
 
