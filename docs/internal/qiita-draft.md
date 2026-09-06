@@ -1,5 +1,6 @@
-<!-- kintone のバッチを「ジョブの網」として運用する — kSQL-FlowNet 
+<!-- タイトル: 【kSQL-FlowNet #1】kintone のバッチを「ジョブの網」として運用する
 - タグ: kintone, SQL
+- 連載予定の一覧は各回の公開時にリンクを足す
 -->
 
 [kSQL-Flow](https://github.com/rex0220/ksql-flow) は、kintone の複数アプリを SQL で JOIN・集計し、一括 UPSERT できる CLI ランナーです(SQL 1 本が 1 ジョブ)。使い始めると、次に困るのは「ジョブが増えたあと」です。A が終わってから B、B が失敗したら C は動かさない、月初に動かなかった分をあとから安全に流し直す、失敗した回だけ途中から再開する。こうした **ジョブ同士の関係と実行の記録** は、cron とシェルスクリプトでは早々に手に負えなくなります。
@@ -9,6 +10,19 @@
 - npm: https://www.npmjs.com/package/@rex0220/ksql-flownet
 - GitHub: https://github.com/rex0220/ksql-flownet
 - 導入手順書: https://github.com/rex0220/ksql-flownet/blob/main/docs/installation.md
+
+**連載予定**(kSQL Flow 連載の続編にあたる、kSQL-FlowNet の連載です)
+
+- #1 [kintone のバッチを「ジョブの網」として運用する](https://qiita.com/rex0220/items/24470d6223c1b4ed4031)(本記事)
+- #2 導入編: kintone とサーバーを 0 から本番運用まで(予定)
+- #3 network 定義編: 既存の kSQL-Flow ジョブを DAG にする(予定)
+- #4 運用編: ボードから動かす(予定)
+- #5 スケジュール連携編: cron と network の分担(予定)
+- #6 障害対応編: 判定できないときに止まる設計(予定)
+- #7 CSV 入出力編: サーバー上の CSV を network で読む・書く(予定)
+- #8 設計編: 機械専用アプリと業務キーの一意性(予定)
+- #9 検証編: 実機 E2E とフォールト注入(予定)
+- #10 AI 協働編: Codex が実装し Claude がレビューする開発(予定)
 
 ## 何を解決するか
 

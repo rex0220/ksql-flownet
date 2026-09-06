@@ -1,10 +1,10 @@
-<!-- タイトル: kSQL-FlowNet 第2回 導入編: kintone とサーバーを 0 から本番運用まで
-- シリーズ第 2 回(第 1 回: https://qiita.com/rex0220/items/24470d6223c1b4ed4031)
+<!-- タイトル: 【kSQL-FlowNet #2】導入編: kintone とサーバーを 0 から本番運用まで
+- 連載 #2(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031)
 - タグ案: kintone, SQL, Node.js, バッチ処理
 - 画像は `画像URL_*` の行を差し替える(検証スペースのテストデータで撮影。実アプリ ID・ドメイン・トークンを写さない)
 -->
 
-[第 1 回](https://qiita.com/rex0220/items/24470d6223c1b4ed4031)は kSQL-FlowNet が何を解決するかを書きました。今回は **何も入っていない kintone とサーバーに、ボードからの操作要求と cron の定期実行が動くところまで** を通します。手順の正は[導入手順書](https://github.com/rex0220/ksql-flownet/blob/main/docs/installation.md)で、この記事はその流れと、実際にやってみて詰まった箇所です。
+[#1](https://qiita.com/rex0220/items/24470d6223c1b4ed4031)は kSQL-FlowNet が何を解決するかを書きました。今回は **何も入っていない kintone とサーバーに、ボードからの操作要求と cron の定期実行が動くところまで** を通します。手順の正は[導入手順書](https://github.com/rex0220/ksql-flownet/blob/main/docs/installation.md)で、この記事はその流れと、実際にやってみて詰まった箇所です。
 
 **この回で分かること**
 
@@ -259,7 +259,7 @@ root の `crontab -e` で登録します。発火時刻はサーバーのタイ�
 
 ## 次回
 
-第 3 回 network 定義編。手元の kSQL-Flow ジョブを network.yaml に束ねるときの、`network_id` と `business_key` の決め方、ゲートの置き方、冪等の宣言基準を書きます。
+#3 network 定義編。手元の kSQL-Flow ジョブを network.yaml に束ねるときの、`network_id` と `business_key` の決め方、ゲートの置き方、冪等の宣言基準を書きます。
 
 - 導入手順書: https://github.com/rex0220/ksql-flownet/blob/main/docs/installation.md
 - サーバー側を Claude Code に任せる場合: https://github.com/rex0220/ksql-flownet/blob/main/docs/installation-claude-code.md
