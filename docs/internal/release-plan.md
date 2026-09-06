@@ -85,8 +85,8 @@ v1.0.0 に [P2-16](./p2-16-request-lifecycle-v2-spec.md)(FROZEN v1)を同梱す�
 
 - [x] (2026-09-06) `private: true` を削除、`"license": "MIT"`、`"publishConfig": {"access": "public"}` を設定。repository(git+https)・homepage・bugs・keywords を追加
 - [x] (2026-09-06) `files`(dist・schemas。dist/plugin のテスト用bundleと *.map を除外)・`bin`(shebang確認)・README(公開後の文面へ、導入手順書へ導線)を確認。`npm pack --dry-run` で同梱物確認、tarball からのグローバル導入と `--version`/`--help`/`validate` の動作確認
-- [ ] `npm publish`(publishはask運用 — 実行前にユーザー確認)
-- [ ] インストール確認: 素の環境で `npm i -g @rex0220/ksql-flownet` → `ksql-flownet --help`
+- [x] (2026-09-06 ユーザー実行) `npm publish` → npm 上 1.0.0・MIT・130 ファイル・575.5 kB を `npm view` で確認
+- [x] (2026-09-06) インストール確認: Linux VPS の一時 prefix へ `npm i -g @rex0220/ksql-flownet` → `--version`=1.0.0、`--help`、`validate`、`poll-requests --check` 合格
 
 ## R7. Qiita記事作成
 
