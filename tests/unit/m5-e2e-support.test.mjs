@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -151,16 +152,21 @@ test("kill cleanup confirmed-by accepts argument then environment", () => {
 });
 
 test("kill target resolves only the kSQL-Flow dist cli script", () => {
-  assert.equal(
-    resolveKsqlFlowCliPath([
-      "C:\\Users\\tester\\Projects\\ksql-flow\\dist\\cli.js",
-      "--trace-warnings",
-    ]),
-    "C:\\Users\\tester\\Projects\\ksql-flow\\dist\\cli.js",
+  // OS に依存しない絶対パス(Windows では C:\..., Linux では /...)
+  const cliPath = resolve(
+    "/",
+    "Users",
+    "tester",
+    "ksql-flow",
+    "dist",
+    "cli.js",
   );
+  assert.equal(resolveKsqlFlowCliPath([cliPath, "--trace-warnings"]), cliPath);
   assert.throws(
     () =>
-      resolveKsqlFlowCliPath(["C:\\work\\ksql-flownet\\dist\\cli\\index.js"]),
+      resolveKsqlFlowCliPath([
+        resolve("/", "work", "ksql-flownet", "dist", "cli", "index.js"),
+      ]),
     /matches=\[\]/u,
   );
 });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -117,13 +118,15 @@ test("CANCELLED START相関はInvocationなしを正常な終端として検証�
 });
 
 test("P2-16 fault制御JSONは対象app/record/fieldとphase/releaseを固定する", () => {
+  // OS に依存しない絶対パス(Windows では C:\..., Linux では /...)
+  const release = resolve("/", "tmp", "claim-before.release");
   const control = buildFaultControl({
     barrierId: `${P2_01_PREFIX}claim-before`,
     app: 123,
     recordId: "456",
     field: "claimed_at",
     phase: "before",
-    release: "C:\\tmp\\claim-before.release",
+    release,
   });
   assert.deepEqual(control, {
     mode: "pass",
@@ -136,7 +139,7 @@ test("P2-16 fault制御JSONは対象app/record/fieldとphase/releaseを固定す
           body: { app: 123, field: "claimed_at", id: "456" },
         },
         phase: "before",
-        release: "C:\\tmp\\claim-before.release",
+        release,
       },
     ],
   });

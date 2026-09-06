@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { join, resolve } from "node:path";
+
 import { RunSubprocess } from "../../dist/executor/run-subprocess.js";
 
+// OS に依存しない絶対パス(Windows では C:..., Linux では /...)
+const abs = (...parts) => resolve("/", ...parts);
+const execDir = abs("exec");
+const cliPath = abs("Program Files", "ksql-flow", "dist", "cli.js");
+const io = (...parts) => abs("io", ...parts);
+
 const request = {
-  sqlPath: "C:\\bundle\\jobs\\a.sql",
+  sqlPath: abs("bundle", "jobs", "a.sql"),
   profile: "prod",
-  configPath: "C:\\secure\\ksql.config.json",
+  configPath: abs("secure", "ksql.config.json"),
   asOf: "2026-08-01T00:00:00+09:00",
   correlationId: "run_1",
   attemptId: "attempt:1",
@@ -17,8 +25,8 @@ test("contract引数とattempt由来の決定的metadata pathをspawnへ渡しst
   const calls = [];
   const runner = new RunSubprocess({
     command: "ksql-flow",
-    binArgs: ["C:\\Program Files\\ksql-flow\\dist\\cli.js"],
-    executionDirectory: "C:\\exec",
+    binArgs: [cliPath],
+    executionDirectory: execDir,
     timeoutMs: 100,
     gracePeriodMs: 10,
     spawn: (call) => {
@@ -33,11 +41,14 @@ test("contract引数とattempt由来の決定的metadata pathをspawnへ渡しst
     },
   });
   const outcome = await runner.run(request);
-  assert.equal(outcome.resultJsonPath, "C:\\exec\\metadata\\attempt_1.json");
+  assert.equal(
+    outcome.resultJsonPath,
+    join(execDir, "metadata", "attempt_1.json"),
+  );
   assert.equal(outcome.stdout, "human output");
   assert.equal(outcome.stderr, "diagnostic");
   assert.deepEqual(calls[0].args, [
-    "C:\\Program Files\\ksql-flow\\dist\\cli.js",
+    cliPath,
     "run",
     "-f",
     request.sqlPath,
@@ -62,7 +73,7 @@ test("timeoutMs nullは外側のbatch timeoutを無効にする", async () => {
   let stopped = false;
   const runner = new RunSubprocess({
     command: "fake",
-    executionDirectory: "C:\\exec",
+    executionDirectory: execDir,
     timeoutMs: null,
     gracePeriodMs: 1,
     uniqueId: () => "no-timeout",
@@ -86,7 +97,7 @@ test("CSV inputsをsource名順のimport/hashペアとしてargvへ渡す", asyn
   const calls = [];
   const runner = new RunSubprocess({
     command: "ksql-flow",
-    executionDirectory: "C:\\exec",
+    executionDirectory: execDir,
     timeoutMs: null,
     gracePeriodMs: 1,
     uniqueId: () => "imports",
@@ -104,13 +115,13 @@ test("CSV inputsをsource名順のimport/hashペアとしてargvへ渡す", asyn
     imports: [
       {
         name: "zeta",
-        path: "C:\\io\\in\\z.csv",
+        path: io("in", "z.csv"),
         sha256: "b".repeat(64),
         bytes: 20,
       },
       {
         name: "alpha",
-        path: "C:\\io\\in\\a.csv",
+        path: io("in", "a.csv"),
         sha256: "a".repeat(64),
         bytes: 10,
       },
@@ -118,11 +129,11 @@ test("CSV inputsをsource名順のimport/hashペアとしてargvへ渡す", asyn
   });
   assert.deepEqual(calls[0].args.slice(-8), [
     "--import-csv",
-    "alpha=C:\\io\\in\\a.csv",
+    `alpha=${io("in", "a.csv")}`,
     "--expected-import-sha256",
     `alpha=${"a".repeat(64)}`,
     "--import-csv",
-    "zeta=C:\\io\\in\\z.csv",
+    `zeta=${io("in", "z.csv")}`,
     "--expected-import-sha256",
     `zeta=${"b".repeat(64)}`,
   ]);
@@ -132,7 +143,7 @@ test("CSV outputsをsink名順のexport引数としてinputsの後へ渡す", as
   const calls = [];
   const runner = new RunSubprocess({
     command: "ksql-flow",
-    executionDirectory: "C:\\exec",
+    executionDirectory: execDir,
     timeoutMs: null,
     gracePeriodMs: 1,
     spawn: (call) => {
@@ -149,25 +160,25 @@ test("CSV outputsをsink名順のexport引数としてinputsの後へ渡す", as
     imports: [
       {
         name: "source",
-        path: "C:\\io\\in\\source.csv",
+        path: io("in", "source.csv"),
         sha256: "a".repeat(64),
         bytes: 1,
       },
     ],
     exports: [
-      { name: "zeta", path: "C:\\io\\out\\z.csv" },
-      { name: "alpha", path: "C:\\io\\out\\a.csv" },
+      { name: "zeta", path: io("out", "z.csv") },
+      { name: "alpha", path: io("out", "a.csv") },
     ],
   });
   assert.deepEqual(calls[0].args.slice(-8), [
     "--import-csv",
-    "source=C:\\io\\in\\source.csv",
+    `source=${io("in", "source.csv")}`,
     "--expected-import-sha256",
     `source=${"a".repeat(64)}`,
     "--export-csv",
-    "alpha=C:\\io\\out\\a.csv",
+    `alpha=${io("out", "a.csv")}`,
     "--export-csv",
-    "zeta=C:\\io\\out\\z.csv",
+    `zeta=${io("out", "z.csv")}`,
   ]);
 });
 
@@ -177,7 +188,7 @@ test("timeoutはgraceful signal後のCANCELLED終了を待つ", async () => {
   const completion = new Promise((resolve) => (finish = resolve));
   const runner = new RunSubprocess({
     command: "fake",
-    executionDirectory: "C:\\exec",
+    executionDirectory: execDir,
     timeoutMs: 1,
     gracePeriodMs: 50,
     uniqueId: () => "graceful",
@@ -201,7 +212,7 @@ test("grace超過はforced killし、停止結果不明を保持する", async (
   let forced = 0;
   const runner = new RunSubprocess({
     command: "fake",
-    executionDirectory: "C:\\exec",
+    executionDirectory: execDir,
     timeoutMs: 1,
     gracePeriodMs: 1,
     forcedExitWaitMs: 1,
@@ -223,7 +234,7 @@ test("grace超過はforced killし、停止結果不明を保持する", async (
 test("spawn同期失敗をSQL未起動の確定証拠として返す", async () => {
   const runner = new RunSubprocess({
     command: "missing",
-    executionDirectory: "C:\\exec",
+    executionDirectory: execDir,
     timeoutMs: 1,
     gracePeriodMs: 1,
     spawn: () => {
@@ -239,7 +250,7 @@ test("相関ID・attempt ID・expected job IDをspawn前に検証する", async 
   let spawnCalls = 0;
   const runner = new RunSubprocess({
     command: "fake",
-    executionDirectory: "C:\\exec",
+    executionDirectory: execDir,
     timeoutMs: 1,
     gracePeriodMs: 1,
     spawn: () => {
