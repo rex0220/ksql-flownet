@@ -2,15 +2,33 @@
   "name": "@rex0220/ksql-flownet",
   "version": "1.0.0",
   "description": "Control Plane CLI for kSQL-Flow job networks",
-  "private": true,
   "license": "MIT",
-  "repository": "https://github.com/rex0220/ksql-flownet",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rex0220/ksql-flownet.git"
+  },
+  "homepage": "https://github.com/rex0220/ksql-flownet#readme",
+  "bugs": "https://github.com/rex0220/ksql-flownet/issues",
+  "keywords": [
+    "kintone",
+    "ksql",
+    "ksql-flow",
+    "batch",
+    "dag",
+    "orchestration",
+    "cli"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "ksql-flownet": "dist/cli/index.js"
   },
   "files": [
     "dist",
+    "!dist/plugin",
+    "!dist/**/*.map",
     "schemas"
   ],
   "engines": {

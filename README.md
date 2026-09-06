@@ -30,11 +30,14 @@ requests from the UI.
 
 ## Installation
 
-Once the package is published to npm:
-
 ```sh
 npm install --global @rex0220/ksql-flownet
+ksql-flownet --version
 ```
+
+The full setup (kintone apps from the bundled app template, API tokens,
+the board plugin, server environment, cron) is in
+[docs/installation.md](./docs/installation.md).
 
 ## Development
 

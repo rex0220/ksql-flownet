@@ -19,11 +19,12 @@ kintone上の「Run状況」ボードプラグインと操作要求アプリを�
 
 ## インストール
 
-npmへ公開後は次のとおりです。
-
 ```sh
 npm install --global @rex0220/ksql-flownet
+ksql-flownet --version
 ```
+
+kintoneアプリ(同梱テンプレート)・APIトークン・ボードプラグイン・サーバー環境・cronまでの導入手順は[docs/installation.md](./docs/installation.md)にあります。
 
 ## 開発
 

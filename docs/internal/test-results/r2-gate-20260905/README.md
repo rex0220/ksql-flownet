@@ -30,3 +30,10 @@ CSV系E2E(csv1×4+csv2×4)は csv1/csv2-20260904 で合格済みのコードか�
 - tag 候補コミット: 本記録+本番適用記録の commit(main 先端)。以後のコード変更は R2 をやり直す
 - 例外として記録: 本番適用中に、プラグイン起動ログの版表示がハードコード `v2` で manifest(1)と食い違うことが判明し、build 時に manifest version を埋め込む修正(plugin/scripts/build.mjs・plugin/src/desktop.ts のログ 1 行)を入れた。src/ とポーラー・CLI は不変で、E2E はプラグイン bundle を実行しないため E2E は再実行せず、単体 575 件・typecheck・lint・build:plugin・pack:plugin の再実行で確認した
 - 本番適用(要求アプリ追補・プラグイン更新・VPS `92bad60`・smoke)の記録は [p2-16-production-20260905](../p2-16-production-20260905/README.md)
+
+## 追記(2026-09-06・R6 リリース前チェック)
+
+- `92bad60` 以降の runtime 変更はプラグイン起動ログの版表示修正(`9c55731`: plugin/scripts/build.mjs・plugin/src/desktop.ts)だけで、src/・schemas/ は不変(`git diff --stat 92bad60..HEAD -- src plugin/src plugin/scripts schemas` で確認)。以降の commit は文書・テンプレート(Console スクリプト+単体テスト)・`.env.example`・package.json のメタデータ
+- R6 で package.json を公開設定(private 削除・publishConfig・repository/homepage/bugs/keywords・files から dist/plugin と *.map を除外)へ変更した時点で全ゲートを再実行: `format:check` / `lint` / `typecheck` / `build` / 単体 **579/579**(テンプレートスクリプトのテスト +4)合格
+- `npm pack --dry-run`: 130 ファイル・124.9 kB(dist・schemas・README 2 本・LICENSE・package.json)。tarball をグローバル導入(一時 prefix)して `--version`=1.0.0、`--help`、`validate` の動作を確認
+- E2E は再実行しない(runtime 不変のため)。tag 候補は R6 のメタデータ commit 以降の main 先端

@@ -83,8 +83,8 @@ v1.0.0 に [P2-16](./p2-16-request-lifecycle-v2-spec.md)(FROZEN v1)を同梱す�
 
 確定方針: 検証完了(R5)までprivate、公開時にMIT+publishConfig。
 
-- [ ] `private: true` を削除、`"license": "MIT"`、`"publishConfig": {"access": "public"}` を設定
-- [ ] `files`・`bin`・README(npm表示用)最終確認
+- [x] (2026-09-06) `private: true` を削除、`"license": "MIT"`、`"publishConfig": {"access": "public"}` を設定。repository(git+https)・homepage・bugs・keywords を追加
+- [x] (2026-09-06) `files`(dist・schemas。dist/plugin のテスト用bundleと *.map を除外)・`bin`(shebang確認)・README(公開後の文面へ、導入手順書へ導線)を確認。`npm pack --dry-run` で同梱物確認、tarball からのグローバル導入と `--version`/`--help`/`validate` の動作確認
 - [ ] `npm publish`(publishはask運用 — 実行前にユーザー確認)
 - [ ] インストール確認: 素の環境で `npm i -g @rex0220/ksql-flownet` → `ksql-flownet --help`
 
@@ -96,6 +96,7 @@ v1.0.0 に [P2-16](./p2-16-request-lifecycle-v2-spec.md)(FROZEN v1)を同梱す�
 
 ## R8. リリース確定
 
+- [ ] リポジトリを public へ変更(現在 private。導入手順書 §7 の git clone と npm の repository リンクが前提)
 - [ ] git tag(v1.0.0)+GitHub Release作成(添付: プラグインzip・アプリテンプレートzip・導入手順書へのリンク)
 - [ ] docs/internal/implementation-plan.md のbacklogへ「リリース済み」と残タスク(P2-10/P2-12/P2-13等)の線引きを記録
 
