@@ -36,7 +36,7 @@ force-unlockの初回実行は`--stop-evidence-ref`欠落により「停止証�
 ### 環境・回数
 
 - 実施日: 2026-08-29（JST）
-- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - results: 2026-08-29T14:34〜14:36 UTCに記録された5件、すべて`passed: true`
 - 反復: lease lifecycle 1回、stale detection 1回、fencing 1回、drain 2分岐、force-unlock 3 case。加えてforce-unlockのCLI事前拒否1回。
 - 設定: lease 6秒 / heartbeat 2秒。比率規則を維持した縮小値であり、実運用値ではない。

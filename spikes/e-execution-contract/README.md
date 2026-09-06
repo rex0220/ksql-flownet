@@ -10,7 +10,7 @@ Schemaは契約§3.3の「未知フィールドは無視し、v1内の追加はa
 
 ## 検証環境と前提
 
-- kintone: `https://devenxyfi.cybozu.com`（timezone: `Asia/Tokyo`）
+- kintone: `https://<subdomain>.cybozu.com`（timezone: `Asia/Tokyo`）
 - 既存アプリ: 案件4247、顧客4246、実行ログ4249
 - profile: `my-ksql-jobs/ksql.config.json`の`prod`
 - 認証環境変数: `KSQL_TOKEN_DEALS`、`KSQL_TOKEN_CUSTOMERS`、`KSQL_TOKEN_LOGS`

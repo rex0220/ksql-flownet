@@ -189,7 +189,7 @@ force-unlockの初回実行は`--stop-evidence-ref`欠落により「停止証�
 #### 環境・回数
 
 - 実施日: 2026-08-29（JST）
-- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - results: 2026-08-29T14:34〜14:36 UTCに記録された5件、すべて`passed: true`
 - 反復: lease lifecycle 1回、stale detection 1回、fencing 1回、drain 2分岐、force-unlock 3 case。加えてforce-unlockのCLI事前拒否1回。
 - 設定: lease 6秒 / heartbeat 2秒。比率規則を維持した縮小値であり、実運用値ではない。
@@ -244,13 +244,13 @@ force-unlockの初回実行は`--stop-evidence-ref`欠落により「停止証�
 
 2026-08-30の追記(M6ゲート実機判定)。参照: `docs/test-results/m6-gate-20260830/`(公式実行6/6合格)、`docs/runbook-recovery.md`。
 
-M6ゲートE2E(devenxyfi実機、実kSQL-Flow subprocess、実process tree kill)で次を確定した。
+M6ゲートE2E(検証環境実機、実kSQL-Flow subprocess、実process tree kill)で次を確定した。
 
 1. **kintone DATETIMEのround-trip照合禁止を契約化する。** DATETIMEフィールドは分精度で保存され、書込んだISO時刻の秒・ミリ秒は読み戻しで失われる。同一性は一意キー(record_key)で確定し、内容照合はキーが運ばない主張(resolved_outcome等)に限る。完全時刻の照合が必要な値はテキスト(JSON詰め)側へ保存する。この違反による実バグ2件(Attempt Resolution照合、force-unlock応答消失裁定)を修正した。
 2. **lease失効判定は切り捨て上限+60秒の保守判定とする。** 保存`lease_expires_at`は最大59秒過去へ切り捨てられるため、`stale_candidate`と`LEASE_STILL_ACTIVE`は`lease_expires_at + 60秒`超過で判定する。回収適格が真の失効から最大59秒遅れる(fail-closed方向)。
 3. **release契約の頑健化。** lock解放は自プロセスheartbeatとのrevision競走で間欠失敗し得た(実測2回)。lease監視の停止を解放より先に行い、解放PUTの409時は再GETで`lease_token`が自分のものである場合に限り最新revisionで1回だけ再試行する。他者によるtoken変更・tombstone化は従来どおりfail-closed。
 4. **回収後Attempt照合とUNKNOWN化(残余リスク8)を実装・実測した。** resume時、旧invocationの孤児RUNNING Attemptをジョブログ(attempt_id相関、時刻順序比較なし)で突合し、終端ログはその結果を適用、照合不能は`UNKNOWN`(`NO_EXECUTION_RESULT`)、ログ読取失敗は裁定せず停止する。kill→lease生存中拒否→失効→owner不一致拒否→`local_pid`停止確認(ESRCH)→tombstone回収→`NETWORK_LOCK_FORCE_RELEASED`監査→孤児UNKNOWN化→resolve-node→resume完走、をstatusの復旧識別子のみで通した(復旧runbook経路の成立)。
-5. 実測環境値: API呼出~35ms/call(devenxyfi)、kSQLバッチ上限は20文・temp table 16個(長時間ジョブの構成制約)。
+5. 実測環境値: API呼出~35ms/call(検証環境)、kSQLバッチ上限は20文・temp table 16個(長時間ジョブの構成制約)。
 
 残余リスク1(実運用値)・2(実Cloud Run照会)・3(複数ホスト)・6(schema v2)は変更なし。4・5は「実process kill・実subprocess・実kintone」で上書きされた(実運用スケールの長時間Runのみ未実施)。8は解消。復旧手順の正本は`docs/runbook-recovery.md`とする。
 
@@ -465,7 +465,7 @@ Node Stateはサブテーブルではなく、`run_id + node_id`ごとの独立�
 FlowNetの永続化は「実行管理アプリ＋監査履歴アプリ」の2アプリ構成を採用する。既存kSQL-Flow JOBログapp 4249は数に含めず、所有境界も変更しない。既存の第一候補と比較要件を削除・置換せず、次の実測結果を決定根拠として追記する。
 
 - 実施日: 2026-08-29（JST）
-- 環境: `LAPTOP5`／`win32`／Node.js `v24.14.0`／`devenxyfi.cybozu.com`
+- 環境: `LAPTOP5`／`win32`／Node.js `v24.14.0`／`<subdomain>.cybozu.com`
 - app ID: 対象12件の結果JSONには未収録。layoutのroleは記録されているが、データソース外からIDを補完しない
 - 参照: `spikes/a-app-layout/measurements.md`、`spikes/a-app-layout/results`
 - 実行コマンド:
@@ -672,7 +672,7 @@ INSERT 400
 
 2026-08-29、kintone検証環境で重複禁止INSERTのcontract testを実施した。結果は検証環境での観測であり、kintoneの公式保証ではない。重複禁止INSERTを分散ロック取得の最終裁定として採用できると判断する。
 
-実行環境は `LAPTOP5 / Windows (win32) / Node v24.14.0 / devenxyfi.cybozu.com / app 4257`、単一ホスト、ローカルロックなしである。results JSONは実行コマンド文字列を保持していないため、以下はJSONと同じworker数・反復数を再現するコマンドとして記録する。
+実行環境は `LAPTOP5 / Windows (win32) / Node v24.14.0 / <subdomain>.cybozu.com / app 4257`、単一ホスト、ローカルロックなしである。results JSONは実行コマンド文字列を保持していないため、以下はJSONと同じworker数・反復数を再現するコマンドとして記録する。
 
 ```bash
 node --env-file=.env spikes/d-lock-contract/scripts/lock-contention.mjs
@@ -834,7 +834,7 @@ ksql-flownet resolve-node \
 
 #### D-22: 2026-08-30決定記録
 
-参照: kSQL-Flow `docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §4 D-22、`docs/internal/m1_verification_record_20260830.md`。revision 1付きJOB更新成功、JSONL `execution_started`、最初のSQL文の順序をrequest列で試験した。kintone DATETIMEが分精度である実機事実を確認し、応答消失時の再GETは送信値と保存値を分単位へ正規化して照合する。UPDATE失敗分岐はデータAPI 0件、`LOCK_UNAVAILABLE`／Exit 3／`executionStarted=false`／lock解放を確認し、応答消失分岐は再GET一致時のみ続行、不一致・照会不能時はSQL未実行でfail-closedとなることを確認した。devenxyfi app 4249で実E2Eを行い、Windows実コンソールとLinux VPSの双方で実signalも確認した。耐久`EXECUTION_STARTED`と最終結果の`executionStarted`を別の証跡とする判断を確定し、D-22を`DECIDED`とする。Supersededはない。
+参照: kSQL-Flow `docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §4 D-22、`docs/internal/m1_verification_record_20260830.md`。revision 1付きJOB更新成功、JSONL `execution_started`、最初のSQL文の順序をrequest列で試験した。kintone DATETIMEが分精度である実機事実を確認し、応答消失時の再GETは送信値と保存値を分単位へ正規化して照合する。UPDATE失敗分岐はデータAPI 0件、`LOCK_UNAVAILABLE`／Exit 3／`executionStarted=false`／lock解放を確認し、応答消失分岐は再GET一致時のみ続行、不一致・照会不能時はSQL未実行でfail-closedとなることを確認した。検証環境 app 4249で実E2Eを行い、Windows実コンソールとLinux VPSの双方で実signalも確認した。耐久`EXECUTION_STARTED`と最終結果の`executionStarted`を別の証跡とする判断を確定し、D-22を`DECIDED`とする。Supersededはない。
 
 #### D-23: 2026-08-30決定記録
 
@@ -865,7 +865,7 @@ attempt番号はNode Stateの`latest_attempt_no + 1`から候補を作り、A1 `
 ##### コマンド、環境、回数
 
 - 実施日: 2026-08-30（JST）
-- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - 実行コマンド:
 
 ```powershell
@@ -909,7 +909,7 @@ node --env-file=.env tests/integration/m3-cleanup.mjs
 ###### コマンド、環境、回数
 
 - 実施日: 2026-08-30（JST）
-- 環境: `LAPTOP5` / Windows / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / Windows / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - Execution Plane: 実kSQL-Flow v0.7.0
 - node経路: `node.exe` + `C:\Users\rex02\Projects\ksql-flow\dist\cli.js`
 - exe経路: 再ビルド後の`dist-bin\ksql-flow.exe`単体起動。旧版exeを検出したため再ビルドし、SHA-256照合済み。hash値自体は8件の公式JSONへ収録されていないため、本提案では値を補完しない

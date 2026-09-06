@@ -7,7 +7,7 @@
 ## 検証環境と前提
 
 - fixture変換自体はローカルで実施し、kintoneアクセスは不要
-- 実ログ照合時の環境: `https://devenxyfi.cybozu.com`、timezone `Asia/Tokyo`
+- 実ログ照合時の環境: `https://<subdomain>.cybozu.com`、timezone `Asia/Tokyo`
 - 既存実行ログ: app 4249（kSQL-Flow所有）
 - profile: `my-ksql-jobs/ksql.config.json`の`prod`
 - 実ログを取得する場合の認証環境変数: `KSQL_TOKEN_LOGS_RO`（読取専用token）

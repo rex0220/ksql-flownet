@@ -10,7 +10,7 @@
 
 - kSQL-Flow側M1完了報告 §2に記載された§13の全15項目を決定した。
 - contract testは22 suites／287 testsに合格し、kSQL-FlowNet側でも独立再実行して同数の合格を確認した。
-- devenxyfiの実行ログapp 4249、Windows実コンソール、Linux VPSで実機検証した。記録はkSQL-Flowの`docs/internal/m1_verification_record_20260830.md`を参照する。
+- 検証環境の実行ログapp 4249、Windows実コンソール、Linux VPSで実機検証した。記録はkSQL-Flowの`docs/internal/m1_verification_record_20260830.md`を参照する。
 - Execution Result v1の正本schemaはkSQL-Flow同梱の`schema/execution-result-v1.schema.json`（`$id`付き）とする。
 
 ---

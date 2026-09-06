@@ -4,7 +4,7 @@
     "案件管理": 4247,
     "顧客管理": 4246
   },
-  "baseUrl": "https://devenxyfi.cybozu.com",
+  "baseUrl": "https://<subdomain>.cybozu.com",
   "formatVersion": 1,
   "guestSpaceId": null,
   "httpTimeoutMs": 30000,

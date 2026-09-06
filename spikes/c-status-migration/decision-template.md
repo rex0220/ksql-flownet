@@ -5,7 +5,7 @@
 - D-06の状態: `DECIDED`（状態変更なし）
 - 記録区分: 移行表の実データ検証結果
 - 検証日: 2026-08-29（JST）
-- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - 実ログ出典: `spikes/c-status-migration/results/2026-08-29T13-02-37.002Z-inspect-real-logs.json`
 - fixture出典: `spikes/c-status-migration/fixtures.yaml`
 - テスト出典: `tests/unit/status-migration.test.mjs`

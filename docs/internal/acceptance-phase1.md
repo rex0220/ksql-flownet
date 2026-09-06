@@ -2,7 +2,7 @@
 
 仕様 `docs/job-network-phase1-spec.md` §12 の受入基準28項目と、自動試験・実機試験の対応表。M7ゲートの正本。
 
-環境: devenxyfi.cybozu.com(スパイクアプリ)、実kSQL-Flow(node dist/cli.js)、Windows 11。実行回数は各証跡JSON内に記録。unit=`npm test`(毎PR実行)、E2E証跡=`docs/test-results/`配下。
+環境: <subdomain>.cybozu.com(スパイクアプリ)、実kSQL-Flow(node dist/cli.js)、Windows 11。実行回数は各証跡JSON内に記録。unit=`npm test`(毎PR実行)、E2E証跡=`docs/test-results/`配下。
 
 | # | 受入基準(要約) | 方法 | 証跡 | 状態 |
 | --- | --- | --- | --- | --- |

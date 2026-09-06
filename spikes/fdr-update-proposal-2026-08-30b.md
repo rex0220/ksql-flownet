@@ -19,7 +19,7 @@
 ### 2.1 コマンド、環境、回数
 
 - 実施日: 2026-08-30（JST）
-- 環境: `LAPTOP5` / Windows / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / Windows / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - Execution Plane: 実kSQL-Flow v0.7.0
 - node経路: `node.exe` + `C:\Users\rex02\Projects\ksql-flow\dist\cli.js`
 - exe経路: 再ビルド後の`dist-bin\ksql-flow.exe`単体起動。旧版exeを検出したため再ビルドし、SHA-256照合済み。hash値自体は8件の公式JSONへ収録されていないため、本提案では値を補完しない

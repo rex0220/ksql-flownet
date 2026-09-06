@@ -7,7 +7,7 @@
 - 日時: 2026-08-29（JST。結果JSONの`observedAt`はUTC）
 - ホスト／OS: `LAPTOP5`／`win32`
 - Node.js: `v24.14.0`
-- kintone: `devenxyfi.cybozu.com`
+- kintone: `<subdomain>.cybozu.com`
 - 実行回数: 各シナリオ1回。各結果内で同一データを1app、2appへ順に適用
 - app ID: 12件の結果JSONには未収録（layoutのroleだけを収録）。データソース外から補完しない
 - request／response bytes: 各結果JSONの`payload.requestBytes`／`payload.responseBytes`。未計測request bodyは全件0

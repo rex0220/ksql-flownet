@@ -21,7 +21,7 @@
 
 出典: kSQL-Flow `docs/internal/m1_verification_record_20260830.md`、`docs/kSQL-FlowからkSQL-FlowNetへの返信-20260830-M1完了報告.md` §6。
 
-- devenxyfiの実行ログapp 4249で、template v0.4適用、`validate --check-logapp`、SUCCESS／NO_DATA、耐久`EXECUTION_STARTED`、result path、`expected-job-id`不一致、既存path拒否、`inspect-lock`／`force-unlock-job`、stdout純度のE2Eに合格した。
+- 検証環境の実行ログapp 4249で、template v0.4適用、`validate --check-logapp`、SUCCESS／NO_DATA、耐久`EXECUTION_STARTED`、result path、`expected-job-id`不一致、既存path拒否、`inspect-lock`／`force-unlock-job`、stdout純度のE2Eに合格した。
 - kintone DATETIMEが分精度であることを実機で発見し、`EXECUTION_STARTED`応答消失後の再GET照合を双方の値の分単位正規化へ修正して合格した。Execution ResultとJSONLの時刻は秒精度を維持する。
 - 128文字の`correlationId`／`attemptId`をechoし、実ログアプリへの保存と再GETに合格した。
 - Windows実コンソールのCtrl+C、およびLinux VPS（Linux 6.8／Node 22）のSIGINT、SIGTERM、2回目signal、orchestrator＋SIGTERM結果JSONを実機確認した。
@@ -29,7 +29,7 @@
 
 ## 2026-08-30 M5実機E2EによるSpike E完結記録
 
-出典: `docs/internal/test-results/m5-gate-20260830/*.json` 8件、`tests/e2e/README.md`、`tests/e2e/support.mjs`。環境は`LAPTOP5` / Windows / Node.js `v24.14.0` / `devenxyfi.cybozu.com`、Execution Planeは実kSQL-Flow v0.7.0である。
+出典: `docs/internal/test-results/m5-gate-20260830/*.json` 8件、`tests/e2e/README.md`、`tests/e2e/support.mjs`。環境は`LAPTOP5` / Windows / Node.js `v24.14.0` / `<subdomain>.cybozu.com`、Execution Planeは実kSQL-Flow v0.7.0である。
 
 | ID   | 測定項目                                   |                                        経路・回数 | 実測結果                                                                                                                                                                                                     | 出典                                                                           | 残余リスク                                                                 |
 | ---- | ------------------------------------------ | ------------------------------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |

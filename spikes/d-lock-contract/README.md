@@ -8,7 +8,7 @@
 
 ## 検証環境と前提
 
-- kintone: `https://devenxyfi.cybozu.com`（timezone: `Asia/Tokyo`）
+- kintone: `https://<subdomain>.cybozu.com`（timezone: `Asia/Tokyo`）
 - 既存実行ログ／Job Lock: app 4249（kSQL-Flow所有）
 - profile: `my-ksql-jobs/ksql.config.json`の`prod`
 - 認証環境変数: `KSQL_TOKEN_LOGS`

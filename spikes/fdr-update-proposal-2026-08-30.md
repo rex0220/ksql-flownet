@@ -20,7 +20,7 @@
 ### 2.1 コマンド、環境、回数
 
 - 実施日: 2026-08-30（JST）
-- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - 実行コマンド:
 
 ```powershell

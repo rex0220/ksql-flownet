@@ -3,7 +3,7 @@
 ## 実測条件と読み方
 
 - 実施日: 2026-08-29（JST）
-- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - 設定: lease 6秒、heartbeat 2秒。`heartbeat < lease`かつ`heartbeat <= lease / 3`の比率規則を維持した障害注入用の**縮小値**であり、実運用値は未決定である。
 - 回数は、各results JSONに記録されたシナリオまたは分岐の実行数を示す。API呼出数は、特記がなければ当該シナリオの`measurements.control_plane_api_calls`である。
 - results JSONは実行コマンド文字列を保持していない。下記のコマンドはREADMEに記載された再実行形式であり、秘密値は記録しない。

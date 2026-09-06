@@ -6,7 +6,7 @@
 
 ## 検証環境と前提
 
-- kintone: `https://devenxyfi.cybozu.com`（timezone: `Asia/Tokyo`）
+- kintone: `https://<subdomain>.cybozu.com`（timezone: `Asia/Tokyo`）
 - profile: `my-ksql-jobs/ksql.config.json`の`prod`
 - 認証環境変数: `KSQL_TOKEN_LOGS`。bundle内SQLが案件・顧客appを検査する場合のみ`KSQL_TOKEN_DEALS`、`KSQL_TOKEN_CUSTOMERS`
 - 新規のNetwork Run保存先アプリと、候補archive先をユーザーが作成・許可済みであること

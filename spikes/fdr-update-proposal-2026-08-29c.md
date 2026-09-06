@@ -9,7 +9,7 @@
 ## 共通の検証条件と出典
 
 - 実施日: 2026-08-29（JST）
-- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`
+- 環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`
 - D-06実ログ: `spikes/c-status-migration/results/2026-08-29T13-02-37.002Z-inspect-real-logs.json`
 - D-06 fixture・試作テスト: `spikes/c-status-migration/fixtures.yaml`、`tests/unit/status-migration.test.mjs`
 - D-10 vector・テスト・実装: `tests/fixtures/canonical-lock-key/vectors.json`、`tests/unit/canonical-lock-key.test.mjs`、`src/domain/canonical-lock-key.ts`

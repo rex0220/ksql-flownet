@@ -24,7 +24,7 @@
 4. **release×自己heartbeatのrevision競走**: lock解放前にlease監視を停止+release 409時はlease_token自己確認つき1回再試行。間欠的な解放失敗→LOCK_CONFLICT残置を解消(m6-01で2回実測)。
 5. **孤児RUNNING Attempt裁定の欠落(受入25)**: resume時、旧invocationのRUNNING Attemptをジョブログ(attempt_id相関)で突合し、終端は適用・照合不能はUNKNOWN(NO_EXECUTION_RESULT)・ログ読取失敗はfail-closed停止。m6-04で実機検証。
 
-提案B: FDR D-29節へ実測補記として1-5を追記(特に「kintone DATETIMEは分精度であり、round-trip完全一致照合を契約にしてはならない。同一性は一意キー、内容照合はキー外の主張のみ」を明文化)。design-notesへkSQL実測上限(バッチ20文・temp table 16個)とAPI実測レイテンシ(~35ms/call、devenxyfi)を追記。
+提案B: FDR D-29節へ実測補記として1-5を追記(特に「kintone DATETIMEは分精度であり、round-trip完全一致照合を契約にしてはならない。同一性は一意キー、内容照合はキー外の主張のみ」を明文化)。design-notesへkSQL実測上限(バッチ20文・temp table 16個)とAPI実測レイテンシ(~35ms/call、検証環境)を追記。
 
 ## C. 復旧runbook(M6作業項目8)
 

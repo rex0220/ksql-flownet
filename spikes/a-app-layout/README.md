@@ -6,7 +6,7 @@
 
 ## 検証環境と前提
 
-- kintone: `https://devenxyfi.cybozu.com`（timezone: `Asia/Tokyo`）
+- kintone: `https://<subdomain>.cybozu.com`（timezone: `Asia/Tokyo`）
 - 既存アプリ: 案件管理（4247）、顧客管理（4246）、実行ログ（4249、kSQL-Flow所有）
 - job repository: `my-ksql-jobs`の`ksql.config.json`にあるprofile `prod`
 - 認証: APIトークン。参照する環境変数は`KSQL_TOKEN_DEALS`、`KSQL_TOKEN_CUSTOMERS`、`KSQL_TOKEN_LOGS`のみ

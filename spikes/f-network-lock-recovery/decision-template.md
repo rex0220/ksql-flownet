@@ -6,7 +6,7 @@
 
 - 判断案: **採用**。FDR状態は`DECIDED`化を推奨する。ただし、下記の残余項目を限定条件として明記し、凍結ゲートをチェックするかはユーザーが最終判断する。
 - 判断日・判断者: 2026-08-29（JST）／判断者はユーザー承認時に記録
-- 実測環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `devenxyfi.cybozu.com`、単一ホスト
+- 実測環境: `LAPTOP5` / `win32` / Node.js `v24.14.0` / `<subdomain>.cybozu.com`、単一ホスト
 - lease duration・heartbeat intervalと境界: lease 6秒、heartbeat 2秒。`heartbeat < lease`かつ`heartbeat <= lease / 3`を満たす縮小値。実運用値は未決定。
 - heartbeat・subprocess: 疑似subprocess `5276.8794 ms`中にheartbeat 2回（間隔`2005.7992 ms`、`2734.3747 ms`）を継続し、exit 0。
 - drain開始条件・新規Node停止規則: heartbeat連続2回失敗で`LEASE_UNCERTAIN`へ遷移。回復／未回復の両分岐でdrain後の新規Node起動0。

@@ -7,7 +7,7 @@
 ## 共通の実測条件
 
 - 実施日: 2026-08-29（JST）
-- 環境: `LAPTOP5`／`win32`／Node.js `v24.14.0`／`devenxyfi.cybozu.com`
+- 環境: `LAPTOP5`／`win32`／Node.js `v24.14.0`／`<subdomain>.cybozu.com`
 - app ID: 対象12件の結果JSONには未収録。layoutのroleは記録されているが、データソース外からIDを補完しない
 - 実行コマンド:
 
