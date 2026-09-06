@@ -176,6 +176,7 @@ flowchart LR
 | `KSQL_FLOW_LOG_APP_ID` / `KSQL_FLOW_LOG_API_TOKEN` | JOBログアプリ(閲覧) |
 | `KSQL_FLOWNET_IO_DIR` / `KSQL_FLOWNET_IO_RETENTION_DAYS` | CSV 入出力の IO ルート(絶対パス。YAML の `nodes[].inputs` または `nodes[].outputs` を持つ network で必須。入力ファイルは `<IO_DIR>/in`、出力ファイルは `<IO_DIR>/out` 配下)と、入力ファイルの保持日数(既定 90)。§4.5、[CSV入出力の運用](./csv-io-operations.md) |
 | 任意: `KSQL_FLOWNET_REQUESTED_BY` / `KSQL_FLOWNET_HOST` / `KSQL_FLOWNET_OWNER_INSTANCE_ID` / `KSQL_FLOW_GRACE_PERIOD_MS` / `KSQL_FLOWNET_REQUEST_HEARTBEAT_INTERVAL_MS` / `KSQL_FLOWNET_REQUEST_STALE_AFTER_MS` | 相関表示・ロック所有者識別・停止猶予・ポーラー間隔の上書き |
+| 復旧コマンドの操作者のみ: `KSQL_FLOWNET_SERVICE_PRINCIPAL`(`resolve-node` / `record-job-unlock` / `force-unlock-network` で必須)/ `KSQL_FLOWNET_GCP_ACCESS_TOKEN`(`force-unlock-network --stop-method cloud_run_job_execution` のみ) | 操作者の認証主体・Cloud Run 実行の停止確認([復旧 runbook](./runbook-recovery.md)) |
 
 運用上の注意:
 

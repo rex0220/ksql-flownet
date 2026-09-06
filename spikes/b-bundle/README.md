@@ -34,7 +34,7 @@
 
 ## スクリプトによる実行
 
-前提として、`.env.example`を基に`.env`を用意し、作成済みの2アプリ案の実行管理Spikeアプリを`KSQL_SPIKE_APP_EXEC`へ、同アプリでレコード閲覧・追加・編集・削除を許可したtokenを`KSQL_SPIKE_TOKEN_EXEC`へ設定する。スクリプトは`KSQL_SPIKE_APP_EXEC`以外を対象にせず、既存アプリ4246、4247、4249を拒否する。Node.js 22以上で、リポジトリルートから次を実行する。
+前提として、`tests/e2e/env.e2e.example`を基に`.env`を用意し、作成済みの2アプリ案の実行管理Spikeアプリを`KSQL_SPIKE_APP_EXEC`へ、同アプリでレコード閲覧・追加・編集・削除を許可したtokenを`KSQL_SPIKE_TOKEN_EXEC`へ設定する。スクリプトは`KSQL_SPIKE_APP_EXEC`以外を対象にせず、既存アプリ4246、4247、4249を拒否する。Node.js 22以上で、リポジトリルートから次を実行する。
 
 ```bash
 node --env-file=.env spikes/b-bundle/scripts/bundle-roundtrip.mjs

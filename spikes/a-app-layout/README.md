@@ -23,7 +23,7 @@
 2. ブラウザの開発者ツールでConsoleを開き、[`create-spike-apps-2app.console.js`](./console/create-spike-apps-2app.console.js)の内容を丸ごと貼り付けて実行する。
 3. スクリプトがフィールド追加、record type別フォームレイアウト設定、record type別一覧設定をpreviewへ順に行う。表示されたアプリ名・ID・フィールド数・レイアウトセクション数・一覧数を確認し、確認ダイアログでOKを押して2アプリをデプロイする。
 4. デプロイ完了後、同じスペースポータルで[`create-spike-app-1app.console.js`](./console/create-spike-app-1app.console.js)を同様に実行し、フィールド・レイアウト・一覧のサマリを確認してデプロイする。
-5. 各アプリの設定画面からAPIトークンを手動生成する。APIトークンはREST APIでは生成できない。変数名の正はリポジトリ直下の[`.env.example`](../../.env.example)とする。書込可トークン（閲覧・追加・編集・削除）は`KSQL_SPIKE_TOKEN_EXEC`／`KSQL_SPIKE_TOKEN_AUDIT`／`KSQL_SPIKE_TOKEN_INTEGRATED`としてOS環境変数へ、閲覧のみトークンは`_RO`付きの同名変数として`.env`へ設定する（OS環境変数が優先）。値はリポジトリやConsoleへ記録しない。
+5. 各アプリの設定画面からAPIトークンを手動生成する。APIトークンはREST APIでは生成できない。変数名の正は[`tests/e2e/env.e2e.example`](../../tests/e2e/env.e2e.example)とする。書込可トークン（閲覧・追加・編集・削除）は`KSQL_SPIKE_TOKEN_EXEC`／`KSQL_SPIKE_TOKEN_AUDIT`／`KSQL_SPIKE_TOKEN_INTEGRATED`としてOS環境変数へ、閲覧のみトークンは`_RO`付きの同名変数として`.env`へ設定する（OS環境変数が優先）。値はリポジトリやConsoleへ記録しない。
 6. 作成された3つのapp IDを`KSQL_SPIKE_APP_EXEC`／`KSQL_SPIKE_APP_AUDIT`／`KSQL_SPIKE_APP_INTEGRATED`として`.env`へ設定し、[`measurements.md`](./measurements.md)の環境欄へも記録する。
 
 スクリプトはURLからスペースIDを自動判定する。判定できないURL構成では、各ファイル冒頭の`SPACE_ID_OVERRIDE`へスペースIDを指定する。同名アプリが既にある場合は既存アプリを変更せず中止する。処理順は「フィールド追加 → レイアウト設定 → 一覧設定 → `console.table`による作成サマリ → 確認 → デプロイ」である。レイアウト設定時はpreviewレイアウトを取得し、kintoneの自動生成フィールドをSystemセクションへ保持してから全レイアウトを更新する。レイアウトと一覧は各設計書の「フォームレイアウト」「一覧（ビュー）」を正とし、一覧更新は新規アプリの既定一覧を設計書記載の一覧で置き換える。途中で失敗またはデプロイ確認をキャンセルした場合は、Consoleの「失敗したステップ」と表示されたapp IDを確認し、kintoneのアプリ管理画面からpreviewの「変更を中止」を行う。

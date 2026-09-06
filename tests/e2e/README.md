@@ -29,20 +29,20 @@ M5完了ゲートの実機確認用fixtureと実行スクリプトです。ス�
 
 必須環境変数は次のとおりです。
 
-| 変数                     | 値・用途                                                    |
-| ------------------------ | ----------------------------------------------------------- |
-| `KSQL_SPIKE_BASE_URL`    | `https://devenxyfi.cybozu.com`                              |
-| `KSQL_SPIKE_APP_EXEC`    | FlowNet state用スパイクアプリID（参照元・ログアプリは禁止） |
-| `KSQL_SPIKE_APP_AUDIT`   | FlowNet audit用スパイクアプリID（EXECとは別）               |
-| `KSQL_SPIKE_TOKEN_EXEC`  | EXECアプリ書込トークン                                      |
-| `KSQL_SPIKE_TOKEN_AUDIT` | AUDITアプリ書込トークン                                     |
-| `KSQL_TOKEN_DEALS`       | kSQL-Flowが案件管理4247を読むOS環境変数                     |
-| `KSQL_TOKEN_CUSTOMERS`   | kSQL-Flowが顧客管理4246を読むOS環境変数                     |
-| `KSQL_E2E_LOG_APP_ID`    | E2E専用JOBログアプリID（`4264`。必須）                      |
-| `KSQL_E2E_TOKEN_LOGS`    | kSQL-Flowが4264へ書くトークン                               |
-| `KSQL_E2E_TOKEN_LOGS_RO` | FlowNet/E2Eが4264の開始マーカー・相関を読むトークン         |
-| `KSQL_FLOW_BIN`          | kSQL-Flowを起動する実行ファイル（既定例は`node.exe`）       |
-| `KSQL_FLOW_BIN_ARGS`     | kSQL-Flow契約引数より前へ渡す引数（下記参照）               |
+| 変数                     | 値・用途                                                            |
+| ------------------------ | ------------------------------------------------------------------- |
+| `KSQL_SPIKE_BASE_URL`    | 検証環境の kintone URL(変数一覧の雛形: `tests/e2e/env.e2e.example`) |
+| `KSQL_SPIKE_APP_EXEC`    | FlowNet state用スパイクアプリID（参照元・ログアプリは禁止）         |
+| `KSQL_SPIKE_APP_AUDIT`   | FlowNet audit用スパイクアプリID（EXECとは別）                       |
+| `KSQL_SPIKE_TOKEN_EXEC`  | EXECアプリ書込トークン                                              |
+| `KSQL_SPIKE_TOKEN_AUDIT` | AUDITアプリ書込トークン                                             |
+| `KSQL_TOKEN_DEALS`       | kSQL-Flowが案件管理4247を読むOS環境変数                             |
+| `KSQL_TOKEN_CUSTOMERS`   | kSQL-Flowが顧客管理4246を読むOS環境変数                             |
+| `KSQL_E2E_LOG_APP_ID`    | E2E専用JOBログアプリID（`4264`。必須）                              |
+| `KSQL_E2E_TOKEN_LOGS`    | kSQL-Flowが4264へ書くトークン                                       |
+| `KSQL_E2E_TOKEN_LOGS_RO` | FlowNet/E2Eが4264の開始マーカー・相関を読むトークン                 |
+| `KSQL_FLOW_BIN`          | kSQL-Flowを起動する実行ファイル（既定例は`node.exe`）               |
+| `KSQL_FLOW_BIN_ARGS`     | kSQL-Flow契約引数より前へ渡す引数（下記参照）                       |
 
 任意環境変数です。
 
