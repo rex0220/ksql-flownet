@@ -14,7 +14,7 @@
 **連載予定**(kSQL Flow 連載の続編にあたる、kSQL-FlowNet の連載です)
 
 - #1 [kintone のバッチを「ジョブの網」として運用する](https://qiita.com/rex0220/items/24470d6223c1b4ed4031)(本記事)
-- #2 導入編: kintone とサーバーを 0 から本番運用まで(予定)
+- #2 導入編: kintone とサーバーを 0 から運用開始まで(予定)
 - #3 network 定義編: 既存の kSQL-Flow ジョブを DAG にする(予定)
 - #4 運用編: ボードから動かす(予定)
 - #5 スケジュール連携編: cron と network の分担(予定)

@@ -34,8 +34,8 @@
 ```
 実行サーバー(ssh -i <鍵> root@<サーバー>)に接続し、次の初期設定を行って。
 1. timedatectl でタイムゾーンを Asia/Tokyo にする
-2. apt update と git・ufw の導入、ufw で OpenSSH だけ許可して有効化
-3. NodeSource の apt リポジトリから Node.js 22 を導入
+2. apt update と ca-certificates・curl・gnupg・git・ufw の導入、ufw で OpenSSH だけ許可して有効化
+3. NodeSource の apt リポジトリ(署名鍵を /etc/apt/keyrings に置く方式)から Node.js 22 を導入
 4. node --version、git --version、timedatectl、ufw status の結果を報告して
 コマンドは実行前に 1 つずつ見せて。パスワードやトークンは扱わないこと。
 ```

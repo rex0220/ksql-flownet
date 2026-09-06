@@ -1,4 +1,4 @@
-<!-- タイトル: 【kSQL-FlowNet #2】導入編: kintone とサーバーを 0 から本番運用まで
+<!-- タイトル: 【kSQL-FlowNet #2】導入編: kintone とサーバーを 0 から運用開始まで
 - 連載 #2(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031)
 - タグ案: kintone, SQL, Node.js, バッチ処理
 - 画像は `画像URL_*` の行を差し替える(検証スペースのテストデータで撮影。実アプリ ID・ドメイン・トークンを写さない)
@@ -8,7 +8,7 @@
 
 **この回で分かること**
 
-- kintone 側(5 手順)とサーバー側(5 手順)で、それぞれ何を作るか
+- kintone 側(5 手順)とサーバー側(準備+5 手順)で、それぞれ何を作るか
 - API トークンとアクセス権をどう分けるか
 - 動作確認を「何も実行しない smoke」で済ませる方法
 
@@ -17,6 +17,8 @@
 - kintone(cybozu.com)でアプリ作成とシステム管理ができるアカウント
 - Linux サーバー 1 台(Node.js 22 以上、git、SSH)。kintone へ HTTPS で出られればよく、受信ポートは不要。この記事では ConoHa VPS の 1 GB プラン + Ubuntu 24.04 を使います
 - [kSQL-Flow](https://github.com/rex0220/ksql-flow) のジョブ資材リポジトリ([ksql-flow-template](https://github.com/rex0220/ksql-flow-template) から作ったもの)。既にジョブが動いていれば、その JOBログアプリをそのまま使えます
+
+この記事では、CLI・プラグイン・アプリテンプレートをすべて **v1.0.0** でそろえます。新しい版を使う場合は、その版の [Release](https://github.com/rex0220/ksql-flownet/releases) にある導入手順を確認してください。
 
 ## 全体の流れ
 
@@ -72,7 +74,7 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 
 ![フィールドアクセス権の適用結果](画像URL_field_acl)
 
-アプリのアクセス権は、一次対応者(ボードを使う人)に実行管理・監査履歴の閲覧+アプリ管理、操作要求の閲覧・追加・編集+アプリ管理を付けます。 **操作要求にレコード編集が要る** のは、ボードの「取消」が既存レコードの取消フラグを更新する操作だからです。ここは実際に非管理者アカウントで取消できることを確認しました(後述)。
+アプリのアクセス権は、導入作業を行うアプリ管理者に 3 アプリの「アプリ管理」(手順 4・5 で必要)、一次対応者(ボードを使う人)に実行管理・監査履歴の閲覧と、操作要求の閲覧・追加・編集を付けます。筆者の運用では一次対応者がアプリ管理者を兼ねていますが(START 許可の一覧を保守するため)、役割を分ける場合は一次対応者にアプリ管理を付けません。 **操作要求にレコード編集が要る** のは、ボードの「取消」が既存レコードの取消フラグを更新する操作だからです。ここは実際に非管理者アカウントで取消できることを確認しました(後述)。
 
 ### 5. プラグイン設定
 
@@ -99,19 +101,27 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 | ログイン | SSH 公開鍵(root またはsudo可のユーザー)。kintone 側から入ってくる通信はないので、受信は SSH だけ開ける |
 | タイムゾーン | `Asia/Tokyo`(cron の発火時刻に効く) |
 | Node.js | 22 系を NodeSource の apt リポジトリから導入(`/usr/bin/node` に入るので cron からもそのまま見える) |
-| 費用 | 時間課金で月額上限 1,065 円(税込)。長期契約の割引(まとめトク)なら 12 か月契約で月 488 円(税込)。いずれも 2026 年 9 月時点の公式ページの表示で、キャンペーン価格は含めていません |
+| 費用 | 時間課金で月額上限 1,065 円(税込)。長期契約の割引(まとめトク)なら 12 か月契約で月 488 円(税込)。いずれも 2026 年 9 月時点の[公式料金ページ](https://vps.conoha.jp/pricing/)の表示で、キャンペーン価格は含めていません |
 
-ランニングコストはこの VPS 代だけです。kintone 側はアプリ 4 つとプラグインを既存の契約内に置くので追加費用はなく、kSQL-FlowNet・kSQL-Flow は MIT ライセンスの npm パッケージです。
+ランニングコストはこの VPS 代だけです(既に kintone を契約している前提です)。kintone 側はアプリ 4 つとプラグインを既存の契約内に置くので追加費用はなく、kSQL-FlowNet・kSQL-Flow は MIT ライセンスの npm パッケージです。
 
-初期設定は次の 5 行です。
+初期設定は次のとおりです。Node.js は NodeSource の apt リポジトリを鍵付きで登録して入れます(NodeSource は `setup_22.x` スクリプト方式を非推奨にしています)。
 
 ```sh
 timedatectl set-timezone Asia/Tokyo
-apt update && apt install -y git ufw
+apt update && apt install -y ca-certificates curl gnupg git ufw
 ufw allow OpenSSH && ufw enable
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs
+
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+  | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
+  > /etc/apt/sources.list.d/nodesource.list
+apt update && apt install -y nodejs
 node --version   # v22.x
 ```
+
+VPS は作って終わりではありません。Ubuntu のセキュリティ更新を定期的に適用し、Node.js 22 のサポート終了前に次の LTS へ更新します。
 
 ConoHa のコントロールパネル側では、セキュリティグループで SSH(22)だけを許可し、それ以外の受信は閉じておきます。kintone への通信は外向きの HTTPS(443)なので、受信の許可は要りません。SSH はパスワード認証を無効にして鍵のみにしておくと安全です。
 
@@ -124,15 +134,15 @@ Claude Code を kSQL-Flow のジョブ資材リポジトリで開き、次を貼
 ```
 実行サーバー root@<IP>(鍵 ~/.ssh/<鍵ファイル>)に SSH で接続し、次の初期設定を行って。
 1. timedatectl でタイムゾーンを Asia/Tokyo にする
-2. apt update と git・ufw の導入、ufw で OpenSSH だけ許可して有効化
-3. NodeSource の apt リポジトリから Node.js 22 を導入
+2. apt update と ca-certificates・curl・gnupg・git・ufw の導入、ufw で OpenSSH だけ許可して有効化
+3. NodeSource の apt リポジトリ(署名鍵を /etc/apt/keyrings に置く方式)から Node.js 22 を導入
 4. node --version、git --version、timedatectl、ufw status の結果を報告して
 コマンドは実行前に 1 つずつ見せて。パスワードやトークンは扱わないこと。
 ```
 
-Claude Code は各コマンドを実行前に表示し、承認してから流します。実行後の報告が `v22.x` / `Asia/Tokyo` / `OpenSSH ALLOW` になっていれば、以降の手順 6〜10 も同じ要領で任せられます(手順ごとの指示文は[Claude Code 併用版の導入手順](https://github.com/rex0220/ksql-flownet/blob/main/docs/installation-claude-code.md)にあります)。トークン値だけは AI に渡さず、人が SSH でエディタを開いて転記します。
+Claude Code の権限設定は、各コマンドの実行前に承認を求める状態にして作業します。表示された接続先とコマンドを確認してから承認します。実行後の報告が `v22.x` / `Asia/Tokyo` / `OpenSSH ALLOW` になっていれば、以降の手順 6〜10 も同じ要領で任せられます(手順ごとの指示文は[Claude Code 併用版の導入手順](https://github.com/rex0220/ksql-flownet/blob/main/docs/installation-claude-code.md)にあります)。トークン値はプロンプトへ貼らず、人が SSH 先のエディタで転記します。AI に SSH 操作を許可する以上、環境ファイルなど秘密ファイルを読むコマンドは承認しない運用も必要です。
 
-以下は root で SSH して行います。配置はこの形です。
+以下は、構成を追いやすくするために検証用の VPS へ root で導入した例です。本番では SSH 用の管理ユーザーとジョブ実行専用のユーザーを分け、root による定期実行は避けることを勧めます。配置はこの形です。
 
 ```
 /opt/ksql/
@@ -150,7 +160,7 @@ Claude Code は各コマンドを実行前に表示し、承認してから流�
 ```sh
 mkdir -p /opt/ksql /var/log/ksql /var/tmp/ksql-flownet
 cd /opt/ksql && git clone <ジョブ資材リポジトリ> my-ksql-jobs && cd my-ksql-jobs
-npm install
+npm ci   # package-lock.json どおりに入れる(無ければ npm install)
 cp .env.example .env && chmod 600 .env   # KSQL_TOKEN_LOGS などを記入
 node --env-file=.env node_modules/@rex0220/ksql-flow/dist/cli.js validate --check-logapp --profile prod
 ```
@@ -160,8 +170,9 @@ node --env-file=.env node_modules/@rex0220/ksql-flow/dist/cli.js validate --chec
 ### 7. kSQL-FlowNet
 
 ```sh
-npm install --global @rex0220/ksql-flownet
+npm install --global @rex0220/ksql-flownet@1.0.0
 ksql-flownet --version   # 1.0.0
+which ksql-flownet       # /usr/bin/ksql-flownet(cron に書く絶対パス)
 ```
 
 ### 8. 環境ファイル・network 定義・allowlist
@@ -224,6 +235,8 @@ node --env-file=.env $(which ksql-flownet) poll-requests --check
 ksql-flownet status monthly_summary --profile prod --json
 ```
 
+#### ジョブを動かさず、操作経路だけを smoke する
+
 次に **操作要求の smoke** です。ボードから START を起票して直後に取消し、ポーラーを 1 回手で回します。何も実行せずに、起票 → 取消 → ポーラーの書戻しの経路だけを確認できます。
 
 1. 操作要求アプリの「01_未処理要求」が空であることを確認
@@ -245,11 +258,14 @@ node --env-file=.env $(which ksql-flownet) poll-requests
 root の `crontab -e` で登録します。発火時刻はサーバーのタイムゾーンに従います(network 定義の `timezone` は業務キーの導出用です)。
 
 ```cron
-0 7 1 * * . /root/.ksql-flownet.env && /opt/ksql/my-ksql-jobs/run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1
-*/5 * * * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && node --env-file=.env $(which ksql-flownet) poll-requests >> /var/log/ksql/flownet-requests.log 2>&1
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 7 1 * * . /root/.ksql-flownet.env && flock -n /run/lock/flownet-monthly.lock /opt/ksql/my-ksql-jobs/run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1
+*/5 * * * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && flock -n /run/lock/flownet-poller.lock node --env-file=.env /usr/bin/ksql-flownet poll-requests >> /var/log/ksql/flownet-requests.log 2>&1
 ```
 
-5 分待って `flownet-requests.log` に `poll-requests: requested=0 …` が増えれば、運用開始の状態です。
+cron の `PATH` は対話シェルより短いので、先頭で明示し、CLI は `which ksql-flownet` で確認した絶対パスで書きます。`flock -n` は前回の起動が 5 分以内に終わらなかったときの多重起動を避けるためのものです(kSQL-FlowNet 自体も Network ロックと要求の claim で二重実行を防ぎますが、ポーラーのプロセスを重ねない方が単純です)。
+
+5 分待って `flownet-requests.log` に `poll-requests: requested=0 …` が増えれば、運用開始の状態です。`/var/log/ksql/*.log` は `>>` で追記され続けるので、logrotate で週次・12 世代・圧縮などの設定を入れておきます。
 
 ## 実際にやって詰まった箇所
 

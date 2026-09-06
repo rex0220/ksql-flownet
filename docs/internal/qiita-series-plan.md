@@ -9,7 +9,7 @@
 
 | # | 仮題 | 答える問い | 読者 | 主な素材(リポジトリ) | 目安 |
 | --- | --- | --- | --- | --- | --- |
-| 2 | 導入編: 0 から本番運用まで 1 日で | 何を用意して何をすれば動くのか | kintone 管理者 + サーバー担当 | docs/installation.md、templates/README、plugin/README、R5 の検証記録 | 手順書の要約+各手順の画面 8〜10 枚。手順書との差分は「詰まった箇所」だけ |
+| 2 | 導入編: kintone とサーバーを 0 から運用開始まで | 何を用意して何をすれば動くのか | kintone 管理者 + サーバー担当 | docs/installation.md、templates/README、plugin/README、R5 の検証記録 | 手順書の要約+各手順の画面 8〜10 枚。手順書との差分は「詰まった箇所」だけ |
 | 3 | network 定義編: 既存の kSQL-Flow ジョブを DAG にする | 手元の SQL をどう network.yaml に束ねるか | kSQL-Flow 利用者 | 仕様書 §4(network_id / business_key の役割、§4.7 フォルダー構成)、`validate` / `plan` | ゲート(ASSERT)を先頭に置く設計、冪等の宣言基準、job_id 64 文字、`{network_id}@` の命名 |
 | 4 | 運用編: ボードから動かす | 運用担当者は毎日何を見て何を押すのか | 一次対応者 | docs/ops-first-response.md、仕様書 §6〜§7、ボードの画面 | 3 セクションの読み方、START 3 モード、取消、RERUN / STOP / RELEASE / CLOSE、結果コード早見 |
 | 5 | スケジュール連携編: cron と network の分担 | 複数 network を定刻にどう並べるか | サーバー担当 | docs/scheduling-patterns.md、仕様書 §7.4 の例 | 直列連結スクリプト、ASSERT ゲートによる fail-closed、営業日判定、翌月 cron が前月を再開しない話 |
