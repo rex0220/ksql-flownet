@@ -84,7 +84,14 @@ flowchart LR
   B --> S
 ```
 
-この形では `check_a` と `check_b` は互いに依存しないので、どちらを先に動かしても正しい順序です。kSQL-FlowNet は **YAML の `nodes` に書いた順** で決め(同じ定義なら常に同じ順)、並列には動かさず 1 ノードずつ直列に進めます。`summary` は `check_a` と `check_b` の両方が SUCCESS になってから起動し(`trigger_rule: all_success`)、どちらかが FAILED なら起動しません。
+この図は依存関係を表したもので、`check_a` と `check_b` が同時に動くという意味ではありません。両者は互いに依存しないので、どちらを先に動かしても正しい順序ですが、kSQL-FlowNet は並列には動かさず、 **YAML の `nodes` に書いた順** で 1 ノードずつ直列に進めます。`nodes` に `check_a` を先に書いていれば、実際の実行順はこうなります。
+
+```mermaid
+flowchart LR
+  S1["1. extract"] --> S2["2. check_a"] --> S3["3. check_b"] --> S4["4. summary"]
+```
+
+`check_b` を先に書けば 2 と 3 が入れ替わります。同じ定義なら常に同じ順になるので、`plan` の出力(後述)で実行順を確認できます。`summary` は `check_a` と `check_b` の両方が SUCCESS になってから起動し(`trigger_rule: all_success`)、どちらかが FAILED なら起動しません。
 
 つまり定義者が決めるのは「何が何に依存するか」だけで、「何番目に動くか」は書きません。順序を変えたいときは矢印(`depends_on`)を変えます。
 
