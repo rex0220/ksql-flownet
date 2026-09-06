@@ -21,7 +21,7 @@ flowchart LR
 
 | 項目 | 要件 |
 | --- | --- |
-| kintone | cybozu.com の kintone。アプリ作成権限と、システム管理(プラグイン・アプリテンプレートの読込)の権限を持つアカウント |
+| kintone | cybozu.com の kintone。プラグインと外部 API(API トークン)を利用できる契約(スタンダードコースまたはワイドコース)。アプリ作成権限と、システム管理(プラグイン・アプリテンプレートの読込)の権限を持つアカウント |
 | 実行サーバー | Linux 1 台。Node.js 22 以上、git。kintone へ HTTPS で発信できること。kSQL-FlowNet の稼働用の待受ポート・固定 IP・ドメインは不要。管理用の SSH 接続経路は別途必要 |
 | kSQL-Flow のジョブ資材 | [ksql-flow-template](https://github.com/rex0220/ksql-flow-template) から作った自分のリポジトリ(`ksql.config.json`・`.env`・`jobs/`)。kSQL-Flow はこのリポジトリの `npm install` で入る。業務アプリのトークン発行と SQL の `--dry-run` 検証は [kSQL-Flow README のクイックスタート](https://github.com/rex0220/ksql-flow#readme)に従う |
 | 配布物 | アプリテンプレート `templates/ksql-flownet-apps-1.0.0.zip`、プラグイン `flownet-activity-plugin.zip`(GitHub Release 添付)、kSQL-FlowNet 本体(git clone または npm) |
@@ -293,6 +293,23 @@ root の `crontab -e` で登録する。cron は 2 本で、定期実行は flow
 ```
 
 登録後、5 分待って `/var/log/ksql/flownet-requests.log` に `poll-requests: requested=0 …` の行が増えることを確認する。ボードからの起票は次のポーラー周期(最大約 5 分)で処理される。
+
+ログは `>>` で追記され続けるため、logrotate を設定する。
+
+```
+# /etc/logrotate.d/ksql-flownet
+/var/log/ksql/*.log {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+```
+
+`copytruncate` は、cron が `>>` で開いたままのファイルを閉じずにローテーションするための指定である。
 
 ## 11. 運用への引き継ぎ
 

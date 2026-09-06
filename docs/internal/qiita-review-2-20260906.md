@@ -22,3 +22,14 @@
 - 実行専用ユーザーと管理ユーザーの分離(環境ファイルの所有と 0640、`/etc/ksql-flownet/`、`/var/lib/ksql-flownet/`)
 - cron の `PATH` 明示と `flock -n`、logrotate の設定例
 - NodeSource の鍵付きリポジトリ方式(手順書は Node.js の導入方法を規定していないため、参考として)
+
+## 第 2 巡(a991a7c に対して)
+
+| # | 指摘 | 裁定 | 反映・根拠 |
+| --- | --- | --- | --- |
+| 必須 1 | kintone の対応コース(スタンダード/ワイド)を前提に明記 | 採用 | プラグインと API トークンはライトコースで使えない。記事の前提と費用の文、導入手順書 §1 の kintone 行へ追記 |
+| 必須 2 | 「3 アプリのアプリ管理」がどの 3 つか不明 | 採用 | 実行管理(プラグイン設定)・操作要求・JOBログ(Console スクリプト)と特定し、導入管理者/一次対応者の表を追加。監査履歴は閲覧のみ |
+| 推奨 1 | 「受信ポートは不要」を正確に | 採用 | 「kSQL-FlowNet 用の待受ポートは不要。管理用 SSH を除き受信ポートは開けない」へ |
+| 推奨 2 | 手順 9 の `$(which ksql-flownet)` も絶対パスへ | 採用 | `/usr/bin/ksql-flownet` に統一 |
+| 推奨 3 | nvm の注意書きを `KSQL_FLOW_BIN` と整合 | 採用 | 「NodeSource 構成では PATH の明示で足りる。nvm 等なら KSQL_FLOW_BIN にも絶対パス」へ |
+| 推奨 4 | logrotate の設定例を手順書に置き、記事から参照 | 採用 | 導入手順書 §10 に `/etc/logrotate.d/ksql-flownet` の例(weekly・12 世代・compress・copytruncate)を追加し、記事からリンク |

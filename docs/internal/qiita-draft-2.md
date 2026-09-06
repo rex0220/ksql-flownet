@@ -14,8 +14,8 @@
 
 **前提**
 
-- kintone(cybozu.com)でアプリ作成とシステム管理ができるアカウント
-- Linux サーバー 1 台(Node.js 22 以上、git、SSH)。kintone へ HTTPS で出られればよく、受信ポートは不要。この記事では ConoHa VPS の 1 GB プラン + Ubuntu 24.04 を使います
+- kintone のスタンダードコースまたはワイドコース(プラグインと外部 API を利用できる契約)で、アプリ作成とシステム管理ができるアカウント
+- Linux サーバー 1 台(Node.js 22 以上、git、SSH)。kintone へ HTTPS で出られればよく、kSQL-FlowNet 用の待受ポートは不要。管理用の SSH を除き、外部からの受信ポートは開けない。この記事では ConoHa VPS の 1 GB プラン + Ubuntu 24.04 を使います
 - [kSQL-Flow](https://github.com/rex0220/ksql-flow) のジョブ資材リポジトリ([ksql-flow-template](https://github.com/rex0220/ksql-flow-template) から作ったもの)。既にジョブが動いていれば、その JOBログアプリをそのまま使えます
 
 この記事では、CLI・プラグイン・アプリテンプレートをすべて **v1.0.0** でそろえます。新しい版を使う場合は、その版の [Release](https://github.com/rex0220/ksql-flownet/releases) にある導入手順を確認してください。
@@ -74,7 +74,16 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 
 ![フィールドアクセス権の適用結果](画像URL_field_acl)
 
-アプリのアクセス権は、導入作業を行うアプリ管理者に 3 アプリの「アプリ管理」(手順 4・5 で必要)、一次対応者(ボードを使う人)に実行管理・監査履歴の閲覧と、操作要求の閲覧・追加・編集を付けます。筆者の運用では一次対応者がアプリ管理者を兼ねていますが(START 許可の一覧を保守するため)、役割を分ける場合は一次対応者にアプリ管理を付けません。 **操作要求にレコード編集が要る** のは、ボードの「取消」が既存レコードの取消フラグを更新する操作だからです。ここは実際に非管理者アカウントで取消できることを確認しました(後述)。
+アプリのアクセス権は、導入作業を行う管理者と、運用開始後にボードを使う一次対応者で分けます。手順 4・5 でアプリ管理が要るのは、Console スクリプトを実行する操作要求・JOBログと、プラグインを設定する実行管理の 3 つです。
+
+| アプリ | 導入管理者 | 一次対応者 |
+| --- | --- | --- |
+| 実行管理 | 閲覧・アプリ管理 | 閲覧 |
+| 監査履歴 | 閲覧 | 閲覧 |
+| 操作要求 | 閲覧・追加・編集・アプリ管理 | 閲覧・追加・編集 |
+| JOBログ | 閲覧・アプリ管理 | 必要に応じて閲覧 |
+
+筆者の運用では、START 許可の一覧を保守する担当者だけが実行管理アプリの管理権限を持ちます。 **操作要求にレコード編集が要る** のは、ボードの「取消」が既存レコードの取消フラグを更新する操作だからです。ここは実際に非管理者アカウントで取消できることを確認しました(後述)。
 
 ### 5. プラグイン設定
 
@@ -103,7 +112,7 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 | Node.js | 22 系を NodeSource の apt リポジトリから導入(`/usr/bin/node` に入るので cron からもそのまま見える) |
 | 費用 | 時間課金で月額上限 1,065 円(税込)。長期契約の割引(まとめトク)なら 12 か月契約で月 488 円(税込)。いずれも 2026 年 9 月時点の[公式料金ページ](https://vps.conoha.jp/pricing/)の表示で、キャンペーン価格は含めていません |
 
-ランニングコストはこの VPS 代だけです(既に kintone を契約している前提です)。kintone 側はアプリ 4 つとプラグインを既存の契約内に置くので追加費用はなく、kSQL-FlowNet・kSQL-Flow は MIT ライセンスの npm パッケージです。
+既にプラグインと外部 API を利用できる kintone 契約がある場合、追加のランニングコストはこの VPS 代だけです。kintone 側はアプリ 4 つとプラグインを既存の契約内に置くので追加費用はなく、kSQL-FlowNet・kSQL-Flow は MIT ライセンスの npm パッケージです。
 
 初期設定は次のとおりです。Node.js は NodeSource の apt リポジトリを鍵付きで登録して入れます(NodeSource は `setup_22.x` スクリプト方式を非推奨にしています)。
 
@@ -223,7 +232,7 @@ networks:
 cron を登録する前に、read-only の事前確認を通します。
 
 ```sh
-node --env-file=.env $(which ksql-flownet) poll-requests --check
+node --env-file=.env /usr/bin/ksql-flownet poll-requests --check
 # poll-requests check: ok networks=1 request_app=readable
 ```
 
@@ -245,7 +254,7 @@ ksql-flownet status monthly_summary --profile prod --json
 4. 操作要求レコードが `REQUESTED` かつ `取消` になっていることを確認してから、ポーラーを 1 回実行
 
 ```sh
-node --env-file=.env $(which ksql-flownet) poll-requests
+node --env-file=.env /usr/bin/ksql-flownet poll-requests
 # poll-requests: requested=1 claimed=0 completed=0 cancelled=1 invalid=0 stale=0 skipped=0
 ```
 
@@ -265,16 +274,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 cron の `PATH` は対話シェルより短いので、先頭で明示し、CLI は `which ksql-flownet` で確認した絶対パスで書きます。`flock -n` は前回の起動が 5 分以内に終わらなかったときの多重起動を避けるためのものです(kSQL-FlowNet 自体も Network ロックと要求の claim で二重実行を防ぎますが、ポーラーのプロセスを重ねない方が単純です)。
 
-5 分待って `flownet-requests.log` に `poll-requests: requested=0 …` が増えれば、運用開始の状態です。`/var/log/ksql/*.log` は `>>` で追記され続けるので、logrotate で週次・12 世代・圧縮などの設定を入れておきます。
+5 分待って `flownet-requests.log` に `poll-requests: requested=0 …` が増えれば、運用開始の状態です。`/var/log/ksql/*.log` は `>>` で追記され続けるので、logrotate で週次・12 世代・圧縮などの設定を入れておきます(設定例は[導入手順書 §10](https://github.com/rex0220/ksql-flownet/blob/main/docs/installation.md)にあります)。
 
 ## 実際にやって詰まった箇所
 
 導入手順書だけを見て検証用のスペースとサーバーで通したときのメモです。いずれも手順書へ反映済みです。
 
-- **`status` には `--profile` が要る** : 手順書の例に抜けていて、そのまま打つと `--profile is required` で止まった
-- **環境ファイルの CRLF** : 別ファイルから行を複写したら CRLF が混入し、`file` コマンドで気づいた。LF に直して解決
-- **非管理者の取消** : フィールドアクセス権(作成者=編集可)だけでは足りず、アプリのレコード編集権限が必要。手順書の推奨アクセス権を「閲覧・追加・編集」に直した
-- **cron の `PATH`** : `node` が `/usr/bin` 以外(nvm など)にあると cron から見つからない。`which node` の絶対パスを書く
+- **`status` には `--profile` が要る**: 手順書の例に抜けていて、そのまま打つと `--profile is required` で止まった
+- **環境ファイルの CRLF**: 別ファイルから行を複写したら CRLF が混入し、`file` コマンドで気づいた。LF に直して解決
+- **非管理者の取消**: フィールドアクセス権(作成者=編集可)だけでは足りず、アプリのレコード編集権限が必要。手順書の推奨アクセス権を「閲覧・追加・編集」に直した
+- **cron の `PATH`**: この記事の NodeSource 構成では `/usr/bin/node` を使うので `PATH` の明示で足りる。nvm など別の場所へ導入した場合は、cron の `PATH` だけでなく環境ファイルの `KSQL_FLOW_BIN` にも `which node` で確認した絶対パスを設定する
 
 ## 次回
 
