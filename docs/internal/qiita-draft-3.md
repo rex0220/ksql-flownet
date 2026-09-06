@@ -1,7 +1,6 @@
 <!-- タイトル: 【kSQL-FlowNet #3】network 定義編: 既存の kSQL-Flow ジョブを DAG にする
 - 連載 #3(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31)
 - タグ案: kintone, SQL, YAML, DAG
-- 画像は `画像URL_*` の行を差し替える(検証スペースのテストデータで撮影)
 -->
 
 [#1](https://qiita.com/rex0220/items/24470d6223c1b4ed4031) で全体像、[#2](https://qiita.com/rex0220/items/2308e4ccf5a363680d31) で導入を書きました。今回は **手元にある kSQL-Flow のジョブ(SQL ファイル)を、どう network.yaml に束ねるか** です。仕様の正は[統合仕様書 §4](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/docs/specification.md)(v1.0.0)で、この記事は「決めること」と「決め方」に絞ります。
@@ -204,7 +203,7 @@ my-ksql-jobs/
 | `business_key_policy` | 定期なら `scheduled_period`(`{network_id}@{yyyy}-{MM}`)、期間の概念がなければ `explicit` |
 | ノードの `id` / `job_id` / `sql` | `id` は役割名、`job_id` は SQL の `@ksql name`、`sql` は相対パス。`profile:job_id` は 64 文字以内 |
 | ゲート | 先頭に読取専用の検査ノード。異常は `ASSERT`、対象なしは `EXIT SUCCESS IF` |
-| `idempotent` | 何度流しても同じ結果になるときだけ `true`。迷えば `false` |
+| `idempotent` | 再実行しても累積する副作用を起こさず、正しい状態へ収束できるときだけ `true`。迷えば `false` |
 | ロック | heartbeat は lease の 1/3 以下。lease は一時的な遅延への余裕と、障害後の復旧時間のバランスで決める(ノードの実行時間には依存しない) |
 
 ## 次回
