@@ -1,17 +1,10 @@
-# kintone のバッチを「ジョブの網」として運用する — kSQL-FlowNet 1.0.0 を公開しました
-
-<!-- タイトル別案(検索性重視): kintone の定期バッチを「ジョブの網」として運用する — kSQL-FlowNet 1.0.0 を公開しました -->
-
-<!--
-Qiita 投稿用の下書き(R7)。投稿はユーザーが行う。
-- スクリーンショットは検証スペース(テストデータ)で撮り直す。実業務値・実アプリ ID・ドメインを写さない
-- 画像は `![alt](URL)` の行を差し替える
-- タグ案: kintone, kSQL, バッチ処理, DAG, Node.js
+<!-- kintone のバッチを「ジョブの網」として運用する — kSQL-FlowNet 
+- タグ: kintone, SQL
 -->
 
-[kSQL-Flow](https://github.com/rex0220/ksql-flow) は、kintone の複数アプリを SQL で JOIN・集計し、一括 UPSERT できる CLI ランナーです(SQL 1 本が 1 ジョブ)。使い始めると、次に困るのは「ジョブが増えたあと」です。A が終わってから B、B が失敗したら C は動かさない、月初に動かなかった分をあとから安全に流し直す、失敗した回だけ途中から再開する。こうした**ジョブ同士の関係と実行の記録**は、cron とシェルスクリプトでは早々に手に負えなくなります。
+[kSQL-Flow](https://github.com/rex0220/ksql-flow) は、kintone の複数アプリを SQL で JOIN・集計し、一括 UPSERT できる CLI ランナーです(SQL 1 本が 1 ジョブ)。使い始めると、次に困るのは「ジョブが増えたあと」です。A が終わってから B、B が失敗したら C は動かさない、月初に動かなかった分をあとから安全に流し直す、失敗した回だけ途中から再開する。こうした **ジョブ同士の関係と実行の記録** は、cron とシェルスクリプトでは早々に手に負えなくなります。
 
-その部分だけを引き受ける**実行管理層(Control Plane)**として **kSQL-FlowNet** を作り、1.0.0 を公開しました。
+その部分だけを引き受ける **実行管理層(Control Plane)** として **kSQL-FlowNet** を作り、1.0.0 を公開しました。
 
 - npm: https://www.npmjs.com/package/@rex0220/ksql-flownet
 - GitHub: https://github.com/rex0220/ksql-flownet
@@ -116,17 +109,17 @@ nodes:
 
 実行管理アプリの「00_Run状況」ビューにプラグインが描画するボードです。
 
-![Run状況ボード(未終端 Run と要対応 Run の 2 セクション)](画像URL_board)
+![Run状況ボード。進行中の Run(RUNNING / LIVE)と、検査ノードの ASSERT で止まった FAILED の Run がリラン要求・クローズ要求のボタン付きで並ぶ](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/11b4b256-9af1-4b7b-90f8-a330a171de0e.png)
 
 - 動いている Run と、失敗して対応が必要な Run が分かれて見えます
 - 行のボタンから**リラン要求・停止要求・解除要求・クローズ要求**を出せます。押した瞬間に何かが動くのではなく、操作要求アプリにレコードが 1 件できて、サーバーのポーラーが次の周期(最大 5 分)で処理します
 - 「新規実行」からは、サーバー側で許可された network だけを **START** できます
 
-![新規実行ダイアログ(定期・補正・任意キーの 3 モード)](画像URL_start_dialog)
+![新規実行ダイアログ。network_id の選択肢はサーバー側で許可された network だけが並び、その他は自由入力](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/16ddf0b6-10d8-4ec8-8d2d-1dea2bca8c3c.png)
 
-起票した要求はポーラーが受け取るまで取り消せます。誰が・いつ・何を依頼し、結果がどうだったかは操作要求アプリに残ります。
+起票した要求は、ボードの該当 Run の行に「処理待ち」として起票者・理由つきで表示され、ポーラーが受け取るまでは起票者本人が取り消せます。誰が・いつ・何を依頼し、結果がどうだったかは操作要求アプリに残ります。
 
-![操作要求アプリの一覧(処理待ち・拒否・取消済み)](画像URL_requests)
+![FAILED の Run に対するリラン要求が処理待ち(REQUESTED)として表示され、起票者には取消ボタンが出る](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/dd7e8eb2-78e5-4cf7-a417-36a6c30fd9d8.png)
 
 ## 導入の流れ(ダイジェスト)
 
