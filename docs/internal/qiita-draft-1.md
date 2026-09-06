@@ -21,14 +21,16 @@
 ## 全体の流れ
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph K["kintone(ブラウザ)"]
-    K1["1 プラグイン読込"] --> K2["2 テンプレートから 4 アプリ"] --> K3["3 API トークン"] --> K4["4 アクセス権"] --> K5["5 プラグイン設定"]
+    direction LR
+    K1["1 プラグイン読込"] --> K2["2 テンプレートから<br>4 アプリ"] --> K3["3 API トークン"] --> K4["4 アクセス権"] --> K5["5 プラグイン設定"]
   end
   subgraph S["実行サーバー(SSH)"]
-    S1["6 kSQL-Flow とジョブ資材"] --> S2["7 kSQL-FlowNet"] --> S3["8 環境ファイル・network・allowlist"] --> S4["9 検証と smoke"] --> S5["10 cron 2 本"]
+    direction LR
+    S1["6 kSQL-Flow と<br>ジョブ資材"] --> S2["7 kSQL-FlowNet"] --> S3["8 環境ファイル<br>network・allowlist"] --> S4["9 検証と smoke"] --> S5["10 cron 2 本"]
   end
-  K5 --> S1
+  K -->|"アプリ ID とトークンを持ち込む"| S
 ```
 
 kintone 側が先です。サーバー側の環境ファイルに 4 アプリの ID とトークンを書くからです。
