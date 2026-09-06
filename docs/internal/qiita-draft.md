@@ -161,6 +161,38 @@ nodes:
 - **業務キーが Run を決める。** cron から `--scheduled-for 2026-09-01T00:00:00+09:00` で起動すると、`format` から `monthly_summary@2026-09` が導出されます。同じキーで再起動しても完走済みなら何もしません(NO-OP)。失敗した回を同じキーで再開すると、**成功済みノードは再実行せず、未完了ノードを DAG の依存関係に従って実行**します。9 月分を作り直したいときは `monthly_summary@2026-09-correction-1` のような別キーで新しい Run を作ります
 - **ゲートを先頭に置く。** 上の例では集計の前に「件数がある」「テストデータが混ざっていない」を SQL の `ASSERT` で検査しています。満たさなければそこで FAILED になり、集計は走りません。fail-closed が基本方針です
 
+## スケジュールの仕組み
+
+kSQL-FlowNet はスケジューラを持ちません。定刻の起動は OS の cron が担い、cron は「いつ」を決めるだけで「何を・どのキーで」は network 定義と起動時刻から決まります。
+
+```cron
+# 毎月 1 日 7:00 に月次集計を起動(起動スクリプトが当月 1 日を --scheduled-for に渡す)
+0 7 1 * * . /root/.ksql-flownet.env && /opt/ksql/my-ksql-jobs/run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1
+# 5 分ごとに操作要求アプリを見に行くポーラー(全 network 共通で 1 本)
+*/5 * * * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && ksql-flownet poll-requests >> /var/log/ksql/flownet-requests.log 2>&1
+```
+
+```mermaid
+flowchart LR
+  CRON["cron<br>0 7 1 * *"] -->|"起動"| SH["run_monthly_summary.sh<br>--scheduled-for 当月 1 日"]
+  SH --> RN["ksql-flownet run-network<br>network.yaml --resume"]
+  RN -->|"format から導出"| KEY["業務キー<br>monthly_summary@2026-09"]
+  KEY --> ENSURE{"同じキーの Run は?"}
+  ENSURE -->|"ない"| NEW["NEW: 新しい Run を作って実行"]
+  ENSURE -->|"失敗して止まっている"| RESUME["RESUME: 未完了ノードから再開"]
+  ENSURE -->|"完走済み"| NOOP["NOOP: 何もしない(exit 0)"]
+  BOARD["ボードの新規実行<br>(補正キー monthly_summary@2026-09-correction-1)"] -->|"操作要求 → ポーラー"| RN
+```
+
+この形にすると、次の性質が cron 側の工夫なしに手に入ります。
+
+- **同じ月に cron が再発火しても安全**: `--resume` 付きなので、完走済みの Run に対しては NOOP で終わる。サーバー再起動後の取りこぼし確認のために手で再実行しても二重集計にならない
+- **失敗した月の再開も同じ 1 行**: 失敗した Run が残っていれば、次の発火(または手動実行)が未完了ノードから続きを実行する。ボードのリラン要求も同じ経路
+- **過去分の流し直しは日付を渡すだけ**: `SCHEDULED_FOR=2026-07-01T00:00:00+09:00 ./run_monthly_summary.sh` のように対象期間を明示すると、その月のキーで Run が作られる(書込先が単一スロットの集計は上書きに注意)
+- **定刻以外の起動はボードから**: 補正キー付きの START 要求を起票すると、ポーラーが同じ `run-network` を起動する。cron の行を増やす必要はない
+
+network を複数持つ場合、cron は network ごとに 1 行、ポーラーは全体で 1 本です。「A が終わってから B」を network をまたいで表現したいときは、A と B を順に呼ぶシェルスクリプトを 1 本置き、`run-network` の exit code(成功・NOOP は 0、失敗は 1)で `set -e` により後続を止めます。詳しくは[スケジュール連携の運用パターン](https://github.com/rex0220/ksql-flownet/blob/main/docs/scheduling-patterns.md)にまとめています。
+
 ## 運用はボードから
 
 実行管理アプリの「00_Run状況」ビューにプラグインが描画するボードです。
