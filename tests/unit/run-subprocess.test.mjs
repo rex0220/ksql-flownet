@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { RunSubprocess } from "../../dist/executor/run-subprocess.js";
 
 // OS に依存しない絶対パス(Windows では C:..., Linux では /...)
 const abs = (...parts) => resolve("/", ...parts);
-const execDir = abs("exec");
+// 実在の書込可能ディレクトリ(RunSubprocess が metadata 用に mkdir するため)
+const execDir = join(tmpdir(), "ksql-flownet-unit-exec");
 const cliPath = abs("Program Files", "ksql-flow", "dist", "cli.js");
 const io = (...parts) => abs("io", ...parts);
 
