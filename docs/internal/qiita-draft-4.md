@@ -83,6 +83,7 @@ activity はブラウザが実行管理アプリのロック情報から導出�
 | 未完了 + LIVE | 停止要求 |
 | 未完了 + STOPPED | 解除要求 |
 | 未完了 + INTERRUPTED | リラン要求 |
+| 未完了 + IDLE | ボタンなし。Run のレコードはあるがまだ開始していない状態(`started_at` なし)で、起動処理が続けば LIVE に変わる。長く IDLE のままなら二次対応者へ |
 | FAILED / CANCELLED、hold あり | 「停止hold」バッジと解除要求(先に解除してからリラン) |
 | FAILED / CANCELLED、hold なし | リラン要求とクローズ要求 |
 | UNKNOWN | ボタンなし。「Run ID をコピーして二次対応者へ連絡」だけ |
@@ -96,10 +97,16 @@ UNKNOWN は「結果を確認できない」状態で、触ると危険です。
 | モード | 入力 | できる Run | 使う場面 |
 | --- | --- | --- | --- |
 | 定期キー | network + 対象期間 | `monthly_summary@2026-09` のような定期キーの Run | 定期実行を前倒しで動かす。既に成功済みなら NOOP |
-| 補正 | network + 対象期間 + 業務キー | `monthly_summary@2026-09-correction-1` のような別キーの Run | 成功済みの月を作り直す。対象期間は `as_of` に使われる |
+| 補正 | network + 対象期間 + 業務キー(**両方必須**) | `monthly_summary@2026-09-correction-1` のような別キーの Run | 成功済みの月を作り直す。業務キーが Run の名前になり、対象期間は SQL の `as_of`(`@MONTH_START()` などの基準時刻)に使われる。片方だけだと `AS_OF_UNDEFINED` で拒否 |
 | 任意キー | network + 業務キー | `type: explicit` の network の Run | 取込ファイル名などをキーにする処理 |
 
-選択肢に出る network は、プラグイン設定の START 許可 CSV から来る表示用の一覧です。実際に起動できるかはサーバー側の allowlist(`app_start: true`)と network 定義(全ノード `idempotent: true`)が決めます(三重ゲート)。一覧にない network を「その他(自由入力)」で起票しても、サーバーで `NETWORK_NOT_ALLOWED` になります。
+選択肢に出る network は、プラグイン設定の START 許可 CSV から作られる入力候補です。この一覧自体は認可ではありません。「その他(自由入力)」で指定した network でも、次の三重ゲートをすべて満たせば起動できます。
+
+1. 起票者に操作要求アプリへレコードを追加する権限がある
+2. サーバー側の allowlist でその network が `app_start: true` になっている
+3. network 定義の全ノードが `idempotent: true`
+
+サーバー側の allowlist にない、または `app_start` が有効でない network は `NETWORK_NOT_ALLOWED` で拒否されます。候補一覧は「よく使うものを選びやすくする」ためのもので、許可の正はサーバーにあります。
 
 ## 起票してから結果が返るまで
 
@@ -107,7 +114,7 @@ UNKNOWN は「結果を確認できない」状態で、触ると危険です。
 flowchart LR
   B["ボードで起票"] --> R["操作要求レコード<br>REQUESTED"]
   R -->|"5 分周期のポーラーが claim"| A["ACCEPTED"]
-  A --> X["run-network / cancel-run /<br>archive-run を起動"]
+  A --> X["要求に対応する<br>CLI 操作を実行"]
   X --> D["DONE / REJECTED<br>+ result_code"]
   R -->|"起票者が取消(claim 前のみ)"| C["CANCELLED<br>CANCELLED_BY_REQUESTER"]
 ```
@@ -125,7 +132,7 @@ flowchart LR
 | `OK` | 依頼どおり実行した | Run の状態をボードで確認 |
 | `NOOP_ALREADY_SUCCESS` | 同じ業務キーの Run が成功済み | 何もしない。作り直すなら補正キーで START |
 | `RUN_ALREADY_EXISTS` | 同じ業務キーの未完了 Run がある | START ではなく、その Run にリラン要求 |
-| `RETRY_BRAKE` | 同じ失敗が 3 回続いたので自動再試行を止めている | SQL かデータの修正が要る。二次対応者へ |
+| `RETRY_BRAKE` | 同じ失敗が 3 回続いたため、次の定期 resume でも再実行しない安全装置が働いている | SQL かデータの修正が要る。二次対応者へ |
 | `STOP_REQUESTED` / `RELEASED` | 停止 hold をかけた / 外した | STOP は次のノード境界で効く |
 | `RUN_ARCHIVED` | CLOSE 完了 | 対応完了 |
 | `LOCK_CONFLICT` | ロック競合 | **同じ依頼を繰り返さない**。二次対応者へ |
