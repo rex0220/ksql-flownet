@@ -4,7 +4,7 @@
 - 画像は `画像URL_*` の行を差し替える(検証スペースのテストデータで撮影)
 -->
 
-[#1](https://qiita.com/rex0220/items/24470d6223c1b4ed4031) で全体像、[#2](https://qiita.com/rex0220/items/2308e4ccf5a363680d31) で導入を書きました。今回は **手元にある kSQL-Flow のジョブ(SQL ファイル)を、どう network.yaml に束ねるか** です。仕様の正は[統合仕様書 §4](https://github.com/rex0220/ksql-flownet/blob/main/docs/specification.md)で、この記事は「決めること」と「決め方」に絞ります。
+[#1](https://qiita.com/rex0220/items/24470d6223c1b4ed4031) で全体像、[#2](https://qiita.com/rex0220/items/2308e4ccf5a363680d31) で導入を書きました。今回は **手元にある kSQL-Flow のジョブ(SQL ファイル)を、どう network.yaml に束ねるか** です。仕様の正は[統合仕様書 §4](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/docs/specification.md)(v1.0.0)で、この記事は「決めること」と「決め方」に絞ります。
 
 **この回で分かること**
 
@@ -97,7 +97,7 @@ flowchart LR
 
 決め方の目安です。
 
-- `network_id` は英数字とアンダースコアの短い名前。**変えると別 network 扱い**になり、既存の Run と結びつかなくなるので、最初に決めたら変えません
+- `network_id` は英数字とアンダースコアの短い名前。 **変えると別 network 扱い** になり、既存の Run と結びつかなくなるので、最初に決めたら変えません
 - `business_key` に network 名を含める義務はありません(一意性は network ごとに判定されます)。それでも `{network_id}@` を前置するのは、Run 一覧・JOBログ・CSV パスでは `business_key` しか見えないからです。複数 network を運用すると `2026-09` だけでは何の Run か分かりません
 - `period` は `month` か `day`。`format` に使えるプレースホルダーは `{network_id}` `{yyyy}` `{MM}` `{dd}` だけです
 - 定期実行しない(対象期間の概念がない)処理は `type: explicit` にし、起動のたびに `--business-key` を渡します。取込ファイル名をキーにする、といった使い方です
@@ -112,7 +112,7 @@ flowchart LR
 | `job_id` | kSQL-Flow 側のジョブ名。SQL ヘッダの `-- @ksql name:` と **一致必須** | SQL 側が正。既存ジョブを流用するなら SQL の名前をそのまま書く |
 | `sql` | 実行するファイル(YAML からの相対パス) | network 専用の SQL は `jobs/` 配下、複数 network で共用する SQL は共有 `jobs/` を `../../jobs/…` で参照 |
 
-`job_id` には 1 つ制約があります。kSQL-Flow のジョブロックのキーが `profile:job_id` で、**64 文字(UTF-16 単位)以内**という実測上限があります。`prod:monthly_deal_summary` は 25 文字なので余裕ですが、長い名前を付けるときは注意してください。この超過は `validate` では検出されず、実行時に `VALIDATION_ERROR` になります。
+`job_id` には 1 つ制約があります。kSQL-Flow のジョブロックのキーが `profile:job_id` で、 **64 文字(UTF-16 単位)以内** という実測上限があります。`prod:monthly_deal_summary` は 25 文字なので余裕ですが、長い名前を付けるときは注意してください。この超過は `validate` では検出されず、実行時に `VALIDATION_ERROR` になります。
 
 `id` と `job_id` を同じにしてもかまいません。分けているのは、`id` は DAG の中での役割名、`job_id` は kSQL-Flow のジョブ名、と別の名前空間だからです。上の例では `intake_gate`(役割)と `intake_count`(ジョブ)のように分けています。
 
@@ -130,18 +130,18 @@ network の先頭 2 ノードは何も書きません。読み取って条件を
 
 | 場面 | `true` のとき | `false` のとき |
 | --- | --- | --- |
-| 失敗後の resume / ボードのリラン | 失敗ノードから再実行する | 実行済みの `false` ノードが対象にあると resume 自体が拒否される。人が `resolve-node` で証跡付きに解決してから続行する |
+| 失敗後の resume / ボードのリラン | 失敗ノードから再実行する | 実行済みの `false` ノードが再実行対象に含まれると resume 自体が拒否される。人が `resolve-node` で証跡付きに解決してから続行する |
 | ボードからの START | 全ノードが `true` の network だけ許可(三重ゲートの 1 つ) | その network は cron か CLI からしか起動できない |
 | UNKNOWN(結果 JSON が読めない)の扱い | 冪等でも自動再実行はしない。`resolve-node` で人が解決する | 同左 |
 
-`true` と書いてよいのは、**同じ業務キーで何度実行しても結果が同じになる**ジョブです。判断の目安です。
+`true` と宣言できるのは、同じ業務キーで再実行しても、重複追記・二重送信・重複加算のような **累積する副作用を起こさず、その Run の入力に対する正しい状態へ収束できる** ジョブです。終了結果(SUCCESS / FAILED)が毎回同じことではありません。異常データを直してからゲートを再実行すれば結果は FAILED から SUCCESS に変わりますが、副作用がないので `true` で構いません。判断の目安です。
 
-- 読取と `ASSERT` / `EXIT SUCCESS IF` だけ → `true`
-- 重複禁止フィールドをキーにした `UPSERT` で、対象を毎回全件書き直す → `true`(上の集計 SQL がこれです)
-- `INSERT` で追記する、`UPDATE … SET x = x + 1` のように現在値に依存する、外部へ通知を送る → `false`
+- 読取と `ASSERT` / `EXIT SUCCESS IF` だけ → 副作用がないので `true`
+- 重複禁止フィールドをキーにした `UPSERT` で、同じ対象を同じ値へ収束させる → `true`(上の集計 SQL がこれです。Run の `as_of` に固定された入力を毎回全件 UPSERT するので、再実行しても同じ状態に戻ります)
+- `INSERT` で追記する、`UPDATE … SET x = x + 1` のように現在値に依存する、外部へ通知を送る → 副作用が累積するので `false`
 - `@NOW()` など as-of 由来の時刻関数は、Run の `as_of` に固定されるので冪等性を崩しません。`@` なしの `TODAY()` は kintone 側で評価されるため崩します(kSQL-Flow の検証で警告が出ます)
 
-迷ったら `false` にしておき、失敗時は人が判断する側に倒します。`false` のノードがある network はボードから START できなくなるだけで、cron からの定期実行と resume はできます。
+迷ったら `false` にしておき、失敗時は人が判断する側に倒します。`false` のノードがある network でも、cron や CLI から新規 Run を起動できます。ただし resume で `false` ノードの再実行が必要になる場合は拒否されるので、実行結果を確認し、`resolve-node` で証跡付きに解決してから後続を再開します。また、全ノードが `true` ではないため、ボードからの START 対象にはできません。
 
 ## 決めること 5: ロックの時間と同時 Run 数
 
@@ -152,7 +152,7 @@ network_lock:
   heartbeat_interval_sec: 60
 ```
 
-- `network_lock` は network 単位の実行排他です。`lease_duration_sec` はロックの有効期限、`heartbeat_interval_sec` は実行中に期限を延ばす間隔で、heartbeat は lease の 3 分の 1 以下にします。プロセスが落ちても lease が切れれば次の起動が引き継げます。ノード 1 本が数分かかるなら lease を 300 秒程度、短いジョブなら 180 秒で足ります
+- `network_lock` は network 単位の実行排他です。実行中は `heartbeat_interval_sec` ごとにロックの期限を延ばし続けるので、`lease_duration_sec` は **heartbeat が途絶えたあともロックを保持する猶予** であって、ノードの実行時間より長くする必要はありません。通信遅延や一時停止で誤って失効しない余裕を持たせつつ、プロセス停止後の復旧を遅らせすぎない値にします。heartbeat は lease の 3 分の 1 以下にし、この例の 300 秒 / 60 秒では 5 回分の余裕があります。プロセスが落ちても、lease 失効後は次の起動がロックを取得できます(ロックの取得と Run の resume は別の処理です)
 - `max_active_runs` は **並列度ではありません**。「未完了の Run(業務キー違い)をいくつ持てるか」で、実行は常に直列です。月次で前月の失敗 Run を残したまま当月を動かしたい、という場合だけ 2 以上にします
 
 ## 検査する: `validate` と `plan`
@@ -176,7 +176,7 @@ Execution plan:
 | --- | --- |
 | YAML のスキーマ(未知のフィールド・重複キーは拒否)、`depends_on` の参照先と循環、`business_key_policy` の整合、SQL ファイルの存在と読取可能 | SQL の構文・アプリ定義との整合(kSQL-Flow の `validate -f` で行う)、`job_id` と `@ksql name` の一致(実行時に `KSQL_FLOW_EXIT_MISMATCH`)、ジョブロックキーの 64 文字 |
 
-`plan` は業務キーと実行順を表示するだけで、kintone にも SQL にも触れません。定義を変えたら `validate` → `plan` → kSQL-Flow 側の `validate -f` と `--dry-run`、の順で確認します。
+`plan` は kintone API を呼び出さず、SQL を解析・実行もしません。業務キーと DAG の実行順を表示します。定義を変えたら `validate` → `plan` → kSQL-Flow 側の `validate -f` と `--dry-run`、の順で確認します。
 
 ## 置き場所と変更の流し方
 
@@ -184,7 +184,8 @@ Execution plan:
 my-ksql-jobs/
 ├── jobs/                          # 複数 network で共用する SQL
 │   ├── 00_intake_count.sql
-│   └── 10_test_data_gate.sql
+│   ├── 10_test_data_gate.sql
+│   └── monthly_deal_summary.sql
 └── flownet/
     └── monthly-summary/
         ├── network.yaml            # network_id: monthly_deal_summary
@@ -192,8 +193,8 @@ my-ksql-jobs/
 ```
 
 - 1 network = 1 YAML。ボード・ポーラーから使う network は allowlist に絶対パスで登録します
-- 定義と SQL は git で配置し、サーバー上で直接編集しません。**Run は作成時に定義と SQL を bundle として保存する**ので、配置後に SQL を変えても、途中まで進んだ既存 Run の resume は保存時の SQL で続きます。変更を新しい Run から効かせたいだけなら、配置するだけで済みます
-- 定義を変えるときはポーラーを止め、`validate` と `poll-requests --check` を通してから再開します(#2 の手順 9)
+- 定義と SQL は git で配置し、サーバー上で直接編集しません。 **Run は作成時に定義と SQL を bundle として保存する** ので、配置後に SQL を変えても、途中まで進んだ既存 Run の resume は保存時の SQL で続きます
+- 定義と SQL を変更するときは、ポーラーと対象 network の定期 cron を一時停止するか、次の発火時刻と重ならない時間に配置します。配置後に `validate`、`plan`、kSQL-Flow の `validate -f`、`poll-requests --check` を通してから起動経路を再開します。作成済みの Run は保存された bundle を使うため、配置後のファイルには影響されません
 
 ## まとめ
 
@@ -204,12 +205,12 @@ my-ksql-jobs/
 | ノードの `id` / `job_id` / `sql` | `id` は役割名、`job_id` は SQL の `@ksql name`、`sql` は相対パス。`profile:job_id` は 64 文字以内 |
 | ゲート | 先頭に読取専用の検査ノード。異常は `ASSERT`、対象なしは `EXIT SUCCESS IF` |
 | `idempotent` | 何度流しても同じ結果になるときだけ `true`。迷えば `false` |
-| ロック | lease は最長ノードより長く、heartbeat は lease の 1/3 以下 |
+| ロック | heartbeat は lease の 1/3 以下。lease は一時的な遅延への余裕と、障害後の復旧時間のバランスで決める(ノードの実行時間には依存しない) |
 
 ## 次回
 
 #4 運用編。ボードの 3 セクションの読み方、START の 3 モード、取消・リラン・停止・解除・クローズの使い分け、結果コードの早見を書きます。
 
-- 統合仕様書 §4(network 定義): https://github.com/rex0220/ksql-flownet/blob/main/docs/specification.md
+- 統合仕様書 §4(network 定義、v1.0.0): https://github.com/rex0220/ksql-flownet/blob/v1.0.0/docs/specification.md
 - #2 導入編: https://qiita.com/rex0220/items/2308e4ccf5a363680d31
 - #1 全体像: https://qiita.com/rex0220/items/24470d6223c1b4ed4031
