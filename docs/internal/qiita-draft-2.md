@@ -112,7 +112,7 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 | Node.js | 22 系を NodeSource の apt リポジトリから導入(`/usr/bin/node` に入るので cron からもそのまま見える) |
 | 費用 | 時間課金で月額上限 1,065 円(税込)。長期契約の割引(まとめトク)なら 12 か月契約で月 488 円(税込)。いずれも 2026 年 9 月時点の[公式料金ページ](https://vps.conoha.jp/pricing/)の表示で、キャンペーン価格は含めていません |
 
-![ConoHa VPS の申込画面。Ubuntu 24.04・1 GB プラン(CPU 2 コア・SSD 100 GB)を選んだ状態](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/a4aa612d-bac8-404d-8ced-3b30e9e62c5d.png)
+![ConoHa VPS の申込画面。Ubuntu 24.04・1 GB プラン(CPU 2 コア・SSD 100 GB)を選んだ状態](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/100572/74ef651b-3241-407d-851a-a2477d8c934b.png)
 
 
 既にプラグインと外部 API を利用できる kintone 契約がある場合、追加のランニングコストはこの VPS 代だけです。kintone 側はアプリ 4 つとプラグインを既存の契約内に置くので追加費用はなく、kSQL-FlowNet・kSQL-Flow は MIT ライセンスの npm パッケージです。
@@ -266,7 +266,6 @@ node --env-file=.env /usr/bin/ksql-flownet poll-requests
 
 要求レコードが `CANCELLED / CANCELLED_BY_REQUESTER` になり、Run は増えていなければ合格です。
 
-![取消済みになった smoke 要求](画像URL_smoke_cancelled)
 
 ### 10. cron 2 本
 
