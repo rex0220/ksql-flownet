@@ -69,8 +69,8 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 
 アプリテンプレートはアクセス権を持ち出せないので、ここだけ手で設定します。といっても Console スクリプトを 2 本実行するだけです。
 
-- 操作要求アプリの画面で `templates/console/migrations/add-request-lifecycle-v2.console.js` を実行 → 機械が書く 6 フィールドは Everyone 閲覧のみ、取消フラグ `cancel_requested` は作成者だけ編集可
-- JOBログアプリの画面で `templates/console/set-joblog-field-acl.console.js` を実行 → 相関 5 フィールドを Everyone 閲覧のみ
+- 操作要求アプリの画面で [`add-request-lifecycle-v2.console.js`](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/templates/console/migrations/add-request-lifecycle-v2.console.js) を実行 → 機械が書く 6 フィールドは Everyone 閲覧のみ、取消フラグ `cancel_requested` は作成者だけ編集可
+- JOBログアプリの画面で [`set-joblog-field-acl.console.js`](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/templates/console/set-joblog-field-acl.console.js) を実行 → 相関 5 フィールドを Everyone 閲覧のみ
 
 ![フィールドアクセス権の適用結果](画像URL_field_acl)
 
@@ -101,7 +101,7 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 
 ### サーバーの準備(ConoHa VPS の例)
 
-この記事の検証と筆者の本番は ConoHa VPS の 1 GB プランです。kSQL-FlowNet も kSQL-Flow も Node.js のプロセスが cron から短時間動くだけなので、メモリ 1 GB で足ります。
+この記事の検証と筆者の本番は ConoHa VPS の 1 GB プランです。kSQL-FlowNet も kSQL-Flow も Node.js のプロセスが cron から短時間動くだけで、今回の network と検証データではメモリ 1 GB で足りました。必要量は kSQL-Flow が読み込む件数や SQL の処理内容で変わるので、本番投入前に RSS と実行時間を確認してください。
 
 | 項目 | 値 |
 | --- | --- |
@@ -232,6 +232,9 @@ networks:
 cron を登録する前に、read-only の事前確認を通します。
 
 ```sh
+cd /opt/ksql/my-ksql-jobs
+. /root/.ksql-flownet.env
+
 node --env-file=.env /usr/bin/ksql-flownet poll-requests --check
 # poll-requests check: ok networks=1 request_app=readable
 ```
@@ -268,7 +271,7 @@ root の `crontab -e` で登録します。発火時刻はサーバーのタイ�
 
 ```cron
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-0 7 1 * * . /root/.ksql-flownet.env && flock -n /run/lock/flownet-monthly.lock /opt/ksql/my-ksql-jobs/run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1
+0 7 1 * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && flock -n /run/lock/flownet-monthly.lock ./run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1
 */5 * * * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && flock -n /run/lock/flownet-poller.lock node --env-file=.env /usr/bin/ksql-flownet poll-requests >> /var/log/ksql/flownet-requests.log 2>&1
 ```
 

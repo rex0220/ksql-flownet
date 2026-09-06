@@ -288,7 +288,7 @@ node --env-file=.env /opt/ksql/ksql-flownet/dist/cli/index.js poll-requests
 root の `crontab -e` で登録する。cron は 2 本で、定期実行は flow ごとに 1 行、ポーラーは全 network で 1 行(仕様書 §4.7)。発火時刻はサーバーのタイムゾーンに従う。cron の `PATH` は SSH シェルより短いため、`node` が `/usr/bin` 以外(nvm 等)にある場合は `which node` の絶対パスを 2 行と起動スクリプトの `node` に使う。
 
 ```cron
-0 7 1 * * . /root/.ksql-flownet.env && /opt/ksql/my-ksql-jobs/run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1
+0 7 1 * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && ./run_monthly_summary.sh >> /var/log/ksql/flownet.log 2>&1
 */5 * * * * . /root/.ksql-flownet.env && cd /opt/ksql/my-ksql-jobs && node --env-file=.env /opt/ksql/ksql-flownet/dist/cli/index.js poll-requests >> /var/log/ksql/flownet-requests.log 2>&1
 ```
 
