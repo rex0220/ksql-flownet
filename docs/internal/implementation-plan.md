@@ -272,6 +272,8 @@ FDRで決定したkintone構成をrepository interfaceの背後へ実装する�
 
 ## 5. 実装バックログ
 
+**リリース線引き(2026-09-06)**: v1.0.0(tag `v1.0.0` = `60fb8dd`、npm `@rex0220/ksql-flownet@1.0.0`、GitHub Release にプラグイン zip とアプリテンプレート zip 添付)で P2-01〜P2-09・P2-11・P2-16(P2-10/P2-12/P2-15 統合)まで**リリース済み**。以後の本表の未完了項目(P2-13 START 許可一覧の VPS API 配信、P2-14 kintone 添付経由の CSV アダプタ、その他)は v1.1 以降の候補であり、着手時は個別仕様+レビューから始める。リリース作業の記録は [release-plan.md](./release-plan.md)。
+
 | ID | Milestone | 作業単位 | 対象 | 依存 | 主な試験 |
 | --- | --- | --- | --- | --- | --- |
 | P0-00 | M0 | Execution Result Schema草案 | kSQL-Flow | なし | fixture、Exit Code草案 |

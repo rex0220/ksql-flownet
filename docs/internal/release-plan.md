@@ -1,6 +1,6 @@
 # リリース準備 作業手順
 
-- 作成: 2026-09-03 / 状態: **DRAFT**
+- 作成: 2026-09-03 / 状態: **v1.0.0 リリース済み(2026-09-06)**。残: Qiita 投稿・X 告知(ユーザー)、R4 スクリーンショット要否は記事側に載せたため手順書はテキストのままで確定
 - 目的: kSQL-FlowNetの初回一般公開(アプリテンプレート+プラグイン+npm+導入記事)までの作業を、依存順に列挙する
 - 前提方針(確定済み): 配布はkintoneアプリテンプレートを正とする(ACLは手順書で案内)。npmは検証完了まで`private: true`、公開時にMIT+publishConfig。プラグイン署名鍵は恒久固定(`~/.ksql-flownet/flownet-activity-plugin.ppk`)
 
@@ -91,14 +91,14 @@ v1.0.0 に [P2-16](./p2-16-request-lifecycle-v2-spec.md)(FROZEN v1)を同梱す�
 ## R7. Qiita記事作成
 
 - [x] (2026-09-06) 構成案: 課題(kintoneでの定期バッチ運用) → kSQL-Flow/FlowNetの役割分担 → アーキテクチャ図 → 導入手順ダイジェスト(テンプレート+プラグイン+VPS) → ボードでの運用イメージ(スクリーンショット: Run状況・新規実行ダイアログ・設定) → 制約と設計判断(fail-closed・機械専用アプリ・三重ゲート) → リンク(GitHub/npm/導入手順書)
-- [ ] (2026-09-06 下書き作成済み) 下書きを `docs/internal/qiita-draft.md` に作成 → ユーザーレビュー → 投稿はユーザーが実施
-- [ ] 記事内の画面はテストデータで撮り直す(実業務値・実アプリIDを写さない)
+- [x] (2026-09-06) 下書き `docs/internal/qiita-draft.md`(外部レビュー 4 巡反映、画像 3 枚差し替え済み)→ 投稿はユーザーが実施
+- [x] (2026-09-06) 記事内の画面は検証スペースのテストデータで撮影(実業務値・実アプリID・ドメインなし。Claude が画像を確認)
 
 ## R8. リリース確定
 
-- [ ] リポジトリを public へ変更(現在 private。導入手順書 §7 の git clone と npm の repository リンクが前提)
-- [ ] git tag(v1.0.0)+GitHub Release作成(添付: プラグインzip・アプリテンプレートzip・導入手順書へのリンク)
-- [ ] docs/internal/implementation-plan.md のbacklogへ「リリース済み」と残タスク(P2-10/P2-12/P2-13等)の線引きを記録
+- [x] (2026-09-06) リポジトリを public へ変更(直前に記録・スパイク文書から実サブドメインを除去 60fb8dd。未認証で raw README・installation.md が取得できることを確認)
+- [x] (2026-09-06) git tag v1.0.0(=60fb8dd)+GitHub Release https://github.com/rex0220/ksql-flownet/releases/tag/v1.0.0(添付: flownet-activity-plugin.zip 60,449B・ksql-flownet-apps-1.0.0.zip 31,025B、導入手順書・仕様書へのリンク)
+- [x] (2026-09-06) docs/internal/implementation-plan.md §5 冒頭へリリース線引き(v1.0.0 で P2-16 まで、P2-13/P2-14 は v1.1 以降)を記録
 
 ## 役割分担
 
