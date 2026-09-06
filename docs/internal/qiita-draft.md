@@ -81,7 +81,7 @@ flowchart TB
 | --- | --- | --- |
 | 実行サーバー | kSQL-FlowNet CLI、kSQL-Flow CLI、ジョブ資材(network.yaml・SQL・kSQL-Flow 設定)、環境ファイル、allowlist、cron 2 本 | サーバー管理者が SSH で配置(定義と SQL は git 経由) |
 | kintone: 実行管理・監査履歴 | Run とノードの状態、ロック、試行、操作の監査 | kSQL-FlowNet CLI だけ。人は閲覧 |
-| kintone: 操作要求 | リラン・停止・解除・新規実行・クローズの依頼と結果 | 人が起票(ボード経由)、ポーラーが結果を書く |
+| kintone: 操作要求 | リラン・停止・解除・新規実行・クローズの依頼と結果 | 人が起票(ボードまたは操作要求アプリ)、ポーラーが結果を書く |
 | kintone: JOBログ | 1 ジョブ 1 回の実行ログ | kSQL-Flow |
 | kintone: 業務アプリ | 集計元・更新先 | kSQL-Flow(SQL のとおり) |
 | kintone: プラグイン | 実行管理アプリの「00_Run状況」ビューに描画されるボード | 設定はアプリ管理者 |
@@ -181,17 +181,18 @@ flowchart LR
   ENSURE -->|"ない"| NEW["NEW: 新しい Run を作って実行"]
   ENSURE -->|"失敗して止まっている"| RESUME["RESUME: 未完了ノードから再開"]
   ENSURE -->|"完走済み"| NOOP["NOOP: 何もしない(exit 0)"]
-  BOARD["ボードの新規実行<br>(補正キー monthly_summary@2026-09-correction-1)"] -->|"操作要求 → ポーラー"| RN
 ```
+
+ボードの START は別の新規起動経路です。ポーラーは START に `--resume` を付けずに `run-network` を起動し、同じ業務キーの Run が既にあれば完走済みなら NOOP、未完了なら拒否(`RUN_ALREADY_EXISTS`)します。既存 Run の再開には START ではなくリラン要求を使います。
 
 この形にすると、次の性質が cron 側の工夫なしに手に入ります。
 
 - **同じ月に cron が再発火しても安全**: `--resume` 付きなので、完走済みの Run に対しては NOOP で終わる。サーバー再起動後の取りこぼし確認のために手で再実行しても二重集計にならない
-- **失敗した月の再開も同じ 1 行**: 失敗した Run が残っていれば、次の発火(または手動実行)が未完了ノードから続きを実行する。ボードのリラン要求も同じ経路
-- **過去分の流し直しは日付を渡すだけ**: `SCHEDULED_FOR=2026-07-01T00:00:00+09:00 ./run_monthly_summary.sh` のように対象期間を明示すると、その月のキーで Run が作られる(書込先が単一スロットの集計は上書きに注意)
+- **失敗した月も同じ起動方法で再開できる**: 同じ `--scheduled-for` を指定して再実行すると、既存 Run の成功済みノードを飛ばし、未完了ノードから再開する(翌月の cron は翌月のキーで動くので、前月分を自動では再開しない)。ボードからは対象 Run にリラン要求を起票できる
+- **未実行の過去分は日付を渡すだけ**: `SCHEDULED_FOR=2026-07-01T00:00:00+09:00 ./run_monthly_summary.sh` のように対象期間を明示すると、該当月の業務キーで Run が作られる。既に完走済みなら NOOP になり、再計算したい場合は別の補正キーを使う(書込先が単一スロットの集計は上書きに注意)
 - **定刻以外の起動はボードから**: 補正キー付きの START 要求を起票すると、ポーラーが同じ `run-network` を起動する。cron の行を増やす必要はない
 
-network を複数持つ場合、cron は network ごとに 1 行、ポーラーは全体で 1 本です。「A が終わってから B」を network をまたいで表現したいときは、A と B を順に呼ぶシェルスクリプトを 1 本置き、`run-network` の exit code(成功・NOOP は 0、失敗は 1)で `set -e` により後続を止めます。詳しくは[スケジュール連携の運用パターン](https://github.com/rex0220/ksql-flownet/blob/main/docs/scheduling-patterns.md)にまとめています。
+network を複数持つ場合、cron は network ごとに 1 行、ポーラーは全体で 1 本です。「A が終わってから B」を network をまたいで表現したいときは、A と B を順に呼ぶシェルスクリプトを 1 本置き、`run-network` の exit code(成功・NOOP は 0、それ以外は非 0)を使い、`set -e` で後続を止めます。詳しくは[スケジュール連携の運用パターン](https://github.com/rex0220/ksql-flownet/blob/main/docs/scheduling-patterns.md)にまとめています。
 
 ## 運用はボードから
 
