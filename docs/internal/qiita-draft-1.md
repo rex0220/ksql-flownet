@@ -15,7 +15,7 @@
 **前提**
 
 - kintone(cybozu.com)でアプリ作成とシステム管理ができるアカウント
-- Linux サーバー 1 台(Node.js 22 以上、git、SSH)。kintone へ HTTPS で出られればよく、受信ポートは不要
+- Linux サーバー 1 台(Node.js 22 以上、git、SSH)。kintone へ HTTPS で出られればよく、受信ポートは不要。この記事では ConoHa VPS の 1 GB プラン + Ubuntu 24.04 を使います
 - [kSQL-Flow](https://github.com/rex0220/ksql-flow) のジョブ資材リポジトリ([ksql-flow-template](https://github.com/rex0220/ksql-flow-template) から作ったもの)。既にジョブが動いていれば、その JOBログアプリをそのまま使えます
 
 ## 全体の流れ
@@ -87,6 +87,30 @@ JOBログだけ 2 本あるのは、書くのは kSQL-Flow、照合のために�
 ![設定直後の空のボード](画像URL_empty_board)
 
 ## サーバー側
+
+### サーバーの準備(ConoHa VPS の例)
+
+この記事の検証と筆者の本番は ConoHa VPS の最小構成です。kSQL-FlowNet も kSQL-Flow も Node.js のプロセスが cron から短時間動くだけなので、メモリ 1 GB で足ります。
+
+| 項目 | 値 |
+| --- | --- |
+| プラン | ConoHa VPS 1 GB(2 vCPU / 1 GB / SSD 100 GB) |
+| OS | Ubuntu 24.04 LTS |
+| ログイン | SSH 公開鍵(root またはsudo可のユーザー)。kintone 側から入ってくる通信はないので、受信は SSH だけ開ける |
+| タイムゾーン | `Asia/Tokyo`(cron の発火時刻に効く) |
+| Node.js | 22 系を NodeSource の apt リポジトリから導入(`/usr/bin/node` に入るので cron からもそのまま見える) |
+
+初期設定は次の 5 行です。
+
+```sh
+timedatectl set-timezone Asia/Tokyo
+apt update && apt install -y git ufw
+ufw allow OpenSSH && ufw enable
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs
+node --version   # v22.x
+```
+
+ConoHa のコントロールパネル側では、セキュリティグループで SSH(22)だけを許可し、それ以外の受信は閉じておきます。kintone への通信は外向きの HTTPS(443)なので、受信の許可は要りません。SSH はパスワード認証を無効にして鍵のみにしておくと安全です。
 
 以下は root で SSH して行います。配置はこの形です。
 
