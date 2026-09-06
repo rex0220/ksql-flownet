@@ -30,7 +30,63 @@ kSQL-Flow(SQL の実行)と kSQL-FlowNet(実行の管理)の分担はこうで�
 | 再開 | Run の状態に基づく | 担当しない |
 | 永続化 | 実行管理・監査履歴・操作要求アプリ | JOBログ・業務データ |
 
-## アーキテクチャ
+## 全体の構成
+
+登場するものは「実行サーバーに置くもの」と「kintone に作るもの」の 2 群だけです。まず何がどこにあるかを示します。
+
+```mermaid
+flowchart TB
+  subgraph VPS["実行サーバー(VPS など 1 台。SSH で構築)"]
+    direction TB
+    CRON["cron 2 本<br>定刻の run-network / 5 分ごとの poll-requests"]
+    FN["kSQL-FlowNet CLI<br>(npm i -g @rex0220/ksql-flownet)"]
+    KF["kSQL-Flow CLI<br>(ジョブ資材の node_modules)"]
+    subgraph REPO["ジョブ資材リポジトリ(git clone)"]
+      NET["flownet/&lt;flow&gt;/network.yaml<br>(DAG 定義)"]
+      SQL["jobs/*.sql<br>(1 ファイル = 1 ノード)"]
+      CFG["ksql.config.json<br>(kSQL-Flow の接続先)"]
+    end
+    ENV["環境ファイル(0600)<br>アプリ ID・API トークン"]
+    AL["allowlist.yaml<br>ボードから起動してよい network"]
+    CRON --> FN
+    FN -->|"ノードごとに子プロセス"| KF
+    FN -.-> NET
+    FN -.-> AL
+    FN -.-> ENV
+    KF -.-> SQL
+    KF -.-> CFG
+  end
+  subgraph KT["kintone(アプリテンプレート 1 つでインポート)"]
+    direction TB
+    subgraph MACHINE["機械専用(CLI が書く・人は読む)"]
+      STATE[("実行管理<br>Run・ノード状態・ロック")]
+      AUDIT[("監査履歴<br>試行・操作の監査")]
+    end
+    REQ[("操作要求<br>人が起票・ポーラーが結果を書く")]
+    LOG[("JOBログ<br>kSQL-Flow が書く")]
+    BIZ[("業務アプリ<br>SQL の読み書き先")]
+    PLUGIN["Run状況ボード(プラグイン)<br>実行管理アプリの一覧画面に表示"]
+    PLUGIN --- STATE
+  end
+  FN ==>|"HTTPS 発信のみ"| STATE
+  FN ==> AUDIT
+  FN ==> REQ
+  KF ==> LOG
+  KF ==> BIZ
+  OPS["運用担当者"] --> PLUGIN
+  OPS -->|"要求を起票"| REQ
+```
+
+| 場所 | 置くもの | 誰が書くか |
+| --- | --- | --- |
+| 実行サーバー | kSQL-FlowNet CLI、kSQL-Flow CLI、ジョブ資材(network.yaml・SQL・kSQL-Flow 設定)、環境ファイル、allowlist、cron 2 本 | サーバー管理者が SSH で配置(定義と SQL は git 経由) |
+| kintone: 実行管理・監査履歴 | Run とノードの状態、ロック、試行、操作の監査 | kSQL-FlowNet CLI だけ。人は閲覧 |
+| kintone: 操作要求 | リラン・停止・解除・新規実行・クローズの依頼と結果 | 人が起票(ボード経由)、ポーラーが結果を書く |
+| kintone: JOBログ | 1 ジョブ 1 回の実行ログ | kSQL-Flow |
+| kintone: 業務アプリ | 集計元・更新先 | kSQL-Flow(SQL のとおり) |
+| kintone: プラグイン | 実行管理アプリの「00_Run状況」ビューに描画されるボード | 設定はアプリ管理者 |
+
+## 動きの流れ
 
 通常実行時の通信は**実行サーバーから kintone への HTTPS 発信だけ**です。kintone からサーバーへの接続はなく、Webhook も常駐 API もないので、kSQL-FlowNet のための受信ポート・公開ドメインは要りません。別途必要になるのは、サーバー管理用の SSH 経路と、kintone 側で IP アドレス制限を使う場合の固定送信元 IP だけです。
 
@@ -60,7 +116,7 @@ flowchart LR
   User["運用担当者"] --> Board
 ```
 
-kintone 側は 4 アプリ(実行管理・監査履歴・操作要求・JOBログ)を**アプリテンプレート 1 つ**でインポートします。人が更新するのは原則として操作要求アプリだけです。実行管理と監査履歴は CLI だけが書き込み、人はボードや一覧から参照します。
+人が更新するのは原則として操作要求アプリだけです。実行管理と監査履歴は CLI だけが書き込み、人はボードや一覧から参照します。
 
 ## network の定義
 
