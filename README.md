@@ -19,6 +19,7 @@ requests from the UI.
   (integrated specification, first-response one-pager, recovery runbook)
 - **Creating the kintone apps**: [templates/README.md](./templates/README.md)
 - **Board plugin**: [plugin/README.md](./plugin/README.md)
+- **Release article (Japanese)**: [kintone のバッチを「ジョブの網」として運用する — kSQL-FlowNet](https://qiita.com/rex0220/items/24470d6223c1b4ed4031)
 
 ## Requirements
 

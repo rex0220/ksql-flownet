@@ -10,6 +10,7 @@ kintone上の「Run状況」ボードプラグインと操作要求アプリを�
 - **仕様・運用文書**: [docs/README.md](./docs/README.md)(統合仕様書・一次対応1ページ・復旧runbook)
 - **kintoneアプリの作成**: [templates/README.md](./templates/README.md)
 - **ボードプラグイン**: [plugin/README.md](./plugin/README.md)
+- **公開記事(Qiita)**: [kintone のバッチを「ジョブの網」として運用する — kSQL-FlowNet](https://qiita.com/rex0220/items/24470d6223c1b4ed4031)
 
 ## 動作環境
 
