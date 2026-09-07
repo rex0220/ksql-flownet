@@ -647,11 +647,11 @@ networks:
 
 同一 Run の最終一意性は `profile + network_id + business_key` から作る正準 `record_key` の重複禁止 INSERT で裁定する。
 
-NEW の作成は kintone にトランザクションがないため、次の順序と自己修復で原子性を補う:
+NEW の作成は、kintone に任意範囲を覆うトランザクション境界がない(`bulkRequest` は添付アップロードから Run・Node State・Invocation の生成までを一括コミットできない)ため、重複禁止 INSERT で勝者を 1 つに決め、前後を自己修復で補う:
 
 | 順序 | 処理 | 途中失敗時 |
 | --- | --- | --- |
-| 1 | bundle(network.yaml・SQL)を添付ファイルとしてアップロード | Run 未作成。一時添付は kintone 側で破棄される |
+| 1 | bundle(network.yaml・SQL)を添付ファイルとしてアップロード | Run 未作成。添付はどのレコードにも関連付かず、FlowNet の状態は作られない |
 | 2 | **Run レコードを重複禁止 INSERT(コミットポイント)** | ここで初めて Run が存在する。以後は「既存 Run」として扱われる |
 | 3 | 添付を読み戻して sha256 を検証し、各ノードの Node State(`WAITING`)を作成 | 不足分は次回起動(NEW 拒否後の `--resume`)時に同じ関数が補完する。既存 Node State が bundle と食い違う場合は `RUN_SNAPSHOT_MISMATCH` で拒否 |
 | 4 | Invocation を作成して実行開始 | Invocation 未作成なら監査に起動記録が残らないが、Run は `CREATED` のまま残る。次回 `--resume` で通常どおり Invocation が作られる |
