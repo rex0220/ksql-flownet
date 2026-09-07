@@ -5,6 +5,7 @@
 - 改訂: 2026-09-07(第 3 巡の指摘を反映: 秘匿化を許可リスト方式へ、監視の鮮度を heartbeat と評価に分離、遅延完了の定義、複数ホストの扱い、配置ロック、doctor の終了コード)
 - 経緯: ChatGPT の改善提案(SQL ジョブのアプリ管理を P1 とする 8 テーマ案)を、担当 Claude Code が正本(FDR、統合仕様書、実装計画の backlog、ビジョン文書の進め方の原則)と突き合わせて討論し、3 巡で合意した内容をまとめた
 - 方針: **kintone 上で変更・確認・引継ぎができ、少人数で安全に運用できること。** Run の一意性、入力の固定、途中再開、UNKNOWN の裁定、人と機械の書込分離、秘密情報の境界は変えない。最も確実な成果は「運用担当を減らす」ことではなく **「主担当 1 人に依存しなくなる」** こと
+- 別紙: [AI 運用アシスタントの将来構想](./ops-improvement-annex-ai-assistant-20260907.md)
 - 関連: [実装計画](./implementation-plan.md)(P2-14、P2-17)、[FDR](./phase1-freeze-decision-record.md)(D-30: Phase 1 は cron を内蔵しない)、[ビジョン](./ksql-flownet-vision.md) §8、[スケジュール連携](../scheduling-patterns.md)
 
 ## 1. 当初提案の裁定
