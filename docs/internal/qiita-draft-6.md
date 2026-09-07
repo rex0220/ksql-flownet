@@ -16,7 +16,7 @@
 **前提**
 
 - #2 の導入が済み、サーバーに SSH できる
-- 復旧コマンドを打つ環境に `KSQL_FLOWNET_SERVICE_PRINCIPAL` と `KSQL_FLOWNET_REQUESTED_BY` を自分の認証主体で設定してある(監査に残る)
+- 復旧コマンドを打つ環境に `KSQL_FLOWNET_SERVICE_PRINCIPAL` と `KSQL_FLOWNET_REQUESTED_BY` を自分の認証主体で設定してある。cron の定期実行では前者はホスト、後者は `cron@<host>` だが、復旧コマンドは人が打つので両方とも操作者本人にする(runbook の規定)。どちらも監査に残り、自由記述の主体入力は存在しない
 
 ## 「止まる」には 4 種類ある
 
@@ -37,7 +37,7 @@ flowchart TB
   Q2 -->|"あり"| VER["業務データ・JOBログと照合"] --> RN["resolve-node<br>--to SUCCESS/FAILED/CANCELLED"] --> RES
   Q2 -->|"なし"| Q3{"RETRY_BRAKE?"}
   Q3 -->|"あり"| FIX["原因(SQL・データ)を修正"] --> RF["リラン要求 + rerun_from_node"] --> RES
-  Q3 -->|"なし"| RES["run-network --resume-run<br>またはボードのリラン要求"]
+  Q3 -->|"なし"| RES["run-network network.yaml --resume-run run_id<br>またはボードのリラン要求"]
 ```
 
 図は判断の順序です。ロックの回収 → UNKNOWN の解決 → ブレーキの解除 → 再開、の順に進みます。
@@ -66,7 +66,7 @@ ksql-flownet status monthly_deal_summary --profile prod --run-id netrun_… --js
 
 プロセスが kill された、ホストが落ちた、電源が切れた。こういうときは Network ロックが残り、次の起動は `LOCK_CONFLICT` で拒否されます(ボードのリラン要求も同じです)。回収は 3 段階です。
 
-**1. 旧 owner の停止を確認する。** `owner_instance_id` が `local-pid://<host>/<pid>` なら、同じホスト上で PID が存在しないこと(ESRCH)を確認します。別ホストからは自動確認できないので、対象ホストにログインするか、プロセス一覧・コンソールログなどで人が確認して証拠を残します。
+**1. 旧 owner の停止を確認する。** `owner_instance_id` が `local-pid://<host>/<pid>` なら、同じホスト上で PID が存在しないこと(ESRCH)を確認します。PID が存在する場合は、それが旧プロセス本人とは限りません(PID の再利用)。プロセスの開始時刻とコマンドライン、ホストの再起動時刻も証拠に含めます。別ホストからは自動確認できないので、対象ホストにログインするか、プロセス一覧・コンソールログなどで人が確認して証拠を残します。
 
 **2. 証跡付きで回収する。**
 
@@ -76,14 +76,20 @@ ksql-flownet force-unlock-network monthly_deal_summary \
   --expected-owner-invocation-id <status の recovery_identifiers の値> \
   --reason-file /tmp/reason.txt \
   --evidence-ref "INC-2026-0907" \
-  --stop-confirmed-by "$KSQL_FLOWNET_SERVICE_PRINCIPAL" \
+  --stop-confirmed-by "<停止を確認した人の識別子>" \
   --stop-evidence-ref "ps 出力の保管先" \
   --stop-method local_pid
 ```
 
 コマンドは自分でも検証します。lease がまだ生きていれば `LEASE_STILL_ACTIVE`、owner が違えば `OWNER_MISMATCH`、確認中にロックが更新されれば `HEARTBEAT_ADVANCED`(旧 owner は生きている)で、いずれも解放せず exit 1 です。成功すると `NETWORK_LOCK_FORCE_RELEASED` の監査が 1 件残ります。
 
-**3. 再開する。** `run-network --resume-run <run_id>` か、一次対応者にボードのリラン要求をもう一度押してもらいます。再開時に **孤児裁定** が走ります。旧プロセスが残した RUNNING の Attempt を JOBログと相関 ID で突合し、終端のログ(SUCCESS / FAILED)があればその結果を採用、見つからなければ UNKNOWN に移します。強制回収そのものは Attempt を SUCCESS にも FAILED にもしません。
+**3. 再開する。** 次のコマンドか、一次対応者にボードのリラン要求をもう一度押してもらいます。第 1 引数は `status` と違って network ID ではなく **定義ファイルのパス** です。
+
+```sh
+ksql-flownet run-network flownet/monthly-summary/network.yaml --resume-run <run_id>
+```
+
+再開時に **孤児裁定** が走ります。旧プロセスが残した RUNNING の Attempt を JOBログと相関 ID で突合し、終端のログ(SUCCESS / FAILED)があればその結果を採用、見つからなければ UNKNOWN に移します。強制回収そのものは Attempt を SUCCESS にも FAILED にもしません。
 
 実機の受入では、kill 直後のリラン要求が `LOCK_CONFLICT` で拒否され、回収後の 2 回目がジョブログの証拠による孤児裁定を経て SUCCESS まで完走しました。
 
@@ -97,22 +103,27 @@ UNKNOWN は「ノードを起動したが結果を確認できない」状態で
 ksql-flownet resolve-node --run-id netrun_… --node-id deal_summary \
   --to SUCCESS --manual-completion \
   --reason-file /tmp/reason.txt --evidence-ref "照合結果の保管先" \
-  --stop-confirmed-by "$KSQL_FLOWNET_SERVICE_PRINCIPAL" --stop-evidence-ref "…"
+  --stop-confirmed-by "<停止を確認した人の識別子>" --stop-evidence-ref "…"
 ```
 
 | 解決先 | 使う場面 | 条件 |
 | --- | --- | --- |
 | `SUCCESS --manual-completion` | 業務データを見て、処理が実際に完了していたと確認できた | 非冪等ノードなら、実行者とも起票者とも別の `--approved-by` が必須 |
-| `FAILED` | 完了していない、または部分的に書かれたが取り消せる | 解決後に resume すれば再実行される |
-| `CANCELLED --compensation` | 取消・補償(手で戻した)を実施した | SUCCESS にはできない。下流を進めない解決 |
+| `FAILED` | 未実行だった、または部分的な書込みを補償して再実行できる状態へ戻した | 冪等性とリラン条件を確認してから再開する |
+| `CANCELLED --compensation` | 補償したうえで、この Run では処理を打ち切る | SUCCESS にはできない。下流を進めない解決 |
 
-理由ファイルと証拠参照が必須なのは、「なぜそう判断したか」を後から追えるようにするためです。解決の内容は監査履歴に `ATTEMPT_RESOLUTION` として残ります。
+`FAILED` へ解決しただけで安全に再実行できるわけではありません。部分書込みがあったなら補償(元の状態へ戻す)を終えてから解決し、非冪等ノードは実行済みだと resume が拒否されるので、`resolve-node` での裁定とリラン条件を先に確認します。理由ファイルと証拠参照が必須なのは、「なぜそう判断したか」を後から追えるようにするためです。解決の内容は監査履歴に `ATTEMPT_RESOLUTION` として残ります。
 
 ## 復旧 3: RETRY_BRAKE の解除
 
 同じ種類の失敗が 3 回続くと、そのノードには `RETRY_BRAKE` が付き、通常のリランや定期 resume では再実行されなくなります。決定的に失敗する SQL を毎晩流し続けて Attempt を積み上げない、という安全装置です。
 
-解除は「原因を直してから、対象ノードを指定してリラン」です。ボードなら詳細画面のリラン要求で `rerun_from_node` にブレーキ対象のノード ID を入れます。CLI なら `--rerun-from`。指定したノードとその子孫が、成功済みでも再実行されます。
+解除は「原因を直してから、対象ノードを指定してリラン」です。ボードなら詳細画面のリラン要求で `rerun_from_node` にブレーキ対象のノード ID を入れます。CLI なら次の形です。指定したノードとその子孫が、成功済みでも再実行されます。
+
+```sh
+ksql-flownet run-network flownet/monthly-summary/network.yaml \
+  --resume-run <run_id> --rerun-from <node_id>
+```
 
 原因を直さずに解除すると 4 回目の失敗が積まれるだけなので、まず SQL・入力データ・接続設定のどれが原因かを JOBログのエラーで確定します。
 
@@ -123,10 +134,12 @@ CLOSE(`archive-run`)は Run を不可逆に ARCHIVED にし、監査を書き、
 | 結果コード | 保証されていること | 人が補うこと |
 | --- | --- | --- |
 | `RUN_ARCHIVED` | 3 つとも完了 | なし |
-| `RUN_ARCHIVED_AUDIT_PENDING` | Run は ARCHIVED。監査が未確定 | 同じ `event_id` の監査がないことを確認してから、監査レコードを 1 件手で追記 |
+| `RUN_ARCHIVED_AUDIT_PENDING` | Run は ARCHIVED。監査が未確定 | runbook 所定の監査補完手順で 1 件だけ補完する(下記) |
 | `RUN_ARCHIVED_LOCK_UNRELEASED` | Run は ARCHIVED、監査も完了。ロックが残った | 停止確認 → `force-unlock-network`。再 CLOSE は不要 |
 | `ARCHIVE_UNCONFIRMED` | 書込の応答が消え、ARCHIVED か ACTIVE か不明 | `status --json` で `lifecycle_status` を見て分岐。ACTIVE ならロック解放を確認して新しい CLOSE 要求、ARCHIVED なら監査の有無を確認 |
 | `LOCK_CONFLICT` | 何も変えていない | stale lock を回収してから新しい CLOSE 要求 |
+
+監査の補完は、通常は禁止している「監査履歴アプリへの人の書込み」の唯一の例外です。任意の内容を画面から追加するのではなく、runbook の「CLOSE(archive-run)の復旧」に従います。要求の `result_message` にある元の `event_id` をそのまま使い(新しい ID を作らない)、同じ `event_id` の `RUN_ARCHIVED` が存在しないことを再確認してから、`record_type = OPERATION_AUDIT`、`result_code = RUN_ARCHIVED`、`record_key = OP:<event_id>`、`reason` に所定の JSON(`event_id`・`run_id`・`previous_status`・`run_revision_before`・`requested_by`・`service_principal` など)を入れて 1 件だけ追記します。値は要求レコードと Run の更新前後から確定し、推測で埋めません。
 
 「再 CLOSE すれば直る」とは限らないところがポイントです。`RUN_ARCHIVED_AUDIT_PENDING` で再 CLOSE しても `RUN_ALREADY_ARCHIVED` になるだけで監査は補完されません。結果コードが「どこまで終わったか」を示しているので、その先だけを人が補います。
 
