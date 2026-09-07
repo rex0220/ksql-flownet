@@ -27,7 +27,7 @@ flowchart LR
 
 ## 2. サーバー準備(初回のみ)
 
-1. IOルートを作成する。FlowNetが要求するのは「絶対パスの既存ディレクトリで、FlowNet実行ユーザーが読み書きできること」だけであり、root実行は要求しない。**CSV授受のためにroot鍵を配らない**よう、転送用アカウントを作ってIOルートだけに権限を与える:
+1. IOルートを作成する。FlowNetが要求するのは「絶対パスの既存ディレクトリで、FlowNet実行ユーザーが読み書きできること」だけであり、root実行は要求しない。**CSV授受のためにroot鍵を配らない**よう、転送用アカウントを作ってIOルートだけに書込権限を与える:
 
    ```sh
    useradd -m -s /bin/bash csvxfer                  # 転送用アカウント(SSH鍵は本人分のみ)
@@ -36,7 +36,7 @@ flowchart LR
    chmod 750 /opt/ksql/io                            # FlowNet実行ユーザーがrootなら読み書き可
    ```
 
-   FlowNet実行ユーザーがroot以外の場合は、そのユーザーをcsvxferグループへ加えるかACLで`in/`読取・`out/`書込を許可する。既存本番のように管理者がroot鍵でSSHする構成を続ける場合は、鍵を持つ人を二次対応者に限定する
+   この所有権設定は`csvxfer`にIOルート外へ書き込ませないためのもので、ファイルシステム上に閉じ込めるものではない(通常のシェルにログインできる)。本番では`sshd_config`の`Match User csvxfer`に`ForceCommand internal-sftp`と`ChrootDirectory`を設定してSFTP専用にし、対話シェルや任意コマンドを許可しない。FlowNet実行ユーザーがroot以外の場合は、そのユーザーをcsvxferグループへ加えるかACLで`in/`読取・`out/`書込を許可し、FlowNetが作った出力ファイルを`csvxfer`が読めるモード・グループになることを確認する。既存本番のように管理者がroot鍵でSSHする構成を続ける場合は、鍵を持つ人を二次対応者に限定する
 
 2. FlowNetの環境ファイル(例: `/root/.ksql-flownet.env`)へ追加する:
 
@@ -80,19 +80,22 @@ flowchart LR
 2. **転送する。** Windowsからの例:
 
    ```powershell
-   scp -i <SSH鍵> C:\work\input.csv csvxfer@<VPS>:/opt/ksql/io/in/sales/monthly_sales%402026-09/prod/input.csv
+   $dir = "/opt/ksql/io/in/sales/monthly_sales%402026-09/prod"
+   ssh -i <SSH鍵> csvxfer@<VPS> "mkdir -p $dir"
+   scp -i <SSH鍵> C:\work\input.csv "csvxfer@<VPS>:$dir/input.csv.part"
+   ssh -i <SSH鍵> csvxfer@<VPS> "mv $dir/input.csv.part $dir/input.csv"
    ```
 
-   WinSCP(SFTP)でも同じパスへ置けばよい。中間ディレクトリは事前に作る(`ssh ... mkdir -p`)か、SFTPクライアントで作成する
+   **完成名へ直接アップロードしない。** 転送途中にcronが発火すると、途中まで転送されたファイルをFlowNetが読み、そのsha256がbaselineになる。`.part`等の一時名で転送し、転送完了後に同一ディレクトリ内でrenameして公開する(同一ファイルシステム内のrenameは原子的で、cronは完成名しか参照しない)。WinSCP(SFTP)でも`put`→`rename`で同じ手順にする
 3. **文字コードはSQLのIMPORT定義に合わせる**(UTF-8またはShift_JIS)。不一致はdecode失敗として実行時に拒否される
 4. **配置してから起動する。** cron定期実行なら次回発火を待ち、随時ならボードのSTART要求(または`run-network`)で起動する
 5. 完走はボード(Run状況)で確認する。Node Attemptの要約に取込ファイルのsha256・行数・encodingが記録される
 
 ### 取込の不変条件(重要)
 
-- **Run開始後にファイルを差し替えない。** 初回読取時のsha256がbaselineとして記録され、失敗後のresume / rerun-fromで**再実行対象になる取込ノード**は同一バイトのファイルを要求する(`INPUT_FILE_MUTATED`で拒否。SUCCESS済みで保持されるノードは照合しない)
+- **Run開始後に完成パスのファイルを上書き・削除しない。** 初回読取時のsha256がbaselineとして記録され、失敗後のresume / rerun-fromで**再実行対象になる取込ノード**は同一バイトのファイルを要求する(`INPUT_FILE_MUTATED`で拒否。SUCCESS済みで保持されるノードは照合しない)。これは差し替えを検出して再開を拒否する仕組みであり、実行中のファイルをOSレベルでロックするものではない。初回読取中の上書きまでは防げないため、Run開始後は触らない運用が前提
 - 内容を直したい場合は、**新しいbusiness_key(補正キー等)で新しいRunとして取り込む**
-- 入力ファイルはresumeに備えて**Runが終端するまで元のパスへ保持**する。保持期限は**Run作成から既定90日**で、超過後のresumeは`INPUT_RETENTION_EXPIRED`で拒否される
+- 入力ファイルはresumeに備えて**Runが終端するまで元のパスへ保持**する。保持期限は**Run作成から既定90日**で、超過後のresumeは`INPUT_RETENTION_EXPIRED`で拒否される。`KSQL_FLOWNET_IO_RETENTION_DAYS`は自動削除の設定ではなく、期限超過Runの再開を拒否する判定値である。実ファイルの削除は別途運用する
 - 取込SQLは重複禁止キーへの`ON DUPLICATE`パターン(仕様書参照)にしておくと、chunk途中失敗→resumeでも各キー1件へ収束する(実測済み)
 
 ## 4. 出力CSVを取り出す手順
@@ -108,7 +111,7 @@ flowchart LR
    scp -i <SSH鍵> csvxfer@<VPS>:/opt/ksql/io/out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv C:\work\
    ```
 
-4. 内容の照合が必要な場合、Node Attempt要約の`output_files`(sha256・行数・encoding)と突き合わせる。同一Runの`--rerun-from`では同一sha256になることを実測済み
+4. 内容の照合が必要な場合、Node Attempt要約の`output_files`(sha256・行数・encoding)と突き合わせる。検証データを変更しない実機試験では同一Runの`--rerun-from`で同一sha256になった。ただし`as_of`は時刻関数の基準を固定するもので、kintoneレコードのスナップショットではない。再実行までに参照データが変われば同一Runでも出力内容とsha256は変わり得る
 5. 出力先(取引先システム等)が`cli-kintone`でkintoneへ取り込む場合もそのまま使える — kSQLのUTF-8出力は`cli-kintone record import`互換の値表現で出力される(実機検証済み)
 6. 取得済みの出力ファイルの削除は任意。`{run_id}`を含むパス設計なら別Run間の上書きは起きないため残してもよい(同一Runのrerun-fromは同一パスを置換する — §2)
 

@@ -11,7 +11,7 @@
 - CSV がどこに置かれ、誰が置き、誰が取り出すか(転送路は SSH だけ)
 - network 定義の `inputs` / `outputs` と、SQL の `IMPORT` / 名前付きシンクの対応
 - 入力ファイルを sha256 で固定する理由と、`@` が `%40` になる罠
-- 失敗したときに何が保証されるか(壊れた出力は現れない、途中で差し替えられない)
+- 失敗したときに何が保証されるか(壊れた出力は現れない、差し替えられた入力では同じ Run を再開できない)
 
 **前提**
 
@@ -58,7 +58,9 @@ export KSQL_FLOWNET_IO_DIR=/opt/ksql/io
 # export KSQL_FLOWNET_IO_RETENTION_DAYS=90     # 入力ファイルの保持期限(既定 90 日)
 ```
 
-CSV を置く人に root の鍵を配らないために転送用アカウントを分けています。入力ファイルを置くのも出力を取るのもこのアカウントで、IO ルートの外には触れません。
+CSV を置く人に root の鍵を配らないために転送用アカウントを分けています。入力ファイルを置くのも出力を取るのもこのアカウントです。ただし、この所有権設定は `csvxfer` に IO ルートの外へ **書き込ませない** ためのもので、ファイルシステム上に閉じ込めるものではありません(通常のシェルにログインできる)。本番では SSH を SFTP 専用に制限し(`sshd_config` の `Match User csvxfer` に `ForceCommand internal-sftp` と `ChrootDirectory`)、対話シェルや任意コマンドを許可しない構成にします。
+
+この例は #2 と同じく kSQL-FlowNet を root で動かす構成で、root は `750` のディレクトリを読み書きできます。実行専用ユーザーを分ける本番構成では、実行ユーザーを `csvxfer` グループに入れるか ACL で `in/` の読取と `out/` の書込を許可し、kSQL-FlowNet が作った出力ファイルを `csvxfer` が読めるモードとグループになることを確認します。
 
 ## network 定義: `inputs` と `outputs`
 
@@ -143,19 +145,23 @@ business_key = monthly_sales@2026-09、profile = prod のとき
 **プレースホルダーの値は percent encoding されます。** 英数字と `-` `_` `~` 以外(`@` `:` 空白、日本語)は `%XX` になります。`@` は `%40` です。テンプレートどおりに生の `@` でディレクトリを作ると `INPUT_FILE_MISSING` になります。`plan` は実パスを表示しないので、記号を含む業務キーでは変換後のパスを自分で組み立てます。
 
 ```powershell
-ssh -i <鍵> csvxfer@<サーバー> "mkdir -p /opt/ksql/io/in/sales/monthly_sales%402026-09/prod"
-scp -i <鍵> C:\work\input.csv csvxfer@<サーバー>:/opt/ksql/io/in/sales/monthly_sales%402026-09/prod/input.csv
+$dir = "/opt/ksql/io/in/sales/monthly_sales%402026-09/prod"
+ssh -i <鍵> csvxfer@<サーバー> "mkdir -p $dir"
+scp -i <鍵> C:\work\input.csv "csvxfer@<サーバー>:$dir/input.csv.part"
+ssh -i <鍵> csvxfer@<サーバー> "mv $dir/input.csv.part $dir/input.csv"
 ```
+
+完成名へ直接アップロードしないのがポイントです。転送の途中で cron が発火すると、途中まで転送されたファイルを kSQL-FlowNet が読み、その sha256 が baseline になってしまいます。`.part` のような一時名で転送し、転送が終わってから **同じディレクトリ内で rename** して公開します(同一ファイルシステム内の rename は原子的で、cron は完成名しか見ません)。SFTP クライアントなら `put` → `rename` で同じことができます。
 
 置いてから起動します。cron の定期実行なら次の発火を待ち、随時ならボードの START(補正または任意キー)か `run-network` です。完走はボードで確認します。Node Attempt の要約に、取り込んだファイルの sha256・行数・エンコーディングが残ります。
 
-## 入力ファイルは Run の間、固定される
+## 入力の差し替えは sha256 で検出され、同じ Run では再開できない
 
 取込で一番重要な規則です。
 
-- **Run が始まったらファイルを差し替えない。** 最初に読んだときの sha256 が baseline として記録され、失敗後の resume や rerun-from で **再実行対象になる取込ノード** は同じバイト列のファイルを要求します。違えば `INPUT_FILE_MUTATED` で拒否します(SUCCESS 済みで保持されるノードは照合しません)
+- **Run が始まったら完成パスのファイルを上書き・削除しない。** 最初に読んだときの sha256 が baseline として記録され、失敗後の resume や rerun-from で **再実行対象になる取込ノード** は同じバイト列のファイルを要求します。違えば `INPUT_FILE_MUTATED` で拒否します(SUCCESS 済みで保持されるノードは照合しません)。これは差し替えを **検出して再開を拒否する** 仕組みで、実行中のファイルを OS レベルでロックするものではありません。初回の読取中に上書きされた場合まで防ぐ実装ではないので、Run 開始後は触らない、という運用が前提です
 - 内容を直したいなら、 **新しい業務キー(補正キー)で新しい Run** として取り込みます
-- 入力ファイルは Run が終端するまで元のパスに置いたままにします。保持期限は Run 作成から既定 90 日で、超過後の resume は `INPUT_RETENTION_EXPIRED` で拒否します
+- 入力ファイルは Run が終端するまで元のパスに置いたままにします。保持期限は Run 作成から既定 90 日で、超過後の resume は `INPUT_RETENTION_EXPIRED` で拒否します。この期限は **自動削除の設定ではありません**。期限を過ぎた Run の再開を拒否するための判定値で、実ファイルの削除は別に運用します
 
 なぜここまで固定するのか。resume は「失敗したノードから続きを実行する」操作です。続きを実行するときに入力が変わっていたら、前半と後半で違うデータを取り込んだ Run ができます。それを「同じ Run」として記録するわけにはいかない、というのが理由です。
 
@@ -177,7 +183,7 @@ scp -i <鍵> csvxfer@<サーバー>:/opt/ksql/io/out/sales/monthly_sales%402026-
 ```
 
 - Run が `SUCCESS` になってから取得します。完成したファイルだけが現れるので、途中の状態を掴む心配はありません
-- 内容の照合が必要なら、Node Attempt の要約にある `output_files`(sha256・行数・エンコーディング)と突き合わせます。同じ Run の `--rerun-from` なら同じ sha256 になります(実測済み)
+- 内容の照合が必要なら、Node Attempt の要約にある `output_files`(sha256・行数・エンコーディング)と突き合わせます。検証データを変更しない実機試験では、同じ Run の `--rerun-from` で同じ sha256 になりました。ただし `as_of` が固定するのは時刻関数の基準であって、kintone レコードのスナップショットではありません。再実行までに参照データが変われば、同じ Run でも出力内容と sha256 は変わります
 - 出力 CSV は `cli-kintone record import` と互換の値表現なので、別の kintone にそのまま取り込む用途にも使えます(実機検証済み)
 - 取得済みファイルの削除は任意です。`{run_id}` を含むパスなら別 Run 間で上書きされないので残しても構いません
 
@@ -200,7 +206,7 @@ scp -i <鍵> csvxfer@<サーバー>:/opt/ksql/io/out/sales/monthly_sales%402026-
 - CSV の転送路は SSH だけ。置く・取るのはサーバー管理者、起票と確認は一次対応者
 - `inputs` / `outputs` は IO ルートからの相対テンプレート。SQL 側は `IMPORT … FROM CSV source` と `#report` の名前で対応する
 - プレースホルダーの値は percent encoding される(`@` → `%40`)
-- 入力ファイルは Run の間 sha256 で固定。直したいなら新しい業務キーで新しい Run
+- 入力は `.part` で転送して rename で公開。差し替えは sha256 で検出され、同じ Run では再開できない。直したいなら新しい業務キーで新しい Run
 - 出力は完成したものだけが現れ、既存ファイルは壊れない。`{run_id}` を含めれば別 Run と衝突しない
 
 ## 次回
