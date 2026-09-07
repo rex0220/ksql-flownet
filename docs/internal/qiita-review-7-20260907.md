@@ -16,3 +16,10 @@
 | --- | --- | --- | --- |
 | 1 | SFTP 専用化(internal-sftp)すると `ssh mkdir/mv` の例が使えない。chroot 先は root 所有が必要で `/opt/ksql/io` を csvxfer 所有のまま指定できない | 採用 | 例の適用範囲(検証用シェルログイン可 / 本番 SFTP 専用)を分け、sftp の mkdir・put・rename 例を追加。ChrootDirectory の所有権条件と配置(chroot 先 root 所有、配下に in/ と out/、IO_DIR をそこへ)を記事・正本に |
 | 2 | percent encoding の非変換文字に `.` が含まれるのでは(RFC 3986 unreserved) | 不採用(記事が正) | 実装 `src/io/io-path.ts percentEncodePathSegment` の非変換は数字・英字・`-`・`_`・`~` のみで、`.` は `%2E` に変換される。記事・正本に「RFC より厳しく `.` も対象。テンプレート側の `input.csv` の `.` は値ではないので変わらない」を補足 |
+
+## 第 3 巡(317bb9d に対して)
+
+| # | 指摘 | 裁定 | 反映 |
+| --- | --- | --- | --- |
+| 1 | SFTP の mkdir に -p はない。階層を順に作る例へ。定型運用では初期ディレクトリ作成を管理者作業に | 採用 | 例を 3 段階の mkdir に変更し、補足文を追加(記事・正本) |
+| 2 | 出力取得も chroot 構成では chroot 内パス(get out/…) | 採用 | scp 例の適用範囲を明記し、sftp get の例を追加(記事・正本) |

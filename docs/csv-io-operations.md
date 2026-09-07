@@ -89,10 +89,14 @@ flowchart LR
    上の`scp`・`ssh`例はシェルログイン可能な`csvxfer`を前提にしている。`internal-sftp`専用にした本番では`ssh`によるコマンド実行はできないため、SFTPクライアントの`mkdir`・`put`・`rename`を使う(chroot後はクライアントから見えるパスもchroot内の相対パスになる):
 
    ```text
+   sftp> mkdir in/sales
+   sftp> mkdir in/sales/monthly_sales%402026-09
    sftp> mkdir in/sales/monthly_sales%402026-09/prod
    sftp> put input.csv in/sales/monthly_sales%402026-09/prod/input.csv.part
    sftp> rename in/sales/monthly_sales%402026-09/prod/input.csv.part in/sales/monthly_sales%402026-09/prod/input.csv
    ```
+
+   SFTPの`mkdir`には`-p`がないため階層を順に作る。既存ディレクトリへの`mkdir`をエラーにするクライアントもあるので、定型運用では初期ディレクトリの作成を管理者作業にし、日常操作を`put`と`rename`だけにしてよい。
 
    **完成名へ直接アップロードしない。** 転送途中にcronが発火すると、途中まで転送されたファイルをFlowNetが読み、そのsha256がbaselineになる。`.part`等の一時名で転送し、転送完了後に同一ディレクトリ内でrenameして公開する(同一ファイルシステム内のrenameは原子的で、cronは完成名しか参照しない)
 3. **文字コードはSQLのIMPORT定義に合わせる**(UTF-8またはShift_JIS)。不一致はdecode失敗として実行時に拒否される
@@ -113,10 +117,14 @@ flowchart LR
    - 例: `/opt/ksql/io/out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv`(§3と同じくプレースホルダ値はpercent encodingされる)
 
 2. **完成したファイルだけが現れる**(atomic write)。途中失敗時に壊れた一時ファイルは残らず、既存ファイルも不変。Runが`SUCCESS`になってから取得する
-3. 取得例:
+3. 取得例(`scp`はシェルログイン可能な検証構成のホスト側パス。SFTP専用のchroot構成では`get out/…/report.csv`のようにchroot内のパスを指定する):
 
    ```powershell
    scp -i <SSH鍵> csvxfer@<VPS>:/opt/ksql/io/out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv C:\work\
+   ```
+
+   ```text
+   sftp> get out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv
    ```
 
 4. 内容の照合が必要な場合、Node Attempt要約の`output_files`(sha256・行数・encoding)と突き合わせる。検証データを変更しない実機試験では同一Runの`--rerun-from`で同一sha256になった。ただし`as_of`は時刻関数の基準を固定するもので、kintoneレコードのスナップショットではない。再実行までに参照データが変われば同一Runでも出力内容とsha256は変わり得る

@@ -154,10 +154,14 @@ ssh -i <鍵> csvxfer@<サーバー> "mv $dir/input.csv.part $dir/input.csv"
 上の `scp` と `ssh` の例は、検証用にシェルへログインできる `csvxfer` を前提にしています。本番で `internal-sftp` 専用にした場合は `ssh` によるコマンド実行はできないので、SFTP クライアントの `mkdir`・`put`・`rename` を使います。chroot 後はクライアントから見えるパスも chroot 内の相対パスになります。
 
 ```text
+sftp> mkdir in/sales
+sftp> mkdir in/sales/monthly_sales%402026-09
 sftp> mkdir in/sales/monthly_sales%402026-09/prod
 sftp> put input.csv in/sales/monthly_sales%402026-09/prod/input.csv.part
 sftp> rename in/sales/monthly_sales%402026-09/prod/input.csv.part in/sales/monthly_sales%402026-09/prod/input.csv
 ```
+
+SFTP の `mkdir` には `-p` がないので、階層を順に作ります。既存ディレクトリへの `mkdir` をエラーにするクライアントもあるため、定型運用では初期ディレクトリの作成を管理者作業にし、日常の操作を `put` と `rename` だけにするのが扱いやすいです。
 
 完成名へ直接アップロードしないのがポイントです。転送の途中で cron が発火すると、途中まで転送されたファイルを kSQL-FlowNet が読み、その sha256 が baseline になってしまいます。`.part` のような一時名で転送し、転送が終わってから **同じディレクトリ内で rename** して公開します(同一ファイルシステム内の rename は原子的で、cron は完成名しか見ません)。
 
@@ -184,10 +188,14 @@ flowchart LR
 
 ## 出力 CSV を取り出す
 
-出力先は「`out/` + テンプレートの展開結果」で、percent encoding は入力と同じです。
+出力先は「`out/` + テンプレートの展開結果」で、percent encoding は入力と同じです。次の `scp` 例はシェルログイン可能な検証構成のホスト側パスです。SFTP 専用の chroot 構成では、`get out/…/report.csv` のように chroot 内のパスを指定します。
 
 ```powershell
 scp -i <鍵> csvxfer@<サーバー>:/opt/ksql/io/out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv C:\work\
+```
+
+```text
+sftp> get out/sales/monthly_sales%402026-09/netrun_xxxx/report.csv
 ```
 
 - Run が `SUCCESS` になってから取得します。完成したファイルだけが現れるので、途中の状態を掴む心配はありません
