@@ -4,11 +4,11 @@
 - 画像なし(mermaid とコードで構成)
 -->
 
-#8 で「同じ業務キーの Run は 1 つ」「二重起動しない」「取消は claim 前だけ効く」を設計として書きました。今回は **それを実機の kintone でどう証明したか** です。単体テストは自分で書いたモックに対して合格するだけで、重複禁止フィールドが本当に 2 件目を弾くか、2 つのポーラーが同じ要求を同時に掴んだときに何が起きるかは、実物の kintone と実物のプロセスでしか分かりません。正本は[tests/e2e/README.md](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/tests/e2e/README.md)と `docs/internal/test-results/` の受入記録です。
+#4 と #6 で「取消は claim 前だけ効く」、#8 で「同じ業務キーの Run は 1 つ」「二重起動しない」と書きました。今回は **それらを実機の kintone でどう確認したか** です。単体テストは自分で書いたモックに対して合格するだけで、重複禁止フィールドが本当に 2 件目を弾くか、2 つのポーラーが同じ要求を同時に掴んだときに何が起きるかは、実物の kintone と実物のプロセスでしか分かりません。正本は[tests/e2e/README.md](https://github.com/rex0220/ksql-flownet/blob/v1.0.0/tests/e2e/README.md)と `docs/internal/test-results/` の受入記録です。
 
 **この回で分かること**
 
-- テストの 3 層(単体・統合・E2E)と、それぞれが何を証明できるか
+- テストの 3 層(単体・統合・E2E)と、それぞれが何を確認できるか
 - E2E ハーネスの安全境界。本番と業務アプリに触れない仕組みをコードで強制する
 - 競合を「引き当てる」から「止める」へ。fault-hook の barrier で HTTP リクエストの直前・直後にプロセスを止める
 - 実機で確定した事実と、E2E に持ち込めない競合を単体へ落とした判断
@@ -17,9 +17,9 @@
 
 - #6 と #8 を読んでいる(claim、lease、UNKNOWN、`revision` の言葉を使います)
 
-## 3 層のテストと証明できること
+## 3 層のテストと確認できること
 
-| 層 | 相手 | 証明できること | 実行 |
+| 層 | 相手 | 確認できること | 実行 |
 | --- | --- | --- | --- |
 | 単体(`tests/unit`、62 ファイル 579 件) | fetch の偽物と in-memory リポジトリ | 状態機械・分類器・境界条件の網羅 | `npm test`。CI(GitHub Actions、ubuntu、Node 22 / 24)で毎 push |
 | 統合(`tests/integration`、13 本) | 実 kintone の実行管理・監査履歴アプリにリポジトリ層から直接書く | 重複禁止フィールドと 409 / 400 の実挙動が最終裁定者であること | 手動 |
@@ -80,7 +80,7 @@ assert.notEqual(profile, "prod", "E2Eはprodプロファイルを使用できま
 
 ## 競合窓を「引き当てる」から「止める」へ
 
-「二重起動しない」を証明するには、2 つのプロセスを **本当に同じ瞬間** に同じレコードへ向かわせる必要があります。タイミング頼みでは再現しないので、3 段階で決定化しました。
+「二重起動しない」を実機で確認するには、2 つのプロセスを **本当に同じ瞬間** に同じレコードへ向かわせる必要があります。タイミング頼みでは再現しないので、3 段階で決定化しました。
 
 | 段階 | やり方 | 限界 |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ barrier を置いている PUT は 3 か所です。
 | フィールド | 止まる書込み | 使うシナリオ |
 | --- | --- | --- |
 | `claimed_at` | ポーラーが要求を claim する PUT(操作要求アプリ) | 取消 vs claim |
-| `heartbeat_at` | Network ロックの heartbeat PUT(実行管理アプリ)。ロック取得後にしか出ないので「ロック保持中」の証明になる | CLOSE vs 再開 |
+| `heartbeat_at` | Network ロックの heartbeat PUT(実行管理アプリ)。ロック取得後にしか出ないので「ロック保持中」の根拠になる | CLOSE vs 再開 |
 | `finished_at` | ノード Attempt を確定する PUT(監査履歴アプリ) | 実行中 Run への CLOSE 拒否 |
 
 ### 取消 vs claim を両方向で固定する
@@ -164,11 +164,13 @@ assert.equal(closeWhileLocked.output?.code, "LOCK_CONFLICT");
 assert.equal(closeWhileLocked.output?.lock_released, true);
 ```
 
+ここで `lock_released: true` は、競合相手のロックを解放したという意味ではありません。CLOSE 処理が自分のロックを残していないことを示す結果フィールドで、ロック取得に失敗した CLOSE は最初から何も持っていないので `true` になります。再開プロセスのロックはそのまま維持されます。
+
 release 後の CLOSE は `ARCHIVED` で監査 `RECORDED`、以後の `--resume-run` は `RUN_NOT_RESUMABLE` で Attempt が増えないことまで assert します。#6 の「CLOSE は不可逆」の実機証拠です。
 
 ## 実機で確定した事実
 
-barrier 以外のシナリオも含め、証明したことを表にします。「敗者のコード」は実物の kintone が返したものです。
+barrier 以外のシナリオも含め、受入条件として実機で確認した事実を表にします。E2E が示すのは列挙した実行条件での成立で、任意のタイミングに対する形式的な証明ではありません。「敗者のコード」は実物の kintone が返したものです。
 
 | 主張 | シナリオ | 何をするか | assert |
 | --- | --- | --- | --- |
@@ -177,18 +179,18 @@ barrier 以外のシナリオも含め、証明したことを表にします。
 | 同じ要求の claim は一方だけ | `p2-01-05-claim-stale` | 1 件の RERUN 要求にポーラー 2 プロセス | 2 つのポーラーの `claimed=` を並べると `[0, 1]`。Invocation はちょうど +1 |
 | 敗者コードが揺れても契約は揺れない | `m3-canonical-key-conflict`(統合) | 同一 `node_state_key` の同時 INSERT と同時 UPDATE | 永続化 1 件。UPDATE の敗者は kintone が `409 GAIA_CO02` と `400 GAIA_DA02` のどちらを返しても `REVISION_CONFLICT` |
 | 落ちたプロセスは UNKNOWN で隔離 | `m5-kill-unknown` | JOBログの実行開始マーカーを確認してから、対象 `--attempt-id` を持つ kSQL-Flow 子プロセスだけを kill | 当該ノードと Run は `UNKNOWN`、独立系統は `SUCCESS`、下流は `BLOCKED`(`blocked_by` に当該ノード) |
-| 生きているロックは奪えない | `m6-04-force-unlock-drill` | 30 秒 lease の実行中・失効後に `force-unlock-network` | 生存中は `LEASE_STILL_ACTIVE`、owner 違いは `OWNER_MISMATCH`、失効後だけ `RELEASED` + 監査 1 件。待ち時間は lease 30 秒 + 分精度の保守判定 60 秒 |
+| 停止確認なしにロックは奪えない | `m6-04-force-unlock-drill` | 30 秒 lease の Run を kill し、停止証拠(確認者・停止方法・証拠参照)を用意したうえで `force-unlock-network` | kill 済みでも lease 生存中は `LEASE_STILL_ACTIVE`、owner 違いは `OWNER_MISMATCH`。lease 失効後に停止証拠付きで実行した場合だけ `RELEASED` となり、監査 `NETWORK_LOCK_FORCE_RELEASED` が確認者・停止方法・証拠参照付きで 1 件残る。待ち時間は lease 30 秒 + 分精度の保守判定 60 秒 |
 | 通信断で状態を壊さない | `m7-02-kintone-drain` | 制御ファイルを `block` にして kintone を全遮断 | `NETWORK_LEASE_INTERRUPTED`。非回復時は state・audit の全レコード `revision` 不変。JOBログ側は `SUCCESS`(遮断したのが kSQL-FlowNet だけである証拠) |
 | 同じ失敗は 3 回で止まる | `m8-02-retry-brake` | 決定的に失敗するノードを初回 + resume 2 回 | 4 回目の resume は Attempt を作らず `RETRY_BRAKE:…x3`。明示 `--rerun-from` は解除 |
-| stale は自動で再 claim しない | `p2-11-05-stale-regression` | claim 後にポーラーが消えた `ACCEPTED` を再現 | `REJECTED / STALE`、Run・Invocation は増えない。人の再要求は `NOOP_ALREADY_SUCCESS` へ収束 |
+| stale は自動で再 claim しない | `p2-11-05-stale-regression` | Run を完走させた後、claim して処理は終わったが要求への結果反映前にポーラーが消えた状態(`ACCEPTED`、heartbeat が 10 分前)を再現 | stale 裁定では既存の Run・Invocation は増えず、要求だけが `REJECTED / STALE`。その後に人が同じ業務キーで START を起票しても、既存の SUCCESS Run へ収束して `NOOP_ALREADY_SUCCESS` |
 
 一意性の最終裁定者は kintone の重複禁止フィールドです。統合テストが生のエラーコードまで assert しているのは、リポジトリ層の「安定コードへ畳む」契約が実物の応答に対して成り立つことを固定するためです。
 
-## E2E に持ち込めないものは単体へ、単体を実機の代用にしない
+## E2E で再現しないものは単体へ、単体を実機の代用にしない
 
-すべての競合が実機で再現できるわけではありません。P2-16(要求ライフサイクル v2)の受入では 3 つを単体へ落としました。
+すべての競合を実機で再現するわけではありません。技術的に組めないものと、費用対効果で単体を選んだものがあります。P2-16(要求ライフサイクル v2)の受入では 3 つを単体へ落としました。
 
-| 受入 | 内容 | E2E で無理な理由 | 担保 |
+| 受入 | 内容 | E2E にしなかった理由 | 担保 |
 | --- | --- | --- | --- |
 | 8c | CLOSE と hold 作成の三者順序(STOP が非終端 Run を読む → Run が終端化 → CLOSE が hold なしを確認 → STOP が hold を作る → CLOSE が ARCHIVED を書く)。結果は ARCHIVED + hold で、RELEASE で解除でき、resume は拒否 | 終端 Run への CLI STOP は `RUN_ALREADY_TERMINAL` で拒否されるので、「終端化の後に STOP が hold を作る」順序を実プロセスでは組めない | リポジトリ注入で順序を固定した単体 |
 | 8d / 8f | 監査書込失敗の結果契約(`ARCHIVED` + `audit: PENDING` + `ARCHIVE_AUDIT_FAILED`)と、lease 中断・応答喪失の時点別裁定 7 通り | 実 kintone に「監査 INSERT だけ失敗させる」注入点がない | 監査リポジトリに失敗を注入する単体 |
@@ -211,7 +213,7 @@ P2-16 の実機 E2E では発見が 2 件ありました。どちらもハーネ
 
 つまり barrier は製品の競合を再現するためだけでなく、 **テスト自身の競合を消す** ためにも使っています。
 
-リリースゲート(R2)では、実機 E2E 18 本を直列に流して全合格、単体 579 件全合格でした。CSV 系 8 本は再実行していません。合格済みのコードから `src/io` と kSQL-Flow 契約に変更がないことを `git diff --stat` で確認し、その判断を記録に書きました。「全部流し直した」より「何を流さず、なぜか」が書いてあるほうが、後から読む人には役に立ちます。
+E2E シナリオは全 44 本です。リリースゲート(R2)では、直前の変更(要求ライフサイクル v2)の影響がある 18 本(操作要求 6・START 5・ライフサイクル 5・m 系の代表 2)を直列に流して全合格、単体 579 件全合格でした。CSV 系 8 本を含む残りは再実行していません。CSV 系は合格済みのコードから `src/io` と kSQL-Flow 契約に変更がないことを `git diff --stat` で確認し、その判断を記録に書きました。「全部流し直した」より「何を流さず、なぜか」が書いてあるほうが、後から読む人には役に立ちます。
 
 ## 手元で動かす
 
@@ -235,7 +237,7 @@ node tests\e2e\p2-16-02-cancel-claim-race.mjs
 
 ## まとめ
 
-- 単体は網羅、統合は kintone の実挙動、E2E は複数プロセスの end-to-end。証明したいことごとに層を選ぶ
+- 単体は網羅、統合は kintone の実挙動、E2E は複数プロセスの end-to-end。確認したいことごとに層を選ぶ
 - 安全境界は README ではなく assert で強制する。本番 ID・`prod`・接頭辞なしの識別子・清掃失敗はすべて不合格
 - 競合は引き当てるのではなく止める。fault-hook の barrier は製品コードに触れず、自分の fetch だけを 1 リクエスト単位で止める
 - 「二重起動しない」の最終裁定者は kintone の重複禁止フィールド。敗者コードが揺れても安定コードへ畳む契約を実機で固定した
