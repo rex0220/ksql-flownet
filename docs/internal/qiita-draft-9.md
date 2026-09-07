@@ -9,7 +9,7 @@
 **この回で分かること**
 
 - テストの 3 層(単体・統合・E2E)と、それぞれが何を確認できるか
-- E2E ハーネスの安全境界。本番と業務アプリに触れない仕組みをコードで強制する
+- E2E ハーネスの安全境界。本番へ書かず、業務アプリを更新しない仕組みをコードで強制する
 - 競合を「引き当てる」から「止める」へ。fault-hook の barrier で HTTP リクエストの直前・直後にプロセスを止める
 - 実機で確定した事実と、E2E に持ち込めない競合を単体へ落とした判断
 
@@ -180,7 +180,7 @@ barrier 以外のシナリオも含め、受入条件として実機で確認し
 | 同じ要求の claim は一方だけ | `p2-01-05-claim-stale` | 1 件の RERUN 要求にポーラー 2 プロセス | 2 つのポーラーの `claimed=` を並べると `[0, 1]`。Invocation はちょうど +1 |
 | 敗者コードが揺れても契約は揺れない | `m3-canonical-key-conflict`(統合) | 同一 `node_state_key` の同時 INSERT と同時 UPDATE | 永続化 1 件。UPDATE の敗者は kintone が `409 GAIA_CO02` と `400 GAIA_DA02` のどちらを返しても `REVISION_CONFLICT` |
 | 落ちたプロセスは UNKNOWN で隔離 | `m5-kill-unknown` | JOBログの実行開始マーカーを確認してから、対象 `--attempt-id` を持つ kSQL-Flow 子プロセスだけを kill | 当該ノードと Run は `UNKNOWN`、独立系統は `SUCCESS`、下流は `BLOCKED`(`blocked_by` に当該ノード) |
-| 停止確認なしにロックは奪えない | `m6-04-force-unlock-drill` | 30 秒 lease の Run を kill し、停止証拠(確認者・停止方法・証拠参照)を用意したうえで `force-unlock-network` | kill 済みでも lease 生存中は `LEASE_STILL_ACTIVE`、owner 違いは `OWNER_MISMATCH`。lease 失効後に停止証拠付きで実行した場合だけ `RELEASED` となり、監査 `NETWORK_LOCK_FORCE_RELEASED` が確認者・停止方法・証拠参照付きで 1 件残る。待ち時間は lease 30 秒 + 分精度の保守判定 60 秒 |
+| 停止確認なしにロックは奪えない | `m6-04-force-unlock-drill` | 30 秒 lease の Run を kill し、停止証拠(確認者・停止方法・証拠参照)を用意したうえで `force-unlock-network` | kill 済みでも lease 生存中は `LEASE_STILL_ACTIVE`、owner 違いは `OWNER_MISMATCH`。lease 失効後に停止証拠付きで実行した場合だけ `RELEASED` となり、監査 `NETWORK_LOCK_FORCE_RELEASED` が確認者・停止方法・証拠参照付きで 1 件残る。判定は 30 秒の lease に、分精度を吸収する 60 秒の保守余裕を加えて行う |
 | 通信断で状態を壊さない | `m7-02-kintone-drain` | 制御ファイルを `block` にして kintone を全遮断 | `NETWORK_LEASE_INTERRUPTED`。非回復時は state・audit の全レコード `revision` 不変。JOBログ側は `SUCCESS`(遮断したのが kSQL-FlowNet だけである証拠) |
 | 同じ失敗は 3 回で止まる | `m8-02-retry-brake` | 決定的に失敗するノードを初回 + resume 2 回 | 4 回目の resume は Attempt を作らず `RETRY_BRAKE:…x3`。明示 `--rerun-from` は解除 |
 | stale は自動で再 claim しない | `p2-11-05-stale-regression` | Run を完走させた後、claim して処理は終わったが要求への結果反映前にポーラーが消えた状態(`ACCEPTED`、heartbeat が 10 分前)を再現 | stale 裁定では既存の Run・Invocation は増えず、要求だけが `REJECTED / STALE`。その後に人が同じ業務キーで START を起票しても、既存の SUCCESS Run へ収束して `NOOP_ALREADY_SUCCESS` |
