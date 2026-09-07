@@ -11,7 +11,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 2 | [導入編: kintone とサーバーを 0 から運用開始まで](https://qiita.com/rex0220/items/2308e4ccf5a363680d31)(公開済み 2026-09-06) | 何を用意して何をすれば動くのか | kintone 管理者 + サーバー担当 | docs/installation.md、templates/README、plugin/README、R5 の検証記録 | 手順書の要約+各手順の画面 8〜10 枚。手順書との差分は「詰まった箇所」だけ |
 | 3 | [network 定義編: 既存の kSQL-Flow ジョブを DAG にする](https://qiita.com/rex0220/items/45f04c2748570953629b)(公開済み 2026-09-07) | 手元の SQL をどう network.yaml に束ねるか | kSQL-Flow 利用者 | 仕様書 §4(network_id / business_key の役割、§4.7 フォルダー構成)、`validate` / `plan` | ゲート(ASSERT)を先頭に置く設計、冪等の宣言基準、job_id 64 文字、`{network_id}@` の命名 |
-| 4 | 運用編: ボードから動かす | 運用担当者は毎日何を見て何を押すのか | 一次対応者 | docs/ops-first-response.md、仕様書 §6〜§7、ボードの画面 | 3 セクションの読み方、START 3 モード、取消、RERUN / STOP / RELEASE / CLOSE、結果コード早見 |
+| 4 | [運用編: ボードから動かす](https://qiita.com/rex0220/items/45a086c83cb1dd992aeb)(公開済み 2026-09-07) | 運用担当者は毎日何を見て何を押すのか | 一次対応者 | docs/ops-first-response.md、仕様書 §6〜§7、ボードの画面 | 3 セクションの読み方、START 3 モード、取消、RERUN / STOP / RELEASE / CLOSE、結果コード早見 |
 | 5 | スケジュール連携編: cron と network の分担 | 複数 network を定刻にどう並べるか | サーバー担当 | docs/scheduling-patterns.md、仕様書 §7.4 の例 | 直列連結スクリプト、ASSERT ゲートによる fail-closed、営業日判定、翌月 cron が前月を再開しない話 |
 | 6 | 障害対応編: 判定できないときに止まる設計 | 失敗・UNKNOWN・ロック残留のとき何をするか | 二次対応者 | docs/runbook-recovery.md、`status --json`、`archive-run`、`force-unlock-network` | fail-closed の実際、証跡必須の復旧コマンド、CLOSE の不可逆性、stale lock の回収手順 |
 | 7 | CSV 入出力編: サーバー上の CSV を network で読む・書く | CSV を kintone 外とやり取りする network はどう組むか | サーバー担当 | docs/csv-io-operations.md、`inputs` / `outputs` の封じ込め規則 | IO ルート、sha256 の baseline、percent encoding(`@` → `%40`)、MUTATED の扱い |

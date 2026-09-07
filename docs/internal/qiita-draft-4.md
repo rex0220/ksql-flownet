@@ -1,5 +1,5 @@
 <!-- タイトル: 【kSQL-FlowNet #4】運用編: ボードから動かす
-- 連載 #4(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31、#3: https://qiita.com/rex0220/items/45f04c2748570953629b)
+- 連載 #4(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31、#3: https://qiita.com/rex0220/items/45f04c2748570953629b)。公開: https://qiita.com/rex0220/items/45a086c83cb1dd992aeb(2026-09-07)
 - タグ案: kintone, SQL, バッチ処理, 運用
 - 画像は #1 で使ったボード・ダイアログのキャプチャを再利用。追加で撮るなら `画像URL_*` の行を差し替える
 -->
