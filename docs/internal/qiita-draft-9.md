@@ -25,6 +25,33 @@
 | 統合(`tests/integration`、13 本) | 実 kintone の実行管理・監査履歴アプリにリポジトリ層から直接書く | 重複禁止フィールドと 409 / 400 の実挙動が最終裁定者であること | 手動 |
 | E2E(`tests/e2e`、シナリオ 44 本) | 実 kintone + 実 kSQL-Flow 子プロセス + 複数プロセス | CLI・ポーラー・ロック・lease を通した end-to-end の一意性 | 手動・直列。並列実行は禁止 |
 
+3 層が触るものを図にします。上ほど速く網羅的で、下ほど本物に近くなります。
+
+```mermaid
+flowchart TB
+  subgraph U["単体(tests/unit)"]
+    direction LR
+    U1["テスト"] --> U2["dist/ の製品コード"]
+    U2 --> U3["fetch の偽物 / in-memory リポジトリ"]
+  end
+  subgraph I["統合(tests/integration)"]
+    direction LR
+    I1["テスト"] --> I2["dist/ のリポジトリ層"]
+    I2 --> I3["実 kintone(実行管理・監査履歴)"]
+  end
+  subgraph E["E2E(tests/e2e)"]
+    direction LR
+    E1["テスト(ハーネス)"] -->|spawn| E2["dist/cli/index.js(CLI・ポーラー)を複数"]
+    E2 --> E3["実 kintone(E2E 専用の 4 アプリ)"]
+    E2 -->|spawn| E4["実 kSQL-Flow"]
+    E4 --> E5["業務アプリ(読取のみ)・JOBログ"]
+    E1 -.->|fault-hook barrier / kill| E2
+  end
+  U --> I --> E
+```
+
+単体は状態機械と分類器を網羅し、統合は kintone が実際に返す応答(重複禁止違反、409 / 400)に対してリポジトリ層の契約を固定し、E2E は CLI・ポーラー・kSQL-Flow という複数プロセスの相互作用を見ます。fault-hook と kill が働くのは E2E の CLI プロセスに対してだけです。
+
 単体テストも `src/` ではなく `dist/` の製品コードを import します(`pretest` で必ず build する)。E2E も `dist/cli/index.js` を spawn するので、テストが見ているのは配布物と同じコードです。
 
 CI で走るのは単体だけです。統合と E2E は実 kintone とトークンが要るため、人が手元で直列に流し、結果 JSON と受入記録を `docs/internal/test-results/` に残します。
