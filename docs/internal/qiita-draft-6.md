@@ -16,7 +16,7 @@
 **前提**
 
 - #2 の導入が済み、サーバーに SSH できる
-- 復旧コマンドを打つ環境に `KSQL_FLOWNET_SERVICE_PRINCIPAL` と `KSQL_FLOWNET_REQUESTED_BY` を自分の認証主体で設定してある。cron の定期実行では前者はホスト、後者は `cron@<host>` だが、復旧コマンドは人が打つので両方とも操作者本人にする(runbook の規定)。どちらも監査に残り、自由記述の主体入力は存在しない
+- 復旧コマンドを打つ環境に `KSQL_FLOWNET_SERVICE_PRINCIPAL` と `KSQL_FLOWNET_REQUESTED_BY` を自分の認証主体で設定してある。cron の定期実行では前者はホスト、後者は `cron@<host>` だが、復旧コマンドは人が打つので両方とも操作者本人にする(runbook の規定)。操作者の主体はこの環境変数から監査に入り、コマンド引数で名乗る形ではない。`--stop-confirmed-by` は「停止を確認した人」を記録する引数で、通常は操作者本人(`$KSQL_FLOWNET_REQUESTED_BY`)を、別の人が確認したならその人の識別子を渡す
 
 ## 「止まる」には 4 種類ある
 
@@ -31,16 +31,17 @@
 
 ```mermaid
 flowchart TB
-  S["status --json"] --> Q1{"lock.stale_candidate?"}
-  Q1 -->|"true"| STOP["旧 owner の停止を確認<br>(local_pid / manual)"] --> FU["force-unlock-network<br>(理由・証拠・確認者)"] --> RES
-  Q1 -->|"false / lock なし"| Q2{"UNKNOWN ノード?"}
-  Q2 -->|"あり"| VER["業務データ・JOBログと照合"] --> RN["resolve-node<br>--to SUCCESS/FAILED/CANCELLED"] --> RES
+  S["status --json"] --> Q1{"lock の状態"}
+  Q1 -->|"lease 生存(LIVE)"| WAIT["実行中。待つ<br>必要なら STOP 要求"]
+  Q1 -->|"stale_candidate"| STOP["旧 owner の停止を確認<br>(local_pid / manual)"] --> FU["force-unlock-network<br>(理由・証拠・確認者)"] --> Q2
+  Q1 -->|"lock なし"| Q2{"UNKNOWN ノード?"}
+  Q2 -->|"あり"| VER["業務データ・JOBログと照合"] --> RN["resolve-node<br>--to SUCCESS/FAILED/CANCELLED"] --> Q3
   Q2 -->|"なし"| Q3{"RETRY_BRAKE?"}
-  Q3 -->|"あり"| FIX["原因(SQL・データ)を修正"] --> RF["リラン要求 + rerun_from_node"] --> RES
+  Q3 -->|"あり"| FIX["原因(SQL・データ)を修正"] --> RF["リラン要求 + rerun_from_node"]
   Q3 -->|"なし"| RES["run-network network.yaml --resume-run run_id<br>またはボードのリラン要求"]
 ```
 
-図は判断の順序です。ロックの回収 → UNKNOWN の解決 → ブレーキの解除 → 再開、の順に進みます。
+図は判断の順序です。ロックの状態を見る → (stale なら回収) → UNKNOWN の解決 → ブレーキの解除 → 再開、の順に進みます。ロックが存在して `stale_candidate: false`(lease が生きている)なら、原則として実行中です。UNKNOWN の裁定や強制解放には進まず、完了を待つか、必要なら通常の STOP 要求を出します。
 
 ## まず `status --json` を見る
 
@@ -60,7 +61,7 @@ ksql-flownet status monthly_deal_summary --profile prod --run-id netrun_… --js
 | `runs[].reconciliation.inconsistencies[]` | 実行管理・監査履歴・JOBログの食い違い |
 | `runs[].recovery_identifiers` | 復旧コマンドに渡す識別子。 **ここからコピーし、手で打たない** |
 
-`stale_candidate: true` は「lease が切れている」という **候補** であって、プロセスが止まった証明ではありません。kintone の DATETIME は分精度なので、lease の失効判定には 60 秒の保守余裕が足してあります。この値だけを根拠にロックを回収してはいけません。
+`stale_candidate: true` は「lease が切れている」という **候補** であって、プロセスが止まった証明ではありません。kintone の DATETIME フィールドは分単位で保存される(秒は切り捨てられる。筆者の実測)ので、lease の失効判定には 60 秒の保守余裕が足してあります。この値だけを根拠にロックを回収してはいけません。
 
 ## 復旧 1: stale lock の回収
 
@@ -76,7 +77,7 @@ ksql-flownet force-unlock-network monthly_deal_summary \
   --expected-owner-invocation-id <status の recovery_identifiers の値> \
   --reason-file /tmp/reason.txt \
   --evidence-ref "INC-2026-0907" \
-  --stop-confirmed-by "<停止を確認した人の識別子>" \
+  --stop-confirmed-by "$KSQL_FLOWNET_REQUESTED_BY" \
   --stop-evidence-ref "ps 出力の保管先" \
   --stop-method local_pid
 ```
@@ -103,7 +104,7 @@ UNKNOWN は「ノードを起動したが結果を確認できない」状態で
 ksql-flownet resolve-node --run-id netrun_… --node-id deal_summary \
   --to SUCCESS --manual-completion \
   --reason-file /tmp/reason.txt --evidence-ref "照合結果の保管先" \
-  --stop-confirmed-by "<停止を確認した人の識別子>" --stop-evidence-ref "…"
+  --stop-confirmed-by "$KSQL_FLOWNET_REQUESTED_BY" --stop-evidence-ref "…"
 ```
 
 | 解決先 | 使う場面 | 条件 |

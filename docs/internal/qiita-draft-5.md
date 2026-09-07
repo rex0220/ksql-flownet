@@ -185,7 +185,7 @@ node --env-file=.env /usr/bin/ksql-flownet run-network flownet/monthly-close/net
 「A の最終ノードで操作要求アプリに B の START レコードを INSERT し、ポーラーに拾わせる」案は採りません。
 
 - 操作要求アプリは **人の操作を受ける入口** です。機械が起票すると人の操作と区別できなくなります
-- API トークンで作成したレコードの作成者は kintone の仕様上 `Administrator` になり、「誰が起動したか」の相関が失われます
+- API トークンで作成したレコードの作成者は `Administrator` になり(kintone の API トークン認証の仕様。筆者の検証環境でも同じ)、「誰が起動したか」の相関が失われます
 - 得られる効果(A 成功後に B を起動)はパターン 1 で、監査(誰が起動したか)は Invocation の `requested_by` で、どちらも既存の機能で足ります
 
 ## 使い分け
