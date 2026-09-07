@@ -100,7 +100,7 @@ sequenceDiagram
   B->>L: 取得を試みる
   L-->>B: 有効な lease あり → LOCK_CONFLICT
   Note over A: プロセスが落ちる(heartbeat 停止)
-  Note over L: 300 秒 + 60 秒後に stale 候補
+  Note over L: lease_expires_at + 60 秒を過ぎると stale 候補
 ```
 
 - ロックは **リース(期限付き)** です。持ち主が heartbeat で延長し続け、止まれば期限切れになります。プロセスが kill されてもロックが永久に残らないためです
@@ -108,7 +108,7 @@ sequenceDiagram
 - `lease_expires_at` は分精度で保存されるので最大 59 秒切り捨てられます。stale 判定と強制解放の検査は **60 秒を足した保守的な値** で行います
 - `stale_candidate: true` は「期限が切れている」という事実だけで、持ち主が止まった証明ではありません。遅いだけの生きたプロセスからロックを奪うと二重実行になるので、強制解放には停止確認(PID・証拠・確認者)を必須にしています(#6)
 
-Network 単位の排他を保証する主役は Network ロックです。ロックが未作成なら重複禁止 INSERT、既存なら owner を確認したうえで `revision` 付き更新を行います。同じ状態を見た複数のプロセスが同時に取得を試みても、成功するのは 1 つだけです。確認から更新までに状態が変われば、古い `revision` による更新は `REVISION_CONFLICT` で拒否されます。`record_key` は同じ業務キーの Run の重複を、kSQL-Flow のジョブロックは同じジョブの重複実行を止める追加の防御で、それぞれ保護する範囲が違います(Network ロックの代替ではありません)。残余リスクとして残るのは、lease が失効するほど長く止まったプロセスが復帰して状態を書こうとする場合で、これも `revision` 付き更新とジョブロックで止まる設計です。
+Network 単位の排他を保証する主役は Network ロックです。ロックが未作成なら重複禁止 INSERT、既存なら owner を確認したうえで `revision` 付き更新を行います。同じ状態を見た複数のプロセスが同時に取得を試みても、成功するのは 1 つだけです。確認から更新までに状態が変われば、古い `revision` による更新は `REVISION_CONFLICT` で拒否されます。`record_key` は同じ業務キーの Run の重複を、kSQL-Flow のジョブロックは同じジョブの重複実行を止める追加の防御で、それぞれ保護する範囲が違います(Network ロックの代替ではありません)。lease が失効しても、別のプロセスへ自動的に所有権を移しません。`stale_candidate` として止め、旧プロセスの停止を確認した後にだけ強制解放します。解放後に旧 owner が heartbeat や状態更新を試みても、owner の不一致または古い `revision` によって拒否されます。実行中だったジョブの結果は、ジョブロック・結果 JSON・JOBログで照合し、確定できなければ `UNKNOWN` として止めます(#6)。
 
 ## Run の状態はノード状態の集約
 
@@ -136,7 +136,7 @@ kSQL-FlowNet はノードごとに kSQL-Flow を子プロセスとして起動�
 - kSQL-FlowNet は **結果 JSON と JOBログの両方** を照合して Attempt を確定する。結果 JSON がなく JOBログにも終端がなければ `UNKNOWN`
 - JOBログには「SQL の実行を始めた」時点の耐久証跡(`runner_execution_started_at`)がある。結果 JSON が消えても「始まったかどうか」だけは分かるので、UNKNOWN の裁定材料になる
 
-境界を CLI の引数と JSON に限定しているので、kSQL-Flow は kSQL-FlowNet を知らずに動き、kSQL-FlowNet は kSQL-Flow の内部(SQL の解析やチャンク処理)を知らずに済みます。#6 の孤児裁定(kill 後に残った RUNNING の Attempt を JOBログで突合する)も、この契約があるから成り立ちます。
+境界を CLI 引数・結果 JSON・相関 ID 付き JOBログの契約に限定しているので、kSQL-Flow は kSQL-FlowNet を知らずに動き、kSQL-FlowNet は kSQL-Flow の内部(SQL の解析やチャンク処理)を知らずに済みます。#6 の孤児裁定(kill 後に残った RUNNING の Attempt を JOBログで突合する)も、この契約があるから成り立ちます。
 
 ## 設計判断のまとめ
 
