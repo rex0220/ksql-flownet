@@ -34,7 +34,7 @@ flowchart LR
 
 なぜ本体にスケジューラや network 間トリガーを持たせないのか。理由は 3 つです。
 
-- 常駐スケジューラを作ると、それ自体の監視と再起動が新しい仕事になる。OS の cron は再起動耐性が高く、監視対象を増やさない
+- 常駐スケジューラを作ると、それ自体の監視と再起動が新しい仕事になる。OS の cron はサービスとして管理でき、監視対象を増やさない。ただし cron はサーバー停止中に過ぎた発火を補完しないので、未実行期間はボードで検知し、対象日時を指定して手動で流す(後述の `SCHEDULED_FOR`)
 - 「次回発火時刻」「待ちキュー」のような揮発状態の置き場所(kintone かローカルか)が要らない。状態は kintone 上の Run・ロック・操作要求だけで、kSQL-FlowNet は呼ばれた時点の状態を見て裁定する one-shot の CLI に徹する
 - network 間トリガーを内蔵すると Control Plane の入口が増え、fail-closed の境界が広がる
 
@@ -52,9 +52,10 @@ cron から `run-network` を直接呼ばず、複数の network を順に呼ぶ
 
 ```bash
 #!/bin/bash
-# /opt/ksql/my-ksql-jobs/run_daily_chain.sh — cron: 0 1 * * *
+# /opt/ksql/my-ksql-jobs/run_daily_chain.sh
 set -euo pipefail
-cd "$(dirname "$0")"
+. /root/.ksql-flownet.env          # kSQL-FlowNet の環境変数(#2 の手順 8)
+cd "$(dirname "$0")"               # ジョブ資材リポジトリを cwd に
 FLOWNET=/usr/bin/ksql-flownet
 TARGET="${SCHEDULED_FOR:-$(TZ=Asia/Tokyo date +%Y-%m-%dT00:00:00+09:00)}"
 
@@ -63,6 +64,12 @@ node --env-file=.env "$FLOWNET" run-network flownet/daily-intake/network.yaml --
 
 # B: A が exit 0(SUCCESS、または完走済みの NOOP)のときだけ、すぐに実行
 node --env-file=.env "$FLOWNET" run-network flownet/daily-summary/network.yaml --resume --scheduled-for "$TARGET"
+```
+
+cron はこの 1 行です(#2 と同じく `flock -n` で、手動実行と重なったときの多重起動を防ぎます)。
+
+```cron
+0 1 * * * flock -n /run/lock/flownet-daily-chain.lock /opt/ksql/my-ksql-jobs/run_daily_chain.sh >> /var/log/ksql/flownet-daily-chain.log 2>&1
 ```
 
 ```mermaid
@@ -80,13 +87,13 @@ flowchart LR
 - A が失敗した日は B が起動しない。A をボードからリランして成功させても、B は翌日の cron まで動かない。 **当日中に B も動かしたいなら同じスクリプトを手動で流す**(A は NOOP、B が実行される)
 - 翌日以降に前日分を流し直すときは対象日を渡す: `SCHEDULED_FOR="2026-09-06T00:00:00+09:00" ./run_daily_chain.sh`。渡さないと実行日の業務キーになり、前日分の B は動かない
 - A と B の業務キーを揃えるため、両方の `business_key_policy` は同じ `period`(この例では `day`)にする。周期が違うなら次のパターン 2 を併用する
-- 失敗の検知は運用に組み込む。A が非 0 で止まると stderr にエラーが出るので、cron の `MAILTO` を設定しておけば届く。あわせて、ボードの「終了済み・対応が必要な Run」で A の FAILED を見つけてリランする流れ(#4)とセットにする
+- 失敗の検知は運用に組み込む。A が非 0 で止まると stderr にエラーが出る。cron ホストに MTA かメールリレーを設定していれば `MAILTO` で届くが、素の VPS では外部へメールを送れないことが多いので、その場合は外部監視や通知スクリプトを別に用意する。あわせて、ボードの「終了済み・対応が必要な Run」で A の FAILED を見つけてリランする流れ(#4)とセットにする
 
 ## パターン 2: 下流 network の先頭に「先行完了ゲート」を置く
 
 #3 の「ゲートを先頭に置く」の応用です。下流 network の最初のノードを `ASSERT` だけの SQL にし、先行の結果が揃っていなければ FAILED に倒します(fail-closed)。上流が終わったあとにボードからリランすれば続行できます。
 
-**2a. 業務データで判定する(推奨)**: 上流が書き込んだ業務アプリの状態を直接見ます。kSQL-Flow の設定を増やさずに済み、「成果物が本当にある」ことを確認できるので最も確実です。
+**2a. 業務データで判定する(推奨)**: 上流が書き込んだ業務アプリの状態を直接見ます。kSQL-Flow の設定を増やさずに済み、上流の成果物そのものを見るので、Run の記録より実態に近い判定になります。
 
 ```sql
 -- @ksql name: ds_gate_intake
@@ -99,6 +106,15 @@ ASSERT (
 ```
 
 `@TODAY()` などの時刻関数は、実行時刻ではなく **Run の `as_of`(対象期間)** を基準に評価されます。翌日にリランしても「対象日の分があるか」という判定は変わりません。
+
+ただし `COUNT(*) > 0` を完了条件にできるのは、「正常完了なら必ず 1 件以上あり、途中で止まったときに部分的な書込みが残らない」ことを業務上保証できる場合だけです。0 件が正常な日がある、上流が途中まで書いて止まりうる、という業務では、上流が全処理の最後にだけ書く **完了マーカー** を検査します。
+
+```sql
+ASSERT (
+  SELECT COUNT(*) FROM LAPP_取込完了管理
+  WHERE 対象日 = @TODAY() AND 状態 = 'COMPLETE'
+) = 1, '先行の日次取込が完了していません';
+```
 
 **2b. 実行管理アプリの Run 状態で判定する(変種)**: 実行管理アプリを kSQL-Flow の profile に閲覧専用トークンで登録し、上流 network の Run が対象月に SUCCESS で存在することを検査します。
 
@@ -116,7 +132,7 @@ ASSERT (
 ) >= 1, '先行 monthly_intake の対象月の SUCCESS Run がありません';
 ```
 
-「未完了の Run がない」だけを条件にすると、上流がまだ一度も起動していない(cron 遅延・スクリプト失敗)場合に素通りします。 **「対象期間の SUCCESS が存在する」を主条件にする** のがポイントです。時刻関数に翌日境界を返すものがないため、日次粒度の 2b は書けません。日次は 2a で判定します。2b は実行プレーンが Control Plane のアプリを読む形になるので、閲覧専用トークンに限定します。
+「未完了の Run がない」だけを条件にすると、上流がまだ一度も起動していない(cron 遅延・スクリプト失敗)場合に素通りします。 **「対象期間の SUCCESS が存在する」を主条件にする** のがポイントです。この条件は対象月の補正 Run の SUCCESS も通します(通常 Run でも補正 Run でも、対象月の正常な成果があればよい、という意図です)。定期キーの Run だけを見たいなら `business_key` も照合します。時刻関数に翌日境界を返すものがないため、日次粒度の 2b は書けません。日次は 2a で判定します。2b は実行プレーンが Control Plane のアプリを読む形になるので、閲覧専用トークンに限定します。
 
 ゲートは「動くべきでないときに止める」保険です。起動順そのものはパターン 1 か cron の時刻で作ります。
 
@@ -129,12 +145,21 @@ ASSERT (
 set -euo pipefail
 cd "$(dirname "$0")"
 # 営業日カレンダーは kintone のカレンダーアプリ、またはサーバー上の CSV から判定する
-if ! node scripts/is-third-business-day.mjs; then
-  echo "対象日ではないためスキップ"; exit 0
+if node --env-file=.env scripts/is-third-business-day.mjs; then
+  :
+else
+  rc=$?
+  if [ "$rc" -eq 10 ]; then
+    echo "対象日ではないためスキップ"; exit 0
+  fi
+  echo "営業日判定に失敗しました: exit=$rc" >&2
+  exit "$rc"
 fi
 node --env-file=.env /usr/bin/ksql-flownet run-network flownet/monthly-close/network.yaml \
   --resume --scheduled-for "$(TZ=Asia/Tokyo date +%Y-%m-01T00:00:00+09:00)"
 ```
+
+判定スクリプトの終了コードは 3 つに分けます。`0` = 対象日、`10` = 対象日ではない、それ以外 = 判定処理の異常(カレンダーアプリの API エラー、認証失敗、CSV の破損など)。「対象日ではない」と「判定できなかった」を分けるのは、判定不能を正常スキップにすると月次処理が静かに欠落するからです。異常時は非 0 で止め、cron のログで気づけるようにします。
 
 判定を network の先頭ノード(カレンダーアプリへの `ASSERT`)に置く方法もありますが、対象日でない日に毎日 FAILED の Run が積み上がります。スクリプト側で判定して「何もしない」方が運用が静かです。
 
@@ -163,7 +188,7 @@ cron の行数は「定期起動する単位」ごとに 1 行です。network �
 - cron は「いつ・どの順で」、kSQL-FlowNet は「1 つの network の中で正しく 1 回だけ」、定義者は「依存・ゲート・冪等」を受け持つ
 - network をまたぐ順序はシェルスクリプトの直列連結で作る。exit code と `set -e` で「A が成功したときだけ B」
 - 周期が違う・保険をかけたいときは、下流の先頭に「対象期間の成果物がある」ゲートを置いて fail-closed にする
-- 営業日判定はスクリプト側。上流から操作要求を書く経路は作らない
+- 営業日判定はスクリプト側で、「対象日でない」と「判定できない」を終了コードで分ける。上流から操作要求を書く経路は作らない
 
 ## 次回
 
