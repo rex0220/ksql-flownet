@@ -54,5 +54,5 @@ release-plan R5。R3 の検証スペース(4 アプリ)と本番 VPS 上の別�
 ## 後始末
 
 - 検証用の cron 2 行を削除した(削除前後の crontab を `/root/crontab.bak-r5-*` に保存)。本番の cron 2 行は不変
-- `/opt/ksql-r5`、`/root/.ksql-flownet-r5.env`、`/root/flownet-request-allowlist-r5.yaml`、`/var/log/ksql-r5` は残置(再検証用。不要になれば削除)
-- 検証用 4 アプリのトークンは、値が Claude のツール出力に表示された経緯があるため再発行を推奨(本番トークンは含まない)
+- `/opt/ksql-r5`、`/root/.ksql-flownet-r5.env`、`/root/flownet-request-allowlist-r5.yaml`、`/var/log/ksql-r5` は残置(再検証用。不要になれば削除)→ 2026-09-07 に削除。cron・本番 config への参照なし、本番ファイル不変を確認
+- 検証用 4 アプリのトークンは、値が Claude のツール出力に表示された経緯があるため漏えい扱い(本番トークンは含まない)→ 2026-09-07 に検証スペース(TEST-FlowNet、4 アプリ)をユーザーが削除し、トークンはアプリ削除により失効。再発行はしない
