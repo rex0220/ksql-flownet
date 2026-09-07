@@ -58,7 +58,7 @@ export KSQL_FLOWNET_IO_DIR=/opt/ksql/io
 # export KSQL_FLOWNET_IO_RETENTION_DAYS=90     # 入力ファイルの保持期限(既定 90 日)
 ```
 
-CSV を置く人に root の鍵を配らないために転送用アカウントを分けています。入力ファイルを置くのも出力を取るのもこのアカウントです。ただし、この所有権設定は `csvxfer` に IO ルートの外へ **書き込ませない** ためのもので、ファイルシステム上に閉じ込めるものではありません(通常のシェルにログインできる)。本番では SSH を SFTP 専用に制限し(`sshd_config` の `Match User csvxfer` に `ForceCommand internal-sftp` と `ChrootDirectory`)、対話シェルや任意コマンドを許可しない構成にします。
+CSV を置く人に root の鍵を配らないために転送用アカウントを分けています。入力ファイルを置くのも出力を取るのもこのアカウントです。ただし、この所有権設定は `csvxfer` に IO ルートの外へ **書き込ませない** ためのもので、ファイルシステム上に閉じ込めるものではありません(通常のシェルにログインできる)。本番では SSH を SFTP 専用に制限し(`sshd_config` の `Match User csvxfer` に `ForceCommand internal-sftp` と `ChrootDirectory`)、対話シェルや任意コマンドを許可しない構成にします。`ChrootDirectory` に指定するディレクトリは root 所有・一般ユーザー書込み不可にする必要があるので、`/opt/ksql/io` を `csvxfer` 所有のまま chroot 先にはできません。chroot 先(例: `/srv/csvxfer`、root 所有 755)の配下に、`csvxfer` が書き込める `in/` と読み取れる `out/` を置き、IO ルートをそこに合わせます。
 
 この例は #2 と同じく kSQL-FlowNet を root で動かす構成で、root は `750` のディレクトリを読み書きできます。実行専用ユーザーを分ける本番構成では、実行ユーザーを `csvxfer` グループに入れるか ACL で `in/` の読取と `out/` の書込を許可し、kSQL-FlowNet が作った出力ファイルを `csvxfer` が読めるモードとグループになることを確認します。
 
@@ -142,7 +142,7 @@ business_key = monthly_sales@2026-09、profile = prod のとき
 /opt/ksql/io/in/sales/monthly_sales%402026-09/prod/input.csv
 ```
 
-**プレースホルダーの値は percent encoding されます。** 英数字と `-` `_` `~` 以外(`@` `:` 空白、日本語)は `%XX` になります。`@` は `%40` です。テンプレートどおりに生の `@` でディレクトリを作ると `INPUT_FILE_MISSING` になります。`plan` は実パスを表示しないので、記号を含む業務キーでは変換後のパスを自分で組み立てます。
+**プレースホルダーの値は percent encoding されます。** 英数字と `-` `_` `~` 以外(`@` `:` `.` 空白、日本語)は `%XX` になります(RFC 3986 の unreserved より厳しく、`.` も対象です。テンプレートに書いた `input.csv` の `.` は値ではないので変わりません)。`@` は `%40` です。テンプレートどおりに生の `@` でディレクトリを作ると `INPUT_FILE_MISSING` になります。`plan` は実パスを表示しないので、記号を含む業務キーでは変換後のパスを自分で組み立てます。
 
 ```powershell
 $dir = "/opt/ksql/io/in/sales/monthly_sales%402026-09/prod"
@@ -151,7 +151,15 @@ scp -i <鍵> C:\work\input.csv "csvxfer@<サーバー>:$dir/input.csv.part"
 ssh -i <鍵> csvxfer@<サーバー> "mv $dir/input.csv.part $dir/input.csv"
 ```
 
-完成名へ直接アップロードしないのがポイントです。転送の途中で cron が発火すると、途中まで転送されたファイルを kSQL-FlowNet が読み、その sha256 が baseline になってしまいます。`.part` のような一時名で転送し、転送が終わってから **同じディレクトリ内で rename** して公開します(同一ファイルシステム内の rename は原子的で、cron は完成名しか見ません)。SFTP クライアントなら `put` → `rename` で同じことができます。
+上の `scp` と `ssh` の例は、検証用にシェルへログインできる `csvxfer` を前提にしています。本番で `internal-sftp` 専用にした場合は `ssh` によるコマンド実行はできないので、SFTP クライアントの `mkdir`・`put`・`rename` を使います。chroot 後はクライアントから見えるパスも chroot 内の相対パスになります。
+
+```text
+sftp> mkdir in/sales/monthly_sales%402026-09/prod
+sftp> put input.csv in/sales/monthly_sales%402026-09/prod/input.csv.part
+sftp> rename in/sales/monthly_sales%402026-09/prod/input.csv.part in/sales/monthly_sales%402026-09/prod/input.csv
+```
+
+完成名へ直接アップロードしないのがポイントです。転送の途中で cron が発火すると、途中まで転送されたファイルを kSQL-FlowNet が読み、その sha256 が baseline になってしまいます。`.part` のような一時名で転送し、転送が終わってから **同じディレクトリ内で rename** して公開します(同一ファイルシステム内の rename は原子的で、cron は完成名しか見ません)。
 
 置いてから起動します。cron の定期実行なら次の発火を待ち、随時ならボードの START(補正または任意キー)か `run-network` です。完走はボードで確認します。Node Attempt の要約に、取り込んだファイルの sha256・行数・エンコーディングが残ります。
 

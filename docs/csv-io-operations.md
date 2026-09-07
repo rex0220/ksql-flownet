@@ -36,7 +36,7 @@ flowchart LR
    chmod 750 /opt/ksql/io                            # FlowNet実行ユーザーがrootなら読み書き可
    ```
 
-   この所有権設定は`csvxfer`にIOルート外へ書き込ませないためのもので、ファイルシステム上に閉じ込めるものではない(通常のシェルにログインできる)。本番では`sshd_config`の`Match User csvxfer`に`ForceCommand internal-sftp`と`ChrootDirectory`を設定してSFTP専用にし、対話シェルや任意コマンドを許可しない。FlowNet実行ユーザーがroot以外の場合は、そのユーザーをcsvxferグループへ加えるかACLで`in/`読取・`out/`書込を許可し、FlowNetが作った出力ファイルを`csvxfer`が読めるモード・グループになることを確認する。既存本番のように管理者がroot鍵でSSHする構成を続ける場合は、鍵を持つ人を二次対応者に限定する
+   この所有権設定は`csvxfer`にIOルート外へ書き込ませないためのもので、ファイルシステム上に閉じ込めるものではない(通常のシェルにログインできる)。本番では`sshd_config`の`Match User csvxfer`に`ForceCommand internal-sftp`と`ChrootDirectory`を設定してSFTP専用にし、対話シェルや任意コマンドを許可しない。`ChrootDirectory`はroot所有・一般ユーザー書込み不可が必要なため、`/opt/ksql/io`を`csvxfer`所有のままchroot先にはできない。chroot先(例: `/srv/csvxfer`、root所有755)の配下に`csvxfer`が書込める`in/`と読取れる`out/`を置き、`KSQL_FLOWNET_IO_DIR`をそこに合わせる。FlowNet実行ユーザーがroot以外の場合は、そのユーザーをcsvxferグループへ加えるかACLで`in/`読取・`out/`書込を許可し、FlowNetが作った出力ファイルを`csvxfer`が読めるモード・グループになることを確認する。既存本番のように管理者がroot鍵でSSHする構成を続ける場合は、鍵を持つ人を二次対応者に限定する
 
 2. FlowNetの環境ファイル(例: `/root/.ksql-flownet.env`)へ追加する:
 
@@ -75,7 +75,7 @@ flowchart LR
 
    - 例: business_key=`monthly_sales@2026-09`、profile=`prod` →
      `/opt/ksql/io/in/sales/monthly_sales%402026-09/prod/input.csv`
-   - **プレースホルダの値はpercent encodingされる。** 英数字と `-` `_` `~` 以外の文字(`@` `:` 空白・日本語など)は `%XX` に変換される(`@` → `%40`)。記載どおりの生の `@` で置くと `INPUT_FILE_MISSING` になる。`plan` 等は実パスを表示しないため、記号を含むキーでは変換後のパスを確認する
+   - **プレースホルダの値はpercent encodingされる。** 英数字と `-` `_` `~` 以外の文字(`@` `:` `.` 空白・日本語など)は `%XX` に変換される(`@` → `%40`。RFC 3986のunreservedより厳しく`.`も対象。テンプレート側に書いた`input.csv`の`.`は値ではないため変換されない)。記載どおりの生の `@` で置くと `INPUT_FILE_MISSING` になる。`plan` 等は実パスを表示しないため、記号を含むキーでは変換後のパスを確認する
 
 2. **転送する。** Windowsからの例:
 
@@ -86,7 +86,15 @@ flowchart LR
    ssh -i <SSH鍵> csvxfer@<VPS> "mv $dir/input.csv.part $dir/input.csv"
    ```
 
-   **完成名へ直接アップロードしない。** 転送途中にcronが発火すると、途中まで転送されたファイルをFlowNetが読み、そのsha256がbaselineになる。`.part`等の一時名で転送し、転送完了後に同一ディレクトリ内でrenameして公開する(同一ファイルシステム内のrenameは原子的で、cronは完成名しか参照しない)。WinSCP(SFTP)でも`put`→`rename`で同じ手順にする
+   上の`scp`・`ssh`例はシェルログイン可能な`csvxfer`を前提にしている。`internal-sftp`専用にした本番では`ssh`によるコマンド実行はできないため、SFTPクライアントの`mkdir`・`put`・`rename`を使う(chroot後はクライアントから見えるパスもchroot内の相対パスになる):
+
+   ```text
+   sftp> mkdir in/sales/monthly_sales%402026-09/prod
+   sftp> put input.csv in/sales/monthly_sales%402026-09/prod/input.csv.part
+   sftp> rename in/sales/monthly_sales%402026-09/prod/input.csv.part in/sales/monthly_sales%402026-09/prod/input.csv
+   ```
+
+   **完成名へ直接アップロードしない。** 転送途中にcronが発火すると、途中まで転送されたファイルをFlowNetが読み、そのsha256がbaselineになる。`.part`等の一時名で転送し、転送完了後に同一ディレクトリ内でrenameして公開する(同一ファイルシステム内のrenameは原子的で、cronは完成名しか参照しない)
 3. **文字コードはSQLのIMPORT定義に合わせる**(UTF-8またはShift_JIS)。不一致はdecode失敗として実行時に拒否される
 4. **配置してから起動する。** cron定期実行なら次回発火を待ち、随時ならボードのSTART要求(または`run-network`)で起動する
 5. 完走はボード(Run状況)で確認する。Node Attemptの要約に取込ファイルのsha256・行数・encodingが記録される
