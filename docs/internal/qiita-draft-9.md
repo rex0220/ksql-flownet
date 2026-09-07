@@ -147,7 +147,7 @@ barrier 以外のシナリオも含め、証明したことを表にします。
 | --- | --- | --- | --- |
 | 同じ業務キーの Run は 1 つ | `m3-run-uniqueness`(統合) | 同一業務キーの `createRun()` を `Promise.allSettled` で 2 本同時発行 | 成功 1・失敗 1。敗者は kintone の `400 CB_VA01`(重複禁止違反)を実観測し、安定コード `DUPLICATE_RECORD` へ裁定。`NETWORK_RUN` は 1 件 |
 | 同時 START でも Run は 1 つ | `p2-11-03-duplicates` | 同一業務キーの START 要求 2 件、ポーラー 2 プロセス | `NETWORK_RUN` 1 件。一方が `DONE`、他方は `REJECTED / LOCK_CONFLICT` か `RUN_ALREADY_EXISTS`。完走後に処理された場合は `NOOP_ALREADY_SUCCESS` |
-| 同じ要求の claim は一方だけ | `p2-01-05-claim-stale` | 1 件の RERUN 要求にポーラー 2 プロセス | `claimed=` の合計が `[0, 1]`。Invocation はちょうど +1 |
+| 同じ要求の claim は一方だけ | `p2-01-05-claim-stale` | 1 件の RERUN 要求にポーラー 2 プロセス | 2 つのポーラーの `claimed=` を並べると `[0, 1]`。Invocation はちょうど +1 |
 | 敗者コードが揺れても契約は揺れない | `m3-canonical-key-conflict`(統合) | 同一 `node_state_key` の同時 INSERT と同時 UPDATE | 永続化 1 件。UPDATE の敗者は kintone が `409 GAIA_CO02` と `400 GAIA_DA02` のどちらを返しても `REVISION_CONFLICT` |
 | 落ちたプロセスは UNKNOWN で隔離 | `m5-kill-unknown` | JOBログの実行開始マーカーを確認してから、対象 `--attempt-id` を持つ kSQL-Flow 子プロセスだけを kill | 当該ノードと Run は `UNKNOWN`、独立系統は `SUCCESS`、下流は `BLOCKED`(`blocked_by` に当該ノード) |
 | 生きているロックは奪えない | `m6-04-force-unlock-drill` | 30 秒 lease の実行中・失効後に `force-unlock-network` | 生存中は `LEASE_STILL_ACTIVE`、owner 違いは `OWNER_MISMATCH`、失効後だけ `RELEASED` + 監査 1 件。待ち時間は lease 30 秒 + 分精度の保守判定 60 秒 |
