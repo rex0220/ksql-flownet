@@ -115,21 +115,24 @@ set -euo pipefail
 cd "$(dirname "$0")"
 TARGET="${SCHEDULED_FOR:-$(TZ=Asia/Tokyo date +%Y-%m-01T00:00:00+09:00)}"
 # 営業日カレンダーは kintone のカレンダーアプリ、またはサーバー上の CSV から判定する
-if node --env-file=.env scripts/is-third-business-day.mjs; then
-  :
-else
-  rc=$?
-  if [ "$rc" -eq 10 ]; then
-    echo "対象日ではないためスキップ"; exit 0
+# 手動補完(MANUAL_BACKFILL=1)のときだけ判定を省略する
+if [ "${MANUAL_BACKFILL:-0}" != "1" ]; then
+  if node --env-file=.env scripts/is-third-business-day.mjs; then
+    :
+  else
+    rc=$?
+    if [ "$rc" -eq 10 ]; then
+      echo "対象日ではないためスキップ"; exit 0
+    fi
+    echo "営業日判定に失敗しました: exit=$rc" >&2
+    exit "$rc"
   fi
-  echo "営業日判定に失敗しました: exit=$rc" >&2
-  exit "$rc"
 fi
 node --env-file=.env /opt/ksql/ksql-flownet/dist/cli/index.js run-network flownet/monthly-close/network.yaml \
   --resume --scheduled-for "$TARGET"
 ```
 
-対象日時をパターン 1 と同じ形にしておくと、未実行の月を `SCHEDULED_FOR="2026-08-01T00:00:00+09:00" ./run_monthly_close.sh` で補完できる。
+未実行の月を手動で補完するときは `MANUAL_BACKFILL=1 SCHEDULED_FOR="2026-08-01T00:00:00+09:00" ./run_monthly_close.sh` のように実行する。手動補完で「今日が第 3 営業日か」を判定すると実行できないため、`MANUAL_BACKFILL=1` を明示してカレンダー判定を省略し、対象月は必ず `SCHEDULED_FOR` で指定する。`SCHEDULED_FOR` の有無で自動判定する作りも可能だが、専用フラグにすると「カレンダー制約を意図的に外した」操作がログと手順に残る。
 
 判定スクリプトの終了コードは `0`(対象日)、`10`(対象日ではない)、それ以外(判定処理の異常: カレンダーアプリの API エラー・認証失敗・CSV 破損など)に分ける。判定不能を正常スキップにすると月次処理が静かに欠落する(fail-open)ため、異常時は非 0 で停止する。
 
