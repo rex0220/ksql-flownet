@@ -21,9 +21,9 @@
 
 ```mermaid
 flowchart LR
-  CRON["cron / シェルスクリプト<br>いつ・どの順で起動するか"] -->|"run-network<br>--scheduled-for"| FN["kSQL-FlowNet<br>1 つの network 内の依存順<br>業務キーの一意性・再開・排他"]
-  FN -->|"ノードごと"| KF["kSQL-Flow<br>SQL の実行"]
-  DEF["network 定義(定義者)<br>ノードの依存・ゲート・冪等の宣言"] -.-> FN
+  CRON["cron / シェルスクリプト<br>いつ・どの順で<br>起動するか"] -->|"run-network 起動"| FN["kSQL-FlowNet<br>network 内の依存順<br>業務キーの一意性<br>再開・排他"]
+  FN -->|"ノードごとに起動"| KF["kSQL-Flow<br>SQL の実行"]
+  DEF["network 定義(定義者)<br>ノードの依存<br>ゲート・冪等の宣言"] -.->|"読み込む"| FN
 ```
 
 | 誰が | 決めること | 決めないこと |
