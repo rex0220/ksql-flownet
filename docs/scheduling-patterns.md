@@ -109,8 +109,11 @@ cron 式では「第3営業日」を表せない。毎日発火する cron か�
 
 ```bash
 #!/bin/bash
+# /opt/ksql/my-ksql-jobs/run_monthly_close.sh — cron: 毎日発火
 set -euo pipefail
+. /root/.ksql-flownet.env
 cd "$(dirname "$0")"
+TARGET="${SCHEDULED_FOR:-$(TZ=Asia/Tokyo date +%Y-%m-01T00:00:00+09:00)}"
 # 営業日カレンダーは kintone のカレンダーアプリ、またはサーバー上の CSV から判定する
 if node --env-file=.env scripts/is-third-business-day.mjs; then
   :
@@ -123,8 +126,10 @@ else
   exit "$rc"
 fi
 node --env-file=.env /opt/ksql/ksql-flownet/dist/cli/index.js run-network flownet/monthly-close/network.yaml \
-  --resume --scheduled-for "$(TZ=Asia/Tokyo date +%Y-%m-01T00:00:00+09:00)"
+  --resume --scheduled-for "$TARGET"
 ```
+
+対象日時をパターン 1 と同じ形にしておくと、未実行の月を `SCHEDULED_FOR="2026-08-01T00:00:00+09:00" ./run_monthly_close.sh` で補完できる。
 
 判定スクリプトの終了コードは `0`(対象日)、`10`(対象日ではない)、それ以外(判定処理の異常: カレンダーアプリの API エラー・認証失敗・CSV 破損など)に分ける。判定不能を正常スキップにすると月次処理が静かに欠落する(fail-open)ため、異常時は非 0 で停止する。
 

@@ -142,8 +142,11 @@ ASSERT (
 
 ```bash
 #!/bin/bash
+# /opt/ksql/my-ksql-jobs/run_monthly_close.sh — cron: 毎日発火
 set -euo pipefail
+. /root/.ksql-flownet.env
 cd "$(dirname "$0")"
+TARGET="${SCHEDULED_FOR:-$(TZ=Asia/Tokyo date +%Y-%m-01T00:00:00+09:00)}"
 # 営業日カレンダーは kintone のカレンダーアプリ、またはサーバー上の CSV から判定する
 if node --env-file=.env scripts/is-third-business-day.mjs; then
   :
@@ -156,8 +159,10 @@ else
   exit "$rc"
 fi
 node --env-file=.env /usr/bin/ksql-flownet run-network flownet/monthly-close/network.yaml \
-  --resume --scheduled-for "$(TZ=Asia/Tokyo date +%Y-%m-01T00:00:00+09:00)"
+  --resume --scheduled-for "$TARGET"
 ```
+
+対象日時をパターン 1 と同じ形にしておくと、未実行の月を `SCHEDULED_FOR="2026-08-01T00:00:00+09:00" ./run_monthly_close.sh` で補完できます。
 
 判定スクリプトの終了コードは 3 つに分けます。`0` = 対象日、`10` = 対象日ではない、それ以外 = 判定処理の異常(カレンダーアプリの API エラー、認証失敗、CSV の破損など)。「対象日ではない」と「判定できなかった」を分けるのは、判定不能を正常スキップにすると月次処理が静かに欠落するからです。異常時は非 0 で止め、cron のログで気づけるようにします。
 
@@ -185,7 +190,7 @@ cron の行数は「定期起動する単位」ごとに 1 行です。network �
 
 ## まとめ
 
-- cron は「いつ・どの順で」、kSQL-FlowNet は「1 つの network の中で正しく 1 回だけ」、定義者は「依存・ゲート・冪等」を受け持つ
+- cron は「いつ・どの順で」、kSQL-FlowNet は「同じ業務キーの Run を 1 つに保ち、network 内を依存順に実行・再開する」、定義者は「依存・ゲート・冪等」を受け持つ
 - network をまたぐ順序はシェルスクリプトの直列連結で作る。exit code と `set -e` で「A が成功したときだけ B」
 - 周期が違う・保険をかけたいときは、下流の先頭に「対象期間の成果物がある」ゲートを置いて fail-closed にする
 - 営業日判定はスクリプト側で、「対象日でない」と「判定できない」を終了コードで分ける。上流から操作要求を書く経路は作らない
