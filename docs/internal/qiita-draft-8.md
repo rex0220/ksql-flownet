@@ -27,7 +27,7 @@ kintone を RDB のように使おうとすると、次にぶつかります。�
 | 文字列の一意制約は 64 文字まで | 業務キーをそのまま一意キーにできない | `profile + network_id + business_key` の SHA-256 を base64url にした 46 文字を `record_key` にする |
 | DATETIME は分精度 | 秒以下の順序を証明できない | lease と stale 判定に 60 秒の保守余裕を足す。順序の根拠には `revision` を使う |
 | offset は 10,000 件まで、1 回の GET は 500 件 | 全件走査ができない | `$id` の keyset pagination。ポーラーは 1 周 100 件(上限 500)だけ読む |
-| レコードの楽観ロックは `revision` だけ | 条件付き更新がない | すべての更新に `revision` を付け、競合は `REVISION_CONFLICT` として fail-closed |
+| レコードの楽観ロックは `revision` だけ | 条件付き更新がない | 状態レコードの更新には `revision` を付け、競合は `REVISION_CONFLICT` として fail-closed |
 | 非 unique の文字列 `=` 検索はトークン一致 | `business_key = "x"` が部分一致しうる | 検索結果を JavaScript 側で厳密一致し直す |
 
 ## 4 アプリを「誰が書くか」で分ける
@@ -103,7 +103,7 @@ sequenceDiagram
   Note over L: lease_expires_at + 60 秒を過ぎると stale 候補
 ```
 
-- ロックは **リース(期限付き)** です。持ち主が heartbeat で延長し続け、止まれば期限切れになります。プロセスが kill されてもロックが永久に残らないためです
+- ロックは **リース(期限付き)** です。持ち主が heartbeat で延長し続け、止まれば期限切れになります。プロセスが kill されてもロックを永久に有効とは扱わず、lease 失効後に停止を確認して回収できるようにするためです
 - 更新はすべて `revision` 付きの楽観ロックで、書く直前に owner を再確認します。途中で他者が触っていれば `REVISION_CONFLICT` になります
 - `lease_expires_at` は分精度で保存されるので最大 59 秒切り捨てられます。stale 判定と強制解放の検査は **60 秒を足した保守的な値** で行います
 - `stale_candidate: true` は「期限が切れている」という事実だけで、持ち主が止まった証明ではありません。遅いだけの生きたプロセスからロックを奪うと二重実行になるので、強制解放には停止確認(PID・証拠・確認者)を必須にしています(#6)
