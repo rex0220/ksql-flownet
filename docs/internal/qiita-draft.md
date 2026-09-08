@@ -17,7 +17,7 @@
 - #2 [導入編: kintone とサーバーを 0 から運用開始まで](https://qiita.com/rex0220/items/2308e4ccf5a363680d31)
 - #3 [network 定義編: 既存の kSQL-Flow ジョブを DAG にする](https://qiita.com/rex0220/items/45f04c2748570953629b)
 - #4 [運用編: ボードから動かす](https://qiita.com/rex0220/items/45a086c83cb1dd992aeb)
-- #5 スケジュール連携編: cron と network の分担(予定)
+- #5 [スケジュール連携編: cron と network の分担](https://qiita.com/rex0220/items/b182371cfafea79af2da)
 - #6 障害対応編: 判定できないときに止まる設計(予定)
 - #7 CSV 入出力編: サーバー上の CSV を network で読む・書く(予定)
 - #8 設計編: 機械専用アプリと業務キーの一意性(予定)
