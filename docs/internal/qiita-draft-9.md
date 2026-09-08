@@ -1,5 +1,5 @@
 <!-- タイトル: 【kSQL-FlowNet #9】検証編: 実機 E2E とフォールト注入
-- 連載 #9(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31、#3: https://qiita.com/rex0220/items/45f04c2748570953629b、#4: https://qiita.com/rex0220/items/45a086c83cb1dd992aeb、#5: https://qiita.com/rex0220/items/b182371cfafea79af2da、#6〜#8: 未公開)
+- 連載 #9(#1: https://qiita.com/rex0220/items/24470d6223c1b4ed4031、#2: https://qiita.com/rex0220/items/2308e4ccf5a363680d31、#3: https://qiita.com/rex0220/items/45f04c2748570953629b、#4: https://qiita.com/rex0220/items/45a086c83cb1dd992aeb、#5: https://qiita.com/rex0220/items/b182371cfafea79af2da、#6: https://qiita.com/rex0220/items/32bd31431142e9f852cb、#7・#8: 未公開)
 - タグ案: kintone, テスト, E2E, 分散システム
 - 画像なし(mermaid とコードで構成)
 -->
@@ -250,4 +250,5 @@ node tests\e2e\p2-16-02-cancel-claim-race.mjs
 
 - tests/e2e/README.md(安全境界・実行順・受入対応表): https://github.com/rex0220/ksql-flownet/blob/v1.0.0/tests/e2e/README.md
 - fault-hook の実装: https://github.com/rex0220/ksql-flownet/blob/v1.0.0/tests/e2e/fault-hook-core.mjs
-- #6 障害対応編・#8 設計編: 公開後にリンク
+- #6 障害対応編: https://qiita.com/rex0220/items/32bd31431142e9f852cb
+- #8 設計編: 公開後にリンク

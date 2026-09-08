@@ -18,7 +18,7 @@
 - #3 [network 定義編: 既存の kSQL-Flow ジョブを DAG にする](https://qiita.com/rex0220/items/45f04c2748570953629b)
 - #4 [運用編: ボードから動かす](https://qiita.com/rex0220/items/45a086c83cb1dd992aeb)
 - #5 [スケジュール連携編: cron と network の分担](https://qiita.com/rex0220/items/b182371cfafea79af2da)
-- #6 障害対応編: 判定できないときに止まる設計(予定)
+- #6 [障害対応編: 判定できないときに止まる設計](https://qiita.com/rex0220/items/32bd31431142e9f852cb)
 - #7 CSV 入出力編: サーバー上の CSV を network で読む・書く(予定)
 - #8 設計編: 機械専用アプリと業務キーの一意性(予定)
 - #9 検証編: 実機 E2E とフォールト注入(予定)
