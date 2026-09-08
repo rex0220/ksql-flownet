@@ -20,7 +20,7 @@
 - #5 [スケジュール連携編: cron と network の分担](https://qiita.com/rex0220/items/b182371cfafea79af2da)
 - #6 [障害対応編: 判定できないときに止まる設計](https://qiita.com/rex0220/items/32bd31431142e9f852cb)
 - #7 [CSV 入出力編: サーバー上の CSV を network で読む・書く](https://qiita.com/rex0220/items/5c405c106e7c477eaed3)
-- #8 設計編: 機械専用アプリと業務キーの一意性(予定)
+- #8 [設計編: 機械専用アプリと業務キーの一意性](https://qiita.com/rex0220/items/b9186180f235b0cf4f00)
 - #9 検証編: 実機 E2E とフォールト注入(予定)
 - #10 AI 協働編: Codex が実装し Claude がレビューする開発(予定)
 
